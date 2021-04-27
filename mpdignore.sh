@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pldir="/var/lib/mpd/playlists"          # defines playlist directory; default = /var/lib/mpd/playlists
+#pldir="/var/lib/mpd/playlists"          # defines playlist directory; default = /var/lib/mpd/playlists
 watchfile=".mpdignore.m3u"		# defines the watched playlist; default = .mpdignore.m3u
 mpdconf="/etc/mpd.conf"			# defines mpd.conf location; default = /etc/mpd.conf
 mpduser="mpd"				# defines the user mpd service runs as; default = mpd
@@ -20,7 +20,15 @@ if [[ -f "$mpdconf" ]]			# defines the location of your mpd music directory; thi
    musicdir="/library/music"		# manually code the location if /etc/mpd.conf doesn't exist.
 fi
 
-#cd "$pldir"
+if [[ -f "$pldir" ]]			# defines the location of your mpd music directory; this is defined in the mpd.conf file found at /etc/mpd.conf by default
+ then
+   pldir="$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep playlist_directory)"
+   pldir="${pldir%*\"}"
+   pldir="${pldir#*\"}"
+   pldir="${pldir%/}"
+ else
+   pldir="/var/lib/mpd/playlists"		# manually code the location if /etc/mpd.conf doesn't exist.
+fi
 
 while read -r line
  do
