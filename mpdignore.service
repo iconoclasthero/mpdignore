@@ -1,0 +1,14 @@
+#mpdignore.service
+[Unit]
+Description=Creates and updates .mpdignore files in music directories when songs are added to /var/lib/mpd/playlists/.mpdignore.mp3 via mpd client.
+Requires=
+
+[Service]
+Type=oneshot
+# Set ExecStart to location of mpdigore.sh script, e.g., /usr/local/sbin/mpdignore.sh
+ExecStart=/usr/local/sbin/mpdignore.sh 
+
+[Install]
+Also=mpdignore.path
+
+
