@@ -1,0 +1,6 @@
+#mpdignore.path
+[Install]
+WantedBy=paths.target
+[Path] 
+PathChanged=/var/lib/mpd/playlists/.mpdignore.m3u 
+
