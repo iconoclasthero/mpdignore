@@ -24,7 +24,7 @@ if [[ -f "$mpdconf" ]]			# defines the location of your mpd playlist directory; 
    pldir="${pldir#*\"}"
    pldir="${pldir%/}"
  else
-   pldir="/var/lib/mpd/playlists"		# manually code the location if /etc/mpd.conf doesn't exist.
+   pldir="/var/lib/mpd/playlists"	# manually code the location if /etc/mpd.conf doesn't exist.
 fi
 
 if [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this is defined in the mpd.conf file found at /etc/mpd.conf by default
@@ -34,7 +34,7 @@ if [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this i
    mpdlog="${mpdlog#*\"}"
    mpdlog="${mpdlog%/}"
  else
-   mpdlog="/var/log/mpd/mpd.log"		# manually code the location if /etc/mpd.conf doesn't exist.
+   mpdlog="/var/log/mpd/mpd.log"	# manually code the location if /etc/mpd.conf doesn't exist.
 fi
 
 watchfile="$pldir/$watchfile"		# sets full path of watchfile
