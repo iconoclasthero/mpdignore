@@ -6,7 +6,7 @@ mpdconf="/etc/mpd.conf"
 logsong() {
    i=$(date '+%b %d %H:%M : player: skipped ')
    j=$(mpcp current -f %file%)
-   printf '%s\n' "$i\"$j\"" | cat >> "$mpdlog"
+   printf '%s\"%s\"\n' "$i" "$j" | cat >> "$mpdlog"
 }
 
 mpcp() {
