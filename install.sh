@@ -30,4 +30,5 @@ sed -i "s/Passwword123/$mpdpass/g" /usr/local/sbin/skip.sh
 sudo cp mpdignore.service /etc/systemd/system/
 sudo cp mpdignore.path /etc/systemd/system/
 sudo chown root:root /etc/systemd/system/mpdignore.path /etc/systemd/system/mpdignore.service 
+sudo systemctl daemon-reload
 sudo systemctl enable mpdignore.path && sudo systemctl start mpdignore.path && sudo systemctl status mpdignore.path
