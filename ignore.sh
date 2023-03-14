@@ -3,7 +3,7 @@ mpdconf=/etc/mpd.conf
 
 if [[ -f "$mpdconf" ]] # defines the location of mpd playlist directory; this is defined in the mpd.conf file found at /etc/mpd.conf by default
  then
-   pldir="$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep playlist_directory)"
+   pldir=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep playlist_directory)
    pldir="${pldir%*\"}"
    pldir="${pldir#*\"}"
    pldir="${pldir%/}"
