@@ -15,7 +15,7 @@ mpcp() {
 
 if [[ -f "$mpdconf" ]]	# defines the location of your mpd logfile path; this is defined in the mpd.conf file found at /etc/mpd.conf by default
  then
-   mpdlog="$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep log_file)"
+   mpdlog=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep log_file)
    mpdlog="${mpdlog%*\"}"
    mpdlog="${mpdlog#*\"}"
    mpdlog="${mpdlog%/}"
