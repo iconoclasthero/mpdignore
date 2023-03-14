@@ -6,7 +6,7 @@ function editscript(){ if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then (/usr/bin
 
 editscript "$1"
 
-#pldir="/var/lib/mpd/playlists"		# defines playlist directory; default = /var/lib/mpd/playlists
+#pldir="/var/lib/mpd/playlists"          # defines playlist directory; default = /var/lib/mpd/playlists
 watchfile=".mpdignore.m3u"		# defines the watched playlist; default = .mpdignore.m3u
 mpdconf="/etc/mpd.conf"			# defines mpd.conf location; default = /etc/mpd.conf
 mpduser="mpd"				# defines the user mpd service runs as; default = mpd
@@ -15,7 +15,7 @@ ignoredm3u="mpdignored.m3u"		# defines the playlist of songs ignored by mpdignor
 
 if [[ -f "$mpdconf" ]]			# defines the location of your mpd music directory; this is defined in the mpd.conf file found at /etc/mpd.conf by default
  then
-   musicdir=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep music_directory)
+   musicdir="$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep music_directory)"
    musicdir="${musicdir%*\"}"
    musicdir="${musicdir#*\"}"
    musicdir="${musicdir%/}"
@@ -25,7 +25,7 @@ fi
 
 if [[ -f "$mpdconf" ]]			# defines the location of your mpd playlist directory; this is defined in the mpd.conf file found at /etc/mpd.conf by default
  then
-   pldir=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep playlist_directory)
+   pldir="$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep playlist_directory)"
    pldir="${pldir%*\"}"
    pldir="${pldir#*\"}"
    pldir="${pldir%/}"
@@ -35,7 +35,7 @@ fi
 
 if [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this is defined in the mpd.conf file found at /etc/mpd.conf by default
  then
-   mpdlog=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep log_file)
+   mpdlog="$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep log_file)"
    mpdlog="${mpdlog%*\"}"
    mpdlog="${mpdlog#*\"}"
    mpdlog="${mpdlog%/}"
@@ -45,6 +45,9 @@ fi
 
 watchfile="$pldir/$watchfile"		# sets full path of watchfile
 ignoredm3u="$pldir/$ignoredm3u"		# sets full path of ignoredm3u
+
+
+printf "###############################################################entering while loop ################################################################"
 
 while read -r line
  do
@@ -67,10 +70,9 @@ while read -r line
   printf '%s\n' "$(date '+%b %d %H:%M : player: ignored ')\"$line\"" | cat >> "$mpdlog"
  done < "$watchfile"
 
-echo "#last run $(date)" >> "$ignoredm3u"
+echo "#last run `date`" >> "$ignoredm3u"
 
-: > "$watchfile"									# clears the watchfile after run
-
+> "$watchfile"										# clears the watchfile after run
 chmod g+w "$ignoredir"/.mpdignore "$ignoredm3u" "$watchfile"				# grants group access to the watchfile, ignoredm3u, and the created/updated .mpdignore file
 chown "$mpduser":"$mpdgroup" "$ignoredir"/.mpdignore "$ignoredm3u" "$watchfile"		# changes ownership of the above files to mpd and its goup (e.g., so the ignored playlist is readable by mpd)
 
