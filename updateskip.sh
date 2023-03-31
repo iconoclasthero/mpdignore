@@ -1,5 +1,7 @@
 #!/bin/bash
 
+mpdconf=/etc/mpd.conf
+
 scriptname=$(realpath "$0")
 
 function editscript(){ if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then (/usr/bin/nano "$scriptname"); exit; fi ; }
@@ -20,6 +22,6 @@ if [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this i
 fi
 
 sudo cp ~/bin/gits/mpdignore/skip.sh /usr/local/sbin/skip.sh
-sudo sed -i 's/Passwword123/"$mpdpass"/' /usr/local/sbin/skip.sh
+sudo sed -i "s/Passwword123/$mpdpass/" /usr/local/sbin/skip.sh
 sudo chown root:root /usr/local/sbin/skip.sh
 sudo chmod a+x skip.sh

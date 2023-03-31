@@ -1,0 +1,35 @@
+#!/bin/bash
+
+scriptname=$(realpath "$0")
+
+#function editscript(){ if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then (/usr/bin/nano "$scriptname"); exit; fi ; }
+function editscript(){
+  local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
+  if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then
+     if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
+     else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit; fi; 
+  fi; }
+
+function pause(){ read -p "$*" ; }
+
+editscript "$1"
+
+stats=/library/music/stats
+
+date >>"$stats"
+mpc stats >> "$stats"
+
+printf "\n\n" >> "$stats"
+
+printf ".flac files found in library:\t%s\t%s\n" "$(fd [.]flac$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]flac$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
+printf " .mp3 files found in library: \t" >>"$stats"
+printf "%s\t%s\n" "$(fd [.]mp3$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]mp3$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
+printf ".opus files found in library: \t" >>"$stats"
+printf "%s\t%s\n" "$(fd [.]opus$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]opus$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
+printf " .ogg files found in library: \t" >>"$stats"
+printf "%s\t%s\n" "$(fd [.]ogg$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]ogg$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
+printf " .mp4 files found in library: \t" >>"$stats"
+printf "%s\t%s\n" "$(fd [.]mp4$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]mp4$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
+
+printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' - >> "$stats"
+cat "$stats"
