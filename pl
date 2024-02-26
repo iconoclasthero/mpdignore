@@ -18,45 +18,34 @@ re=^[0-9]+$
 
 #echo "i=$i"
 
-ignore() {
-if [ -z "${i:+x}" ]
-   then
-      offset=10
-      echo "offset=$offset from first test"
-elif ! [[ "$i" =~ "$re" ]]
-   then
-      offset=10
-      echo "Input not a valid number between 1-100; using 10 by default." >&2
-elif [[ "$i" -le 100 ]] && [[ "$i" -gt 0 ]]
-   then
-      offset="$i"
-else
-      offset="10"
-      echo "Input not a valid number beterrn 1-100, using 10 by default."
-fi
+
+clarguments() {
+    if (("$#" == "0")); then
+	printf 'Scanning and removing songs after %s seconds.\n' "$duration"
+        printf 'Default number of steps is %s.\n' "$steps"
+    fi
+
+    while (( "$#" )); do
+      case "$1" in
+	-c) gum choose --no-limit "Playlist Position" "Song Title" "Artist" "Album Title" "Track Duration" > /tmp/pl.choice
+#        -t) case "$2" in
+#             ''|*[!0-9]*) ;;
+#             *) if (("$2" <=90)) && (("$2" > 0)); then duration="$2" ; printf 'Scanning and removing songs after %s seconds' "$duration"; else printf '\n' "Error:  value for duration must be between 0-90 seconds"; fi;;
+#            esac
+#            ;;
+#        -s) case "$2" in
+#             ''|*[!0-9]*) ;;
+#             *) if (("$2" > 0)) && (("$2" <= 60)); then steps="$2" ; printf '\nSetting steps to %s' "$steps" ; incr=$(( 100/steps )) ; else printf '%s\n' "Error:  value for number of steps must be between 1-60 steps" ; fi ;;
+#            esac
+#            ;;
+      esac
+      shift
+    done
+    printf '\n'
 }
 
-ignore2() {
-if [ -n "$i" ]
-   then
-#      if ! [[ "$i" =~ "$re" ]]
-      if ! [[ "$i" =~ ^[0-9]+$ ]]
-         then
-            offset=10
-            echo "Input not a number; using 10 by default." >&2
-#            echo "Input not a valid number between 1-100; using 10 by default." >&2
-      elif [[ "$i" -le 100 ]] && [[ "$i" -gt 0 ]]
-         then
-#            printf "i is 1<i<100"
-            offset="$i"
-      else
-            printf "Input not a valid number between 1-100; using 10 by default."
-      fi
-else
-   offset="10"
-#   echo "Nothing supplied; offset defaults is 10."
-fi
-}
+
+clarguments "$@"
 
 if [ -n "$i" ]
    then
@@ -65,22 +54,15 @@ if [ -n "$i" ]
          then
             offset=10
             echo "Input not a number; using 10 by default."
-#            echo "Input not a valid number between 1-100; using 10 by default." >&2
       elif [[ "$i" -le 100 ]] && [[ "$i" -gt 0 ]]
          then
-#            printf "i is 1<i<100"
             offset="$i"
       else
             printf "Input not a valid number between 1-100; using 10 by default."
       fi
 else
    offset="10"
-#   echo "Nothing supplied; offset defaults is 10."
 fi
-
-
-
-
 
 
 current="$(/usr/bin/mpc current)"
@@ -93,15 +75,12 @@ tailoffset="$offset"
 mpc current -f "\n%title% on %album% by %artist%" && mpc
 printf "\n"
 
-if [[ $(("$plpos" - "$offset")) -le 0 ]]; then tailoffset="$plpos"; printf "%s<< Start of Playlist >>%s\n" "$bold" "$normal"; 
+if [[ $(("$plpos" - "$offset")) -le 0 ]]
+  then tailoffset="$plpos"
+  printf "%s<< Start of Playlist >>%s\n" "$bold" "$normal"
 fi
 
-#mpc playlist | head -$(("$plpos" -1)) |tail +$(("$plpos" - "$tailoffset"))
-#printf "%s(%s) %s%s\n" "$bold" "$plpos" "$current" "$normal" # "$(mpc current -f %file%)"
-##mpc current -f %file%
-#mpc playlist | head -$(("$plpos" + "$offset"))|tail +$(("$plpos" +1))
-
-mpc playlist -f '%position% %title% by %artist%' | grep --color=auto -C"$offset" -Fx "$(mpc current -f '%position% %title% by %artist%')"
+mpc playlist -f '%position% %title% by %artist%' | grep --color=always -C"$offset" -Fx "$(mpc current -f '%position% %title% by %artist%')"
 
 plnext="$(/usr/bin/mpc queued -f %position%)"
 printf "\n%sNext up: %s" "$bold" "$normal"
