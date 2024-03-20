@@ -1,0 +1,30 @@
+#!/bin/bash
+mpdconf=/etc/mpd.conf
+host=192.168.1.2
+port=6600
+
+scriptname=$(realpath "$0" 2>/dev/null)
+
+function editscript(){
+  local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
+     if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
+     else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit;
+  fi; }
+
+function pause(){ read -p "$*" ; }
+
+if [[ "$1" == @(edit|e|nano) ]]; then editscript; fi
+
+
+if [[ -f "$mpdconf" ]]          # defines mpd command password; this is defined in the mpd.conf file fou>
+ then
+   mpdpass="$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep password | grep control | head -n 1)"
+   mpdpass="${mpdpass%*\"}"
+   mpdpass="${mpdpass#*\"}"
+   mpdpass="${mpdpass%\@*}"
+ else
+   read -p "What is the mpd controll password?" mpdpass
+#   mpdpass="Passwword123"      # manually code the location if /etc/mpd.conf doesn't exist.
+fi
+
+mpc -h "mpdpass@$host" vol -5
