@@ -1,4 +1,0 @@
-grep pattern /var/log/mpd/mpd.log > x.log
-
-while read -r line ; do if [[ $line =~ played ]]; then line="${line#*\"}"; printf "%s\n" "${line%\"}" ; fi ; done < x.log | add
-
