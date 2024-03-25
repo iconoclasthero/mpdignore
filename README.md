@@ -20,11 +20,11 @@ The rest of the shit in this repo is just stuff I don't really have a better pla
 
 | file 	| description 	|
 |---- |----------------------  |
-| +5 	| Increase volume by 5% 	|
-| -5  | Decrease vol 5%  |
-| ignore  | symlink to `ignore.sh`  |
-| ignore.sh  | ignores the current song; logs to `$mpdlog`  |
-| install.sh~              |Do not use, u-x removed.
+| +5			| Increase volume by 5%  |
+| -5			| Decrease volume by 5%  |
+| ignore		| symlink to `ignore.sh`  |
+| ignore.sh		| ignores the current song; logs to `$mpdlog`  |
+| install.sh~           |Do not use, u-x removed.
 | list.mpdignores          |list all entries from .mpdignore files in the library
 | mpdignore.functions      |shared functions and variable definitions for mpdignore
 | mpdignore.nfo            |an original .nfo file for how this shit was designed so i can refer back to it
