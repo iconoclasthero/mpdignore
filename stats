@@ -13,6 +13,9 @@ function editscript(){
 function pause(){ read -p "$*" ; }
 
 editscript "$1"
+. mpdignore.functions
+
+getmpdmusicdir
 
 stats=/library/music/stats
 
@@ -21,15 +24,21 @@ mpc stats >> "$stats"
 
 printf "\n\n" >> "$stats"
 
-printf ".flac files found in library:\t%s\t%s\n" "$(fd [.]flac$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]flac$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
-printf " .mp3 files found in library: \t" >>"$stats"
-printf "%s\t%s\n" "$(fd [.]mp3$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]mp3$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
-printf ".opus files found in library: \t" >>"$stats"
-printf "%s\t%s\n" "$(fd [.]opus$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]opus$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
-printf " .ogg files found in library: \t" >>"$stats"
-printf "%s\t%s\n" "$(fd [.]ogg$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]ogg$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
-printf " .mp4 files found in library: \t" >>"$stats"
-printf "%s\t%s\n" "$(fd [.]mp4$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]mp4$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
+#flac files
+for i in flac mp3 opus ogg mp4
+  do
+    findext="$i"
+    #printf ".flac files found in library:\t%s\t%s\n" "$(fd [.]flac$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]flac$ |\du -bch --files0-from=- | awk 'END {print $1}')" >> "$stats"
+    printf '.%s files found in library:\t%s\t%s\n' "$findext" "$(find "$musicdir" -iname "*.$findext" -type f|wc -l)" "$(find "$musicdir" -iname "*.$findext" -print0 -type f|\du -bch --files0-from=- | awk 'END {print $1}')" >> "$stats"
+  done
+#printf " .mp3 files found in library: \t" >>"$stats"
+#printf "%s\t%s\n" "$(fd [.]mp3$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]mp3$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
+#printf ".opus files found in library: \t" >>"$stats"
+#printf "%s\t%s\n" "$(fd [.]opus$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]opus$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
+#printf " .ogg files found in library: \t" >>"$stats"
+#printf "%s\t%s\n" "$(fd [.]ogg$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]ogg$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
+#printf " .mp4 files found in library: \t" >>"$stats"
+#printf "%s\t%s\n" "$(fd [.]mp4$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]mp4$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
 
-printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' - >> "$stats"
+#printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' - >> "$stats"
 cat "$stats"
