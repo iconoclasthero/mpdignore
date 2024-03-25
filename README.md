@@ -42,5 +42,5 @@ The rest of the shit in this repo is just stuff I don't really have a better pla
 
 
 
-# fuck markdown why wont this shit just fucking format the way it shows up here.
+# fuck markdown why wont this shit just fucking format the way it fucking shows up here.
 
