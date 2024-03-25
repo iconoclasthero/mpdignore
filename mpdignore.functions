@@ -78,7 +78,8 @@ logsong() {
 }
 
 mpcp() {
-    command mpc -P seven314 "$@"
+    [[ ! -n "$mpdpass" ]] && getmpdpass
+    command mpc -P "$mpdpass" "$@"
 }
 
 
