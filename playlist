@@ -50,7 +50,8 @@ if [[ "$1" == -a ]] || [[ "$1" == -A ]]; then
 #exit
       i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"-"$lines"/10-1)) --header="${playlistarray[0]}" --header.padding="0 2")
       selection="$i"; i="${i%%\)*}"; i="${i#*\(}"
-      $(confirm "Play $selection, Y/n? ") && \mpc ${REMOTE:-} play "$i"
+#      $(confirm "Play $selection, Y/n? ") && \mpc ${REMOTE:-} play "$i"
+      $(pause "Play $selection, Y/n? ") && \mpc ${REMOTE:-} play "$i"
     else
       \mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|column --table -s "~" -o " | " -C name=\(POS\) -C name=Title
    fi

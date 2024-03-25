@@ -1,15 +1,10 @@
 #!/bin/bash
 mpdconf=/etc/mpd.conf
 
-if [[ -f "$mpdconf" ]] # defines the location of mpd playlist directory; this is defined in the mpd.conf file found at /etc/mpd.conf by default
- then
-   pldir=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep playlist_directory)
-   pldir="${pldir%*\"}"
-   pldir="${pldir#*\"}"
-   pldir="${pldir%/}"
- else
-   pldir="/var/lib/mpd/playlists"  # manually code the location if /etc/mpd.conf doesn't exist.
-fi
+. mpdignore.functions
+
+getmpdpldir
+getmpdconf
 
 printf "Ignoring current song: "
 mpc -f %file%
