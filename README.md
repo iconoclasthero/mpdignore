@@ -5,6 +5,11 @@ When the user choses to ignore the current mpd recording (mpd may be playing or 
 mpdignore is designed so that mpdignore.path monitors the first playlist, i.e., `/path/to/mpd/playlists/.mpdignore.m3u` by default.  When song paths are added to this playlist (e.g., by calling `$ ignore` while mpd is playing a reviled song), mpdignore.service scrapes this file, does the ignoring, and empties the playlist (as such, .mpdignore.m3u should normally be empty if the mpdignore working properly).  You have the option to skip the currently-playing song.  
 
 #### NB: *This is set up to log to /var/log/mpd/mpd.log (or the log file in mpd.conf) without locking the log.  Max Kellerman/cirrus, #mpd, was quite insistent that touching "his" log file was a problem, especially w/o a lock—though of course he offered no substantive or constructive advice on how to address.  I haven't had an issue in several years — also it's a fucking mpd log file so who really fucking cares if it's corrupted—I don't; YMMV and you're totally on your own here.*
+Logging example, line 1 comes from mpd, line 2 comes from skip.sh in this repo: 
+```
+Mar 25 11:46 : player: played "B.B. King/B.B. King -- King of the Blues (1992) (mp3)/B.B. King -- 03-08 - Niji Baby.mp3"
+Mar 25 11:48 : player: skipped "Van Morrison/Van Morrison, Lonnie Donegan & Chris Barber -- The Skiffle Sessions: Live in Belfast (2000)/Van Morrison, Lonnie Donegan & Chris Barber -- 03 - Goin' Home.flac"
+```
 
 The second playlist, `/path/to/mpd/playlists/mpdgnored.m3u` keeps a running list of all such reviled songs that have been ignored so that one could e.g., use the playlist to torture your favorite Panamanian dictator ousted by your favorite American imperialist president—or you could just go back and check to see what files you've ignored in the event you wish to e.g., verify what's been added.  (It's a feature I've NEVER used despite thinking I might.)
 
