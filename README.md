@@ -32,7 +32,8 @@ The rest of the shit in this repo is just stuff I don't really have a better pla
 | mpdignore.service        |systemd service file that calls mpdignore.sh when watchpath playlist is modified
 | mpdignore.sh             |the script that does the actual processing of the song to ignore it, create `.mpdignore`, log, etc.
 | mpdignore.sh~            |a backup copy of the above
-| playlist                 |a playlist script that does some shit...and will eventually be able to ignore non-playing files.
+| played                   |this pulls from `$mpdlog` to display what's played.  **requires gum choose.**
+| playlist                 |a playlist script that does some shit...and will eventually be able to ignore non-playing files. **requires gum choose.**
 | playlist~                |a backup copy of the above
 | README.md                |< duh >
 | skip                     |symlink to `skip.sh`
