@@ -1,0 +1,85 @@
+#!/bin/bash
+
+#usermpdpw=  #manually define mpd password here
+#usermpdmd=  #maunally define mpd music directory here
+#usermpdpd=  #manually define mpd playlist directory here
+#usermpdlf=  #manually define mpd logfile path here
+
+watchfile=".mpdignore.m3u"              # defines the watched playlist; default = .mpdignore.m3u
+mpdconf="/etc/mpd.conf"                 # defines mpd.conf location; default = /etc/mpd.conf
+mpduser="mpd"                           # defines the user mpd service runs as; default = mpd
+mpdgroup="media"                        # defines the group mpd service runs as; default = media
+ignoredm3u="mpdignored.m3u"             # defines the playlist of songs ignored by mpdignore; default = mpdignored.m3u
+
+editscript(){
+  local scriptname script path swp; scriptname=$(realpath "$0" 2>/dev/null); script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptname") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit ;}
+
+getmpdconf(){
+mpdconf="$(grep MPDCONF /etc/default/mpd)"
+mpdconf="${mpdconf#*=}"
+}
+
+getmpdpass(){
+if [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this is defined in the mpd.conf file found at /etc/mpd.conf by default
+ then
+   mpdpass="$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep password | grep control | head -n 1)"
+   mpdpass="${mpdpass%*\"}"
+   mpdpass="${mpdpass#*\"}"
+   mpdpass="${mpdpass%\@*}"
+ else
+#   read -p "What is the mpd controll password?" mpdpass
+   mpdpass="$usermpdpw"		# manually code the location if /etc/mpd.conf doesn't exist.
+fi
+}
+
+getmpdmusicdir(){
+if [[ -f "$mpdconf" ]]                  # defines the location of your mpd music directory; this is defi>
+ then
+   musicdir=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep music_directory)
+   musicdir="${musicdir%*\"}"
+   musicdir="${musicdir#*\"}"
+   musicdir="${musicdir%/}"
+ else
+   musicdir="$usermpdmd"            # manually code the location if /etc/mpd.conf doesn't exist.
+fi
+}
+
+getmpdpldir(){
+if [[ -f "$mpdconf" ]] # defines the location of mpd playlist directory; this is defined in the mpd.conf>
+ then
+   pldir=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep playlist_directory)
+   pldir="${pldir%*\"}"
+   pldir="${pldir#*\"}"
+   pldir="${pldir%/}"
+ else
+   pldir="$usermpdpd"  # manually code the location if /etc/mpd.conf doesn't exist.
+fi
+}
+
+
+getmpdlog() {
+if [[ -f "$mpdconf" ]]                  # defines the location of your mpd logfile path; this is defined>
+ then
+   mpdlog=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep log_file)
+   mpdlog="${mpdlog%*\"}"
+   mpdlog="${mpdlog#*\"}"
+   mpdlog="${mpdlog%/}"
+ else
+   mpdlog="$usermpdlf"        # manually code the location if /etc/mpd.conf doesn't exist.
+fi
+}
+
+logsong() {
+   i=$(date "+%b %d %H:%M : player: $1 ")
+   j=$(mpcp current -f %file%)
+   printf '%s\"%s\"\n' "$i" "$j" | cat >> "$mpdlog"
+}
+
+mpcp() {
+    command mpc -P seven314 "$@"
+}
+
+
+[[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript

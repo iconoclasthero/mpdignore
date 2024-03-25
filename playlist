@@ -27,50 +27,35 @@ confirm() {
     fi
 }
 
-
-
 remotefn() {
 [[ "$(uname -n)" != "$servername" ]] && REMOTE="-h $server"
 }
 
 remotefn
 
-if [[ "$1" == @(edit|e|nano) ]]; then editscript; fi
-
 echo
-if [[ "$1" == -a ]] || [[ "$1" == -A ]]; then
-  if [[ -n "$2" ]]
+
+if [[ "$1" == @(edit|e|nano) ]]
+  then
+   editscript
+#elif [[ "$1" == -a ]] || [[ "$1" == -A ]] && [[ -n "$2" ]]
+elif [[ -n "$1" ]]
     then
-      query="${*:2}"; printf 'Searching for "%s"...\n\n' "$query"
-#      readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|column --table -s "~" -o " | " -C name=\(POS\) -C name=file |grep -i --color=always "${*:2}")
-      readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|grep -i --color=always "${*:2}"|column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
+#      query="${*:2}"; printf 'Searching for "%s"...\n\n' "$query"
+      query="${*}"; printf 'Searching for "%s"...\n\n' "$query"
+      readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|grep -i --color=always "$query"|column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
       n="${#playlistarray[@]}"
-#      lines=$(tput lines 2>&1 /dev/null) || lines=$(tput -T xterm-256color lines)
       echo $(("$lines"-"$lines"/10-1))
-#exit
       i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"-"$lines"/10-1)) --header="${playlistarray[0]}" --header.padding="0 2")
       selection="$i"; i="${i%%\)*}"; i="${i#*\(}"
-#      $(confirm "Play $selection, Y/n? ") && \mpc ${REMOTE:-} play "$i"
       $(pause "Play $selection, Y/n? ") && \mpc ${REMOTE:-} play "$i"
-    else
-      \mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|column --table -s "~" -o " | " -C name=\(POS\) -C name=Title
-   fi
-elif [[ "$1" == -nq ]]; then
-  clear -x
-  mpc current -f "%file%\n%title% on %album% by %artist%" ; mpc queued -f "Up next: %file%"; mpc
-  #lines=$(tput lines)
-lines=$(tput lines 2>&1 /dev/null) || lines=$(tput -T xterm-256color lines)
-  echo "$lines"
-  readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%artist%~%album%~\(%track%\)~%title%~\(%time%\)| { printf '(-POS-)~Artist~Album~(#)~Title~(mm:ss)\n' ; \grep \($(\mpc ${REMOTE:-} queued  -f %position%)\) -m1 -C$(("$lines"/3)) ; } | column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% queued).*")
-  n="${#playlistarray[@]}"
-  i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"/1)) --header="${playlistarray[0]}" --header.padding="0 2")
-  i="${i%%)*}"
-  i="${i#(}"
-  mpc ${REMOTE:-} -P $MPDPASS play "$i"
+#    else
+#      \mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|column --table -s "~" -o " | " -C name=\(POS\) -C name=Title
+#   fi
 else
   clear -x
-#  lines=$(tput lines)
-lines=$(tput lines 2>&1 /dev/null) || lines=$(tput -T xterm-256color lines)
+  mpc current -f "%file%\n%title% on %album% by %artist%" ; mpc queued -f "Up next: %file%"; mpc
+  lines=$(tput lines 2>&1 /dev/null) || lines=$(tput -T xterm-256color lines)
   echo "$lines"
   readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%artist%~%album%~\(%track%\)~%title%~\(%time%\)| { printf '(-POS-)~Artist~Album~(#)~Title~(mm:ss)\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; } | column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% current).*")
   n="${#playlistarray[@]}"
