@@ -17,3 +17,31 @@ The second playlist, `/path/to/mpd/playlists/mpdgnored.m3u` keeps a running list
 
 
 The rest of the shit in this repo is just stuff I don't really have a better place for and they're all mpd related.  Someday I'll probably _never_ get around to organizing it better since I'm outta fucks to give...
+
+| file 	| description 	|
+|---- |----------------------  |
+| +5 	| Increase volume by 5% 	|
+| -5  | Decrease vol 5%  |
+| ignore  | symlink to `ignore.sh`  |
+| ignore.sh  | ignores the current song; logs to `$mpdlog`  |
+| install.sh~              |Do not use, u-x removed.
+| list.mpdignores          |list all entries from .mpdignore files in the library
+| mpdignore.functions      |shared functions and variable definitions for mpdignore
+| mpdignore.nfo            |an original .nfo file for how this shit was designed so i can refer back to it
+| mpdignore.path           |systemd path file to watch the watchpath playlist (e.g., `/library/music/mpd playlists/.mpdignore.m3u`)
+| mpdignore.service        |systemd service file that calls mpdignore.sh when watchpath playlist is modified
+| mpdignore.sh             |the script that does the actual processing of the song to ignore it, create `.mpdignore`, log, etc.
+| mpdignore.sh~            |a backup copy of the above
+| playlist                 |a playlist script that does some shit...and will eventually be able to ignore non-playing files.
+| playlist~                |a backup copy of the above
+| README.md                |< duh >
+| skip                     |symlink to `skip.sh`
+| skip.sh                  |the script to do the skipping and log it to `$mpdlog`
+| 'snippet: add missed'    |no fucking clue what this is
+| stats                    |record current stats for `$musicdir`
+| updateskip.sh            |DO NOT USE until fixed, u-x removed:  this is supposed to update a hard-coded password into skip.sh from `$mpdconf`
+
+
+
+# fuck markdown why wont this shit just fucking format the way it fucking shows up here.
+
