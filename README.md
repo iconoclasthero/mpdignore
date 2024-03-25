@@ -1,8 +1,8 @@
 # mpdignore
-This is a repository of mpd-related scripts that started as system service to ignore reviled or otherwise unwated songs (e.g., the 53 live/bootleg copies of `Grateful Dead -- * - *Space*flac` in my collection) by creating a [.mpdignore file](https://mpd.readthedocs.io/en/latest/user.html#the-music-directory-and-the-database:~:text=mpdignore) in the song's directory (e.g., `/library/music/artist/album (YYYY)` if so organized) so that mpd won't ever force you to listen to it again.  (MPD removes it from it's library but leaves the file alone so if you want to listen to a _complete_ Grateful Dead bootleg _with_ "Space" wtih VLC because you're so fucking baked it seems like a good idea, you ostensibly could.)
+This is a repository of mpd-related scripts that started as system service to ignore reviled or otherwise unwated songs (e.g., the 53 live/bootleg copies of `Grateful Dead -- * - *Space*flac` in my collection) by creating a [`.mpdignore` file](https://mpd.readthedocs.io/en/latest/user.html#the-music-directory-and-the-database:~:text=mpdignore) in the song's directory (e.g., `/library/music/artist/album (YYYY)` if so organized) so that mpd won't ever force you to listen to it again.  (MPD removes it from it's library but leaves the file alone so if you want to listen to a _complete_ Grateful Dead bootleg _with_ "Space" wtih VLC because you're so fucking baked it seems like a good idea, you ostensibly could.)
 
 ### Depends:
-Most of the core mpdignore scripts use GNU shit that should be packaged with linux. The playlist, played, etc., scripts that interact with mpd require `gum` from https://github.com/charmbracelet/gum.
+Most of the core mpdignore scripts use GNU shit that should be packaged with linux. The playlist, played, etc., scripts that interact with mpd require [`gum`](https://github.com/charmbracelet/gum).
 If there are other things necessary, they'll eventually show up here.
 
 When the user choses to ignore the current mpd recording (mpd may be playing or paused) by `$ ignore` the the song path is recorded to a playlist: `mpc current -f %file% >> "$pldir"/.mpdignore.m3u` .
