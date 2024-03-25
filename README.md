@@ -19,8 +19,6 @@ The second playlist, `/path/to/mpd/playlists/mpdgnored.m3u` keeps a running list
 The rest of the shit in this repo is just stuff I don't really have a better place for and they're all mpd related.  Someday I'll probably _never_ get around to organizing it better since I'm outta fucks to give...
 
 
-
-
 +5                       Increase vol 5%
 -5                       Decrease vol 5%
 ignore                   symlink to `ignore.sh`
