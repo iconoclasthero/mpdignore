@@ -38,7 +38,6 @@ The rest of the shit in this repo is just stuff I don't really have a better pla
 | README.md                |< duh >
 | skip                     |symlink to `skip.sh`
 | skip.sh                  |the script to do the skipping and log it to `$mpdlog`
-| 'snippet: add missed'    |no fucking clue what this is
 | stats                    |record current stats for `$musicdir`
 | updateskip.sh            |DO NOT USE until fixed, u-x removed:  this is supposed to update a hard-coded password into skip.sh from `$mpdconf`
 
