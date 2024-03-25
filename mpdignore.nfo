@@ -1,3 +1,6 @@
+##Mon Mar 25 02:56:55 PM EDT 2024 NB: I have no idea when this was written or how accurate it still is.  A lot of this is generally still applicable as an outline for how this was designed.
+#beyond that, I'm not sure how much of this is relevant.
+
 First, place mpdignore.sh in /usr/local/sbin
 
 mpdignore.sh:
