@@ -41,4 +41,7 @@ for i in flac mp3 opus ogg mp4
 #printf "%s\t%s\n" "$(fd [.]mp4$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]mp4$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
 
 #printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' - >> "$stats"
+
+[[ "$1" == --duration* ]] && mediaduration >> "$stats"
+
 cat "$stats"

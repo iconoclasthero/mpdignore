@@ -10,13 +10,17 @@ getmpdmusicdir
 [[ -n "$mpdconf" ]] && echo "mpd.conf is $mpdconf" || exit
 [[ -n "$musicdir" ]] && echo "music dir is $musicdir" || exit
 
-while read -r line
+while read -r ignoredir
  do
-  ignoredir="${line%.mpdignore}"
   while read -r ignored
     do
-      [[ "$ignored" != \#* ]] && printf '%s%s\n' "$ignoredir" "$ignored"
-    done < <(cat "$line")
- done < <(find "$musicdir" -name .mpdignore) | sort |uniq
+      [[ "$ignored" != \#* ]] &&
+      printf '%s/%s\n' "$ignoredir" "$ignored"
+    done < "$ignoredir/.mpdignore"
+ done < <(
+	find "$musicdir" -name .mpdignore -printf "%h\n"
+	) |
+        sort |
+	uniq
 
 #while read -r line; do echo "$line"; done < <(find "$musicdir" -name .mpdignore)
