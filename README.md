@@ -3,6 +3,8 @@
 **NB: I really don't think anyone should be using this as-is, but if it helps inspire someone, great.  
 If you put together something better than what I have, please let me know.**
 
+There is a python fork of this project at https://github.com/bonelifer/mpdignore.  I'm probably going to continue to use these so they'll continue to be _"developed"_ such as they are...
+
 This is a repository of mpd-related scripts that started as system service to ignore reviled or otherwise unwated songs (e.g., the 53 live/bootleg copies of `Grateful Dead -- * - *Space*flac` in my collection) by creating a [`.mpdignore` file](https://mpd.readthedocs.io/en/latest/user.html#the-music-directory-and-the-database:~:text=mpdignore) in the song's directory (e.g., `/library/music/artist/album (YYYY)` if so organized) so that mpd won't ever force you to listen to it again.  (MPD removes it from it's library but leaves the file alone so if you want to listen to a _complete_ Grateful Dead bootleg _with_ "Space" wtih VLC because you're so fucking baked it seems like a good idea, you ostensibly could.)
 
 ### Depends:
