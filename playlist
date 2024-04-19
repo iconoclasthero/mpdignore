@@ -50,12 +50,12 @@ elif [[ "$1" == -a ]] || [[ "$1" == -A ]]
       if $(pause "Play all matches Y/n? ")
         then
       readarray -t queuearray < <(mpc ${REMOTE:-} listall|grep -i --color=never "$query")
-      start=$(($(mpc status %length%)+1))
+      start=$(($(mpc ${REMOTE:-} status %length%)+1))
       for i in "${queuearray[@]}"
         do
           mpc ${REMOTE:-} add "$i"
         done
-      mpc play "$start"
+      mpc ${REMOTE:-} play "$start"
       fi
 elif [[ -n "$1" ]]
     then
@@ -72,7 +72,7 @@ elif [[ -n "$1" ]]
 #   fi
 else
   clear -x
-  mpc current -f "%file%\n%title% on %album% by %artist%" ; mpc queued -f "Up next: %file%"; mpc
+  mpc ${REMOTE:-} current -f "%file%\n%title% on %album% by %artist%" ; mpc ${REMOTE:-} queued -f "Up next: %file%"; mpc ${REMOTE:-}
   lines=$(tput lines 2>&1 /dev/null) || lines=$(tput -T xterm-256color lines)
   echo "$lines"
   readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%artist%~%album%~\(%track%\)~%title%~\(%time%\)|
@@ -82,7 +82,7 @@ else
   i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"/1)) --header="${playlistarray[0]}" --header.padding="0 2")
   i="${i%%)*}"
   i="${i#(}"
-  mpc ${REMOTE:-} -P $MPDPASS play "$i"
+  mpc ${REMOTE:-} play "$i"
 fi
 
 exit
