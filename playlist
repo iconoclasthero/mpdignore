@@ -61,7 +61,11 @@ elif [[ -n "$1" ]]
     then
       query="${*}"
       printf 'Searching for "%s"...\n\n' "$query"
-      readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|grep -i --color=always "$query"|column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
+      readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|
+        grep -i --color=always "$query"|
+        column --table -s "~" -o " | " -N \(POS\),file)
+#        column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
+
       n="${#playlistarray[@]}"
       echo $(("$lines"-"$lines"/10-1))
       i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"-"$lines"/10-1)) --header="${playlistarray[0]}" --header.padding="0 2")
