@@ -87,10 +87,10 @@ while read -r line
 
 echo "#last run $(date)" >> "$ignoredpath"
 
-: > "$watchpath"									# clears the watchfile after run
+#: > "$watchpath"									# clears the watchfile after run
+#
+#chmod g+w "$ignoredir"/.mpdignore "$ignoredpath" "$watchpath"				# grants group access to the watchfile, ignoredm3u, and the created/updated .mpdignore file
+#chown "$mpduser":"$mpdgroup" "$ignoredir"/.mpdignore "$ignoredpath" "$watchpath"		# changes ownership of the above files to mpd and its goup (e.g., so the ignored playlist is readable by mpd)
 
-chmod g+w "$ignoredir"/.mpdignore "$ignoredpath" "$watchpath"				# grants group access to the watchfile, ignoredm3u, and the created/updated .mpdignore file
-chown "$mpduser":"$mpdgroup" "$ignoredir"/.mpdignore "$ignoredpath" "$watchpath"		# changes ownership of the above files to mpd and its goup (e.g., so the ignored playlist is readable by mpd)
-
-
+rm "$watchpath"
 

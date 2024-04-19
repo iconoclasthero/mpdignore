@@ -11,7 +11,7 @@ function editscript(){
 function pause(){ read -p "$*" ; }
 
 if [[ "$1" == @(edit|e|nano) ]]; then editscript; fi
-
+clear -x
 artist="$(mpc current -f %artist%)"
 album="$(mpc current -f %album%)"
 title="$(mpc current -f %title%)"
@@ -34,7 +34,7 @@ while read -r line
 #    printf '%s\n' "$i"
     playedarr["$n"]="$i"
     ((n++))
-  done < <(tail -100 /var/log/mpd/mpd.log|\grep player)
+  done < <(\grep player /var/log/mpd/mpd.log|tail -n 120)
 
 j=$(gum choose --height 40 "${playedarr[@]}") || exit
 j="${j%\"*}"
