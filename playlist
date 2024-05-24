@@ -69,18 +69,27 @@ elif [[ "$1" == -a ]] || [[ "$1" == -A ]]
       if $(pause "Play all matches Y/n? ")
         then
       readarray -t queuearray < <(mpc ${REMOTE:-} listall|grep -i --color=never "$query")
-      start=$(($(mpc status %length%)+1))
+      start=$(($(mpc ${REMOTE:-} status %length%)+1))
       for i in "${queuearray[@]}"
         do
           mpc ${REMOTE:-} add "$i"
         done
-      mpc play "$start"
+      mpc ${REMOTE:-} play "$start"
       fi
 elif [[ -n "$1" ]]
     then
       query="${*}"
+<<<<<<< HEAD
       printf 'Searching for "%s"...\n' "$query"
       readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|grep -i --color=always "$query"|column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
+=======
+      printf 'Searching for "%s"...\n\n' "$query"
+      readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|
+        grep -i --color=always "$query"|
+        column --table -s "~" -o " | " -N \(POS\),file)
+#        column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
+
+>>>>>>> e560171fc07c62bd77376fbe6df95bf55d6f570a
       n="${#playlistarray[@]}"
 #      printf '$(("$lines"-"$lines"/10-1))=%s' "$(("$lines"-"$lines"/10-1))"
       printf 'Lines: %s; Hits: %s\n\n' "$(("$lines"-"$lines"/10-1))" "$n"
@@ -93,8 +102,12 @@ elif [[ -n "$1" ]]
 #   fi
 else
   clear -x
+<<<<<<< HEAD
 #  mpc current -f "%file%\n%title% on %album% by %artist%" ; mpc queued -f "Up next: %file%"; mpc
   title
+=======
+  mpc ${REMOTE:-} current -f "%file%\n%title% on %album% by %artist%" ; mpc ${REMOTE:-} queued -f "Up next: %file%"; mpc ${REMOTE:-}
+>>>>>>> e560171fc07c62bd77376fbe6df95bf55d6f570a
   lines=$(tput lines 2>&1 /dev/null) || lines=$(tput -T xterm-256color lines)
   readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%artist%~%album%~\(%track%\)~%title%~\(%time%\)|
       { printf '(-POS-)~Artist~Album~(#)~Title~(mm:ss)\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; } |
@@ -104,7 +117,7 @@ else
   i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"/1)) --header="${playlistarray[0]}" --header.padding="0 2")
   i="${i%%)*}"
   i="${i#(}"
-  mpc ${REMOTE:-} -P $MPDPASS play "$i"
+  mpc ${REMOTE:-} play "$i"
 fi
 
 exit
