@@ -79,17 +79,12 @@ elif [[ "$1" == -a ]] || [[ "$1" == -A ]]
 elif [[ -n "$1" ]]
     then
       query="${*}"
-<<<<<<< HEAD
-      printf 'Searching for "%s"...\n' "$query"
-      readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|grep -i --color=always "$query"|column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
-=======
-      printf 'Searching for "%s"...\n\n' "$query"
+
       readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|
         grep -i --color=always "$query"|
         column --table -s "~" -o " | " -N \(POS\),file)
 #        column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
 
->>>>>>> e560171fc07c62bd77376fbe6df95bf55d6f570a
       n="${#playlistarray[@]}"
 #      printf '$(("$lines"-"$lines"/10-1))=%s' "$(("$lines"-"$lines"/10-1))"
       printf 'Lines: %s; Hits: %s\n\n' "$(("$lines"-"$lines"/10-1))" "$n"
@@ -102,12 +97,8 @@ elif [[ -n "$1" ]]
 #   fi
 else
   clear -x
-<<<<<<< HEAD
-#  mpc current -f "%file%\n%title% on %album% by %artist%" ; mpc queued -f "Up next: %file%"; mpc
-  title
-=======
+#  title
   mpc ${REMOTE:-} current -f "%file%\n%title% on %album% by %artist%" ; mpc ${REMOTE:-} queued -f "Up next: %file%"; mpc ${REMOTE:-}
->>>>>>> e560171fc07c62bd77376fbe6df95bf55d6f570a
   lines=$(tput lines 2>&1 /dev/null) || lines=$(tput -T xterm-256color lines)
   readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%artist%~%album%~\(%track%\)~%title%~\(%time%\)|
       { printf '(-POS-)~Artist~Album~(#)~Title~(mm:ss)\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; } |
