@@ -2,16 +2,15 @@
 musicdir=/library/music
 scriptname=$(realpath "$0" 2>/dev/null)
 
-function editscript(){
+editscript(){
   local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
      if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
      else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit;
   fi; }
 
-function pause(){ read -p "$*" ; }
+pause(){ read -p "$*" ; }
 
-if [[ "$1" == @(edit|e|nano) ]]; then editscript; fi
-clear -x
+title(){
 artist="$(mpc current -f %artist%)"
 album="$(mpc current -f %album%)"
 title="$(mpc current -f %title%)"
@@ -23,8 +22,13 @@ mpc current -f "%file%"|awk -F / -v OFS=/ '{$1="\033[1;33m" $1 "\033[0m"; $NF="\
 printf '\n'
 mpc queued -f "%file%"|awk -F / -v OFS=/ '{$1="Up next: \033[1;33m" $1 "\033[0m"; $NF="\033[1;34m" $NF "\033[0m"; print}'
 printf '\n'
+}
 
-n=0
+if [[ "$1" == @(edit|e|nano) ]]; then editscript; fi
+
+clear -x
+
+title
 
 while read -r line
   do
@@ -36,19 +40,39 @@ while read -r line
     ((n++))
   done < <(\grep player /var/log/mpd/mpd.log|tail -n 120)
 
-j=$(gum choose --height 40 "${playedarr[@]}") || exit
-j="${j%\"*}"
-j="${j#*: \"}"
-d="${j%/*}"
+for ((n-1; n>=0; n--)); do
+  revarray+=( "$( printf '%s ' ${playedarr[$n]} )" )
+done
 
-echo "$j"
 
-exitapp=$(gum choose "mediainfo" "picard" "cd ${d}")
+
+#j=$(gum choose --height 40 "${playedarr[@]}") || exit
+
+result=$(gum choose --height 40  "${revarray[@]:1}") ||		# Remove everything up to the first double quote
+		 exit 												# or exit
+[[ ! "$result" ]] && echo "Result empty; exit 1" && exit 1  # check again?
+resultpath="${result#*\"}"
+resultpath="${resultpath%\"*}" 									# Remove everything after the last double quote
+resultdir="${resultpath%\/*}"
+
+#if [[ $string =~ \"(.*)\" ]]; then
+#    j="${BASH_REMATCH[1]}"									# this matches the capture group in the last [[ =~
+#fi															# not especially useful here.
+
+exitapp=$(gum choose "mediainfo" "picard" "ls ${d}")
+clear -x
+pause "$resultpath"
+
  if [[ "$exitapp" == mediainfo ]]
    then
-     mediainfo "/library/music/$j"
+    readarray -t miarray < <(mediainfo "/library/music/$resultpath")
+
+    printf %s\\n "${miarray[@]}"
+
+    michoice="$(gum choose "${miarray[@]}" --header.bold --cursor.italic --height=$((lines-5))  --header.padding="0 2")"
+    [[ "$michoice" = MusicBrainz\ Release\ Track\ Id* ]] && printf '\n\nControl-Cick URL to open in browser: https://musicbrainz.org/track/%s\n\nAt some point there will be a confirm here to open in Chrome!\n' "${michoice#* : }"
    elif
-     [[ "$exitapp" == picard ]]; then picard "$musicdir/$d"
+     [[ "$exitapp" == picard ]]; then picard "$musicdir/$resultdir"
    elif
-     [[ "$exitapp" == "cd $d" ]]; then cd "/library/music/$d"
+     [[ "$exitapp" == "ls $d" ]]; then echo "$resultdir:"; ls "/library/music/$d"
  fi

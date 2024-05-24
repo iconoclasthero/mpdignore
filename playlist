@@ -1,5 +1,5 @@
 #!/bin/bash
-MPDPASS="seven314"
+MPDPASS="$(cat ~/.config/mpdpass)"
 servername="gigabyte"
 server="192.168.1.2"
 mpdport="6600"
@@ -8,13 +8,13 @@ scriptname=$(realpath "$0")
 lines=$(tput lines 2> /dev/null) || lines=$(tput -T xterm-256color lines)
 
 export TERM=xterm-256color
-function editscript(){
+editscript(){
   local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
      if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
      else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit;
   fi; }
 
-function pause(){ read -p "$*" ; }
+pause(){ read -p "$*" ; }
 
 
 confirm() {
@@ -31,6 +31,21 @@ remotefn() {
 [[ "$(uname -n)" != "$servername" ]] && REMOTE="-h $server"
 }
 
+
+title(){
+artist="$(mpc current -f %artist%)"
+album="$(mpc current -f %album%)"
+title="$(mpc current -f %title%)"
+printf "\n\033[0mArtist: %s\nAlbum : %s\nTitle : %s\n" "$artist" "$album" "$title"
+
+mpc current -f "%file%"|awk -F / -v OFS=/ '{$1="\033[1;33m" $1 "\033[0m"; $NF="\033[1;34m" $NF "\033[0m"; print}'
+
+#mpc current -f "%title% on %album% by %artist%\n%file%"
+printf '\n'
+mpc queued -f "%file%"|awk -F / -v OFS=/ '{$1="Up next: \033[1;33m" $1 "\033[0m"; $NF="\033[1;34m" $NF "\033[0m"; print}'
+printf '\n'
+}
+
 remotefn
 
 echo
@@ -44,8 +59,12 @@ elif [[ "$1" == -a ]] || [[ "$1" == -A ]]
       printf 'Searching for "%s"...\n\n' "$query"
       readarray -t playlistarray < <(\mpc ${REMOTE:-} listall|grep -i --color=always "$query"|column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
       n="${#playlistarray[@]}"
-      echo $(("$lines"-"$lines"/10-1))
+      printf 'Hits: %s\n' "$n"
+      (( n == 0 )) && printf 'Exiting.\n' && exit 1
+#      echo $(("$lines"-"$lines"/10-1))
+
       i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"-"$lines"/10-1)) --header="${playlistarray[0]}" --header.padding="0 2")
+
       selection="$i"; i="${i%%\)*}"; i="${i#*\(}"
       if $(pause "Play all matches Y/n? ")
         then
@@ -60,11 +79,13 @@ elif [[ "$1" == -a ]] || [[ "$1" == -A ]]
 elif [[ -n "$1" ]]
     then
       query="${*}"
-      printf 'Searching for "%s"...\n\n' "$query"
+      printf 'Searching for "%s"...\n' "$query"
       readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|grep -i --color=always "$query"|column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
       n="${#playlistarray[@]}"
-      echo $(("$lines"-"$lines"/10-1))
-      i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"-"$lines"/10-1)) --header="${playlistarray[0]}" --header.padding="0 2")
+#      printf '$(("$lines"-"$lines"/10-1))=%s' "$(("$lines"-"$lines"/10-1))"
+      printf 'Lines: %s; Hits: %s\n\n' "$(("$lines"-"$lines"/10-1))" "$n"
+      (( n == 0 )) && printf 'Exiting.\n' && exit 1
+      i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"-"$lines"/10-3)) --header="${playlistarray[0]}" --header.padding="0 2")
       selection="$i"; i="${i%%\)*}"; i="${i#*\(}"
       $(pause "Play $selection, Y/n? ") && \mpc ${REMOTE:-} play "$i"
 #    else
@@ -72,13 +93,14 @@ elif [[ -n "$1" ]]
 #   fi
 else
   clear -x
-  mpc current -f "%file%\n%title% on %album% by %artist%" ; mpc queued -f "Up next: %file%"; mpc
+#  mpc current -f "%file%\n%title% on %album% by %artist%" ; mpc queued -f "Up next: %file%"; mpc
+  title
   lines=$(tput lines 2>&1 /dev/null) || lines=$(tput -T xterm-256color lines)
-  echo "$lines"
   readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%artist%~%album%~\(%track%\)~%title%~\(%time%\)|
       { printf '(-POS-)~Artist~Album~(#)~Title~(mm:ss)\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; } |
       column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% current).*")
   n="${#playlistarray[@]}"
+  printf 'Hits: %s\n' "$n"
   i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"/1)) --header="${playlistarray[0]}" --header.padding="0 2")
   i="${i%%)*}"
   i="${i#(}"
