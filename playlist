@@ -97,15 +97,16 @@ elif [[ -n "$1" ]]
 #   fi
 else
   clear -x
-#  title
-  mpc ${REMOTE:-} current -f "%file%\n%title% on %album% by %artist%" ; mpc ${REMOTE:-} queued -f "Up next: %file%"; mpc ${REMOTE:-}
+  title
+#  mpc ${REMOTE:-} current -f "%file%\n%title% on %album% by %artist%" ; mpc ${REMOTE:-} queued -f "Up next: %file%"; mpc ${REMOTE:-}
   lines=$(tput lines 2>&1 /dev/null) || lines=$(tput -T xterm-256color lines)
   readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%artist%~%album%~\(%track%\)~%title%~\(%time%\)|
       { printf '(-POS-)~Artist~Album~(#)~Title~(mm:ss)\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; } |
       column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% current).*")
   n="${#playlistarray[@]}"
   printf 'Hits: %s\n' "$n"
-  i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"/1)) --header="${playlistarray[0]}" --header.padding="0 2")
+# i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"/1)) --header="${playlistarray[0]}" --header.padding="0 2")
+ i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
   i="${i%%)*}"
   i="${i#(}"
   mpc ${REMOTE:-} play "$i"

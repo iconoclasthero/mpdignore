@@ -1,4 +1,6 @@
 #!/bin/bash
+bold="$(tput bold)"
+tput0="$(tput sgr0)"
 musicdir=/library/music
 scriptname=$(realpath "$0" 2>/dev/null)
 
@@ -54,25 +56,36 @@ result=$(gum choose --height 40  "${revarray[@]:1}") ||		# Remove everything up 
 resultpath="${result#*\"}"
 resultpath="${resultpath%\"*}" 									# Remove everything after the last double quote
 resultdir="${resultpath%\/*}"
+resultfile="${resultpath##*\/}"
 
 #if [[ $string =~ \"(.*)\" ]]; then
 #    j="${BASH_REMATCH[1]}"									# this matches the capture group in the last [[ =~
 #fi															# not especially useful here.
 
-exitapp=$(gum choose "mediainfo" "picard" "ls ${d}")
+exitapp=$(gum choose "mediainfo" "ignore" "picard" "ls ${resultdir}")
 clear -x
-pause "$resultpath"
+#pause "$resultpath"
 
  if [[ "$exitapp" == mediainfo ]]
    then
-    readarray -t miarray < <(mediainfo "/library/music/$resultpath")
+    readarray -t miarray < <(mediainfo "$musicdir/$resultpath")
 
     printf %s\\n "${miarray[@]}"
 
     michoice="$(gum choose "${miarray[@]}" --header.bold --cursor.italic --height=$((lines-5))  --header.padding="0 2")"
     [[ "$michoice" = MusicBrainz\ Release\ Track\ Id* ]] && printf '\n\nControl-Cick URL to open in browser: https://musicbrainz.org/track/%s\n\nAt some point there will be a confirm here to open in Chrome!\n' "${michoice#* : }"
+    [[ "$michoice" = MUSICBRAINZ_RELEASETRACKID* ]] && printf '\n\nControl-Cick URL to open in browser: https://musicbrainz.org/track/%s\n\nAt some point there will be a confirm here to open in Chrome!\n' "${michoice#* : }"
+
+  elif [[ "$exitapp" = ignore ]]; then
+    echo "$bold"
+    printf '# added on %s by "played" script\n%s\n' "$(date)" "$resultfile" >> "$musicdir/$resultdir/.mpdignore"
+    echo "$tput0"
+    cat "$musicdir/$resultdir/.mpdignore"
+    echo
    elif
-     [[ "$exitapp" == picard ]]; then picard "$musicdir/$resultdir"
+     [[ "$exitapp" = picard ]]; then picard "$musicdir/$resultdir"
    elif
-     [[ "$exitapp" == "ls $d" ]]; then echo "$resultdir:"; ls "/library/music/$d"
+     [[ "$exitapp" = "ls ${resultdir}" ]]; then
+       echo "$resultdir:";
+       exa -la -sold -r "$musicdir/$resultdir"
  fi
