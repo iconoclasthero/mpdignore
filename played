@@ -69,8 +69,28 @@ clear -x
  if [[ "$exitapp" == mediainfo ]]
    then
     readarray -t miarray < <(mediainfo "$musicdir/$resultpath")
+    trackmbid="$(ffprobe "$musicdir/$resultpath" 2>&1 |grep -i musicbrainz_trackid)"
+    trackmbid="${trackmbid#*:}"; trackmbid="MUSICBRAINZ_TRACKID                      :$trackmbid"
+    pause "$trackmbid"
 
-    printf %s\\n "${miarray[@]}"
+#    trackmbid="${trackmbid#*: }"
+
+# Find the index of the search term
+index=-1
+for i in "${!miarray[@]}"; do
+    if [[ -z "${miarray[$i]}" ]]; then
+        index=$i
+        break
+    fi
+done
+
+# Insert the new value before the search term
+  if [[ $index -ne -1 ]]; then
+    miarray=( "${miarray[@]:0:$index}" "$trackmbid" "${miarray[@]:$index}" )
+  fi
+
+
+   printf %s\\n "${miarray[@]}"
 
     michoice="$(gum choose "${miarray[@]}" --header.bold --cursor.italic --height=$((lines-5))  --header.padding="0 2")"
     [[ "$michoice" = MusicBrainz\ Release\ Track\ Id* ]] && printf '\n\nControl-Cick URL to open in browser: https://musicbrainz.org/track/%s\n\nAt some point there will be a confirm here to open in Chrome!\n' "${michoice#* : }"
