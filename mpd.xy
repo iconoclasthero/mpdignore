@@ -1,0 +1,69 @@
+#!/bin/bash
+# nb: the swp file that editscript relies on is provided by nano
+
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+
+pause(){ read -rp "$*" ; }
+
+generate_random_number() {
+    local lower_bound=$1
+    local upper_bound=$2
+    local range=$((upper_bound - lower_bound + 1))
+    local rand=$((1 + $RANDOM % 98000))
+    while (( rand < lower_bound )); do rand=$(( 3 * $RANDOM  )); done
+    random_number=$(( lower_bound + (rand % (upper_bound - lower_bound + 1)) ))
+
+}
+
+[[ "$1" == @(edit|e|-e) ]] && editscript
+mpc
+pllength=$(mpc status %length%)
+plpos=$(mpc status %songpos%)
+read -rp "Enter track number bound or enter for current position: " bound1
+[[ -z "$bound1" ]] && bound1="$plpos"
+read -rp "Enter track number bound or enter for end of playlist: " bound2
+[[ -z "$bound2" ]] && bound2="$pllength"
+
+! (( bound2 > bound1 )) && bound0="$bound1" && bound1="$bound2" && bound2="$bound0"
+
+(( bound2 > pllength )) && bound2=pllength
+
+  generate_random_number "$bound1" "$bound2"
+  mpc move "$random_number" "$bound1"
+  ((bound2--))
+  mpc rand off >/dev/null
+  mpc consume on >/dev/null
+  (( "$(mpc status %songpos%)" != bound1 )) && mpc play "$bound1"
+
+for ((i=bound1; i<=bound2; i++)); do
+  current="$(mpc current)"
+  echo "$(mpc current -f %file%)"
+  echo "$i"
+  (( bound2 > pllength )) && bound2="$pllength"
+  generate_random_number "$bound1" "$bound2"
+  mpc move "$random_number" "$(( bound1 + 1 ))"
+  queued="$(mpc queued -f %file%)."
+  echo "Queuing #$random_number: $queued"
+  ((bound2--))
+  echo "Songs remaining in subqueue: $(( bound2 - bound1 + 1 ))"
+  while [[ "$current" = "$(mpc current)" ]]; do
+	mpc idle player
+    if [[ "$reset_bound1" != true ]]; then
+      if (( bound1 != $(mpc status %songpos%) ))  ; then
+        reset_bound1=true
+      fi
+    fi
+  done
+  if [[ "$reset_bound1" = true ]]; then
+    pause
+    mpc move "$(mpc status %songpos%)" "$bound1"
+    mpc play "$bound1"
+    unset reset_bound1
+  fi
+done
+
+
+

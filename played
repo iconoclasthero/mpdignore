@@ -46,8 +46,6 @@ for ((n-1; n>=0; n--)); do
   revarray+=( "$( printf '%s ' ${playedarr[$n]} )" )
 done
 
-
-
 #j=$(gum choose --height 40 "${playedarr[@]}") || exit
 
 result=$(gum choose --height 40  "${revarray[@]:1}") ||		# Remove everything up to the first double quote
@@ -62,7 +60,7 @@ resultfile="${resultpath##*\/}"
 #    j="${BASH_REMATCH[1]}"									# this matches the capture group in the last [[ =~
 #fi															# not especially useful here.
 
-exitapp=$(gum choose "mediainfo" "ignore" "picard" "ls ${resultdir}")
+exitapp=$(gum choose "mediainfo" "add" "ignore" "picard" "ls ${resultdir}")
 clear -x
 #pause "$resultpath"
 
@@ -95,6 +93,11 @@ done
     michoice="$(gum choose "${miarray[@]}" --header.bold --cursor.italic --height=$((lines-5))  --header.padding="0 2")"
     [[ "$michoice" = MusicBrainz\ Release\ Track\ Id* ]] && printf '\n\nControl-Cick URL to open in browser: https://musicbrainz.org/track/%s\n\nAt some point there will be a confirm here to open in Chrome!\n' "${michoice#* : }"
     [[ "$michoice" = MUSICBRAINZ_RELEASETRACKID* ]] && printf '\n\nControl-Cick URL to open in browser: https://musicbrainz.org/track/%s\n\nAt some point there will be a confirm here to open in Chrome!\n' "${michoice#* : }"
+
+
+  elif [[ "$exitapp" = add ]]; then
+   mpc add "$resultpath"
+
 
   elif [[ "$exitapp" = ignore ]]; then
     echo "$bold"
