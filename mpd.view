@@ -31,168 +31,20 @@ editscript(){
 
 pause(){ read -rp "$*" </dev/tty ; }
 
-generate_random_number() {
-    local lower_bound=$1
-    local upper_bound=$2
-    local range=$((upper_bound - lower_bound + 1))
-    local rand=$((1 + $RANDOM % 98000))
-    while (( rand < lower_bound )); do rand=$(( 3 * $RANDOM  )); done
-    random_number=$(( lower_bound + (rand % (upper_bound - lower_bound + 1)) ))
+sec2sex() {
+    [[ "$1" = @(-H|--hours) ]] && local disp_hr=true && shift
+    local decsec="$1"
+    local secdec="${decsec#*.}"; (( ${secdec:0:1} >= 5 )) && secdec=1 || secdec=0
+    local seconds="${decsec%.*}"; seconds=$(( seconds + secdec ))
+    local hours=$(( seconds / 3600 ))
+    local remainder=$(( seconds % 3600 ))
+    local minutes=$(( remainder / 60 ))
+    local seconds=$(( remainder % 60 ))
+    "$disp_hr" 2>/dev/null && printf "%02d:%02d:%02d\n" "$hours" "$minutes" "$seconds" ||
+      printf %02d\:%02d\\n "$minutes" "$seconds"
 }
 
 
-# Function to format the output
-format_path() {
-    local path="$1"
-    local term_width=$(tput cols)
-    local length=0
-    local formatted_path=""
-
-    IFS='/' read -ra parts <<< "$path"
-    for ((i = 0; i < ${#parts[@]}; i++)); do
-        part="${parts[i]}"
-        if (( length + ${#part} + 1 > term_width )); then
-            formatted_path+="/\n"
-            length=0
-        fi
-        if (( length > 0 )); then
-            formatted_path+="/"
-            (( length++ ))
-        fi
-        formatted_path+="$part"
-        (( length += ${#part} ))
-    done
-
-    # Add a slash at the end if it's a directory
-    if [[ -d "$path" || -z "${path##*/}" ]]; then
-        formatted_path+="/"
-    fi
-
-    echo -e "$formatted_path"
-}
-
-format_path() {
-  local path="$1"
-  local term_width=$(tput cols)
-  local length=9
-  local indent="           "
-  local formatted_path="$indent"  # Add initial indentation here
-
-  IFS='/' read -ra parts <<< "$path"
-  for ((i = 0; i < ${#parts[@]}; i++)); do
-    part="${parts[i]}"
-    if (( length + ${#part} + 1 > term_width )); then
-      formatted_path+="/\n$indent"  # Add newline and indentation after slash
-      length=0
-    fi
-    if (( length > 0 )); then
-      formatted_path+="/"
-      (( length++ ))
-    fi
-    formatted_path+="$part"
-    (( length += ${#part} ))
-  done
-
-  # Add a slash at the end if it's a directory
-  if [[ -d "$path" || -z "${path##*/}" ]]; then
-    formatted_path+="/"
-  fi
-
-  echo -e "$formatted_path"
-}
-
-#format_path() {
-#  local path="$1"
-#  local term_width=$(tput cols)
-#  local length=0                  # Keep initial length at 0
-#  local indent="           "
-#  local formatted_path="$indent"  # Add initial indentation
-#
-#  # Split the path into parts based on spaces
-#  IFS=' ' read -ra parts <<< "$path"
-#  for ((i = 0; i < ${#parts[@]}; i++)); do
-#    part="${parts[i]}"
-#
-#    # Check if the current part and remaining path fit within the width
-#    if (( length + ${#part} + ${#indent} > term_width-2 )); then
-#      # If it doesn't fit, add newline and indentation
-#      formatted_path+="\n$indent"
-#      length=0  # Reset length for the new line
-#    fi
-#
-#    # Always append the space (except for the first part)
-#    if (( length > 0 )); then
-#      formatted_path+=" "
-#      (( length++ ))  # Increment length for the space
-#    fi
-#    formatted_path+="$part"
-#    (( length += ${#part} ))
-#  done
-#
-#  echo -e "$formatted_path"
-#}
-
-format_path() {
-  local path="$1"
-  local term_width=$(tput cols)
-  local length=11
-#               12345678901
-  local indent='           '
-  local formatted_path="$indent"  # Add initial indentation here
-  local max_length=$(( term_width - length - 2 ))  #initial indentation and two spaces from the right border
-
-  IFS='/' read -ra parts <<< "$path"
-  for ((i = 0; i < ${#parts[@]}; i++)); do
-    part="${parts[i]}"
-    if (( length + ${#part} + 1 > max_length )); then
-      formatted_path+="/\n$indent"  # Add newline and indentation after slash
-      length=9  # Reset length to initial indentation length
-    fi
-    if (( length > 11 )); then
-      formatted_path+="/"
-      (( length++ ))
-    fi
-    formatted_path+="$part"
-    (( length += ${#part} ))
-  done
-
-  # Add a slash at the end if it's a directory
-  if [[ -d "$path" || -z "${path##*/}" ]]; then
-    formatted_path+="/"
-  fi
-
-  echo -e "$formatted_path"
-}
-format_path() {
-  local path="$1"
-  local term_width=$(tput cols)
-  local length=11  # Initial length set to the length of the initial indentation
-  local indent="$(printf %*s $length '')"
-  local formatted_path="$indent"  # Add initial indentation here
-  local max_length=$(( term_width - 2 ))  # Account for two spaces from the right border
-
-  IFS='/' read -ra parts <<< "$path"
-  for ((i = 0; i < ${#parts[@]}; i++)); do
-    part="${parts[i]}"
-    if (( length + ${#part} + 2 > max_length )); then
-      formatted_path+="/\n$indent"  # Add newline and indentation after slash
-      length=${#indent}  # Reset length to initial indentation length
-    fi
-    if (( length > ${#indent} )); then
-      formatted_path+="/"
-      (( length++ ))
-    fi
-    formatted_path+="$part"
-    (( length += ${#part} ))
-  done
-
-  # Add a slash at the end if it's a directory
-  if [[ -d "$path" || -z "${path##*/}" ]]; then
-    formatted_path+="/"
-  fi
-
-  echo -e "$formatted_path"
-}
 
 format_path() {
   local path="$1"
@@ -208,7 +60,7 @@ format_path() {
   for ((i = 0; i < ${#parts[@]}; i++)); do
     part="${parts[i]}"
     # Check if adding the next part will exceed the maximum length
-    if (( length + ${#part} + 2 > max_length )); then
+    if (( length + ${#part} + 1 > max_length )); then
       formatted_path+="/\n$indent"  # Add newline and indentation after slash
       length=${#indent}  # Reset length to initial indentation length
     fi
@@ -340,7 +192,7 @@ mono_mpd_response() {
 
 parse_mpd_response() {
     local file="" title="" album="" artist="" next_file="" next_title="" next_album="" next_artist="" state=""
-    local song_pos="" song_total="" elapsed="" duration="" volume="" repeat="" random="" single="" consume=""
+    local song_pos="" elapsed="" duration="" volume="" repeat="" random="" single="" consume=""
     local nextsong_id="" current="$(mpc current -f %position%)"
 
     while read -r line; do
@@ -435,7 +287,7 @@ echo "$bg_blue"
 
     # Format and print the output
     echo "${tput0}${bg_blue}${bold}${black}"
-    echo "  [${state}] #${song_pos}/${song_total}   ${elapsed}/${duration} (${percentage}%)"
+    echo "  [${state}] #${song_pos}/${song_total}   $(sec2sex $elapsed)/$(sec2sex $duration) (${percentage}%)"
     echo "  volume: ${volume}%   repeat: ${repeat}   random: ${random}   single: ${single}   consume: ${consume}${tput0}"
     echo
 
@@ -468,7 +320,6 @@ echo "$bg_blue"
 #  echo "$next_file"
 #done
 
-
 }
 
 mpdc() {
@@ -478,68 +329,15 @@ mpdc() {
 
 
 [[ "$1" == @(edit|e|-e) ]] && editscript
-
+song_total=0
 mpdc 'currentsong\nstatus'|parse_mpd_response
-
 pllength=$(mpc status %length%)
 plpos=$(mpc status %songpos%)
 
-tput cup 15 0
-
-read -rp "${bg_blue}  ${tput0}Enter track number bound or enter for current position: " bound1
-[[ -z "$bound1" ]] && bound1="$plpos"
-
-
-read -rp "${bg_blue}  ${tput0}Enter track number bound or enter for end of playlist: " bound2
-[[ -z "$bound2" ]] && bound2="$pllength"
-
-! (( bound2 > bound1 )) &&
-   bound0="$bound1" &&
-   bound1="$bound2" &&
-   bound2="$bound0"
-
-(( bound2 > pllength )) && bound2="$pllength"
-
-   generate_random_number "$bound1" "$bound2"
-   mpc move "$random_number" "$bound1"
-   ((bound2--))
-   mpdc random 0 >/dev/null
-   mpdc consume 1 >/dev/null
-
-   (( bound1-1 <= $(mpc status %songpos%) && $(mpc status %songpos%) <= bound1+1 )) && true ||
-     mpdcout+=( "$(mpdc play\ "$bound1")" )
-
-
-for ((i=bound1; i<=bound2; i++)); do
-   pllength=$(mpc status %length%)
-   current="$(mpc current)"
-   echo "subqueue position: $i"
-   (( bound2 > pllength )) && bound2="$pllength"
-   generate_random_number "$bound1" "$bound2"
-   mpc move "$random_number" "$(( bound1 + 1 ))"
-   queued="$(mpc queued -f %file%)."
-
-   mpdc 'currentsong\nstatus'|parse_mpd_response
-
-   ((bound2--))
-tput cup 15 11
-   echo "Songs remaining in subqueue: $(( bound2 - bound1 + 1 ))"
-
-   while [[ "$current" = "$(mpc current)" ]]; do
+   while (( pllength >= 1 )); do
       mpc idle player playlist update
       mpdc 'currentsong\nstatus'|parse_mpd_response
-      [[ "$reset_bound1" != true ]] &&
-        (( bound1 != $(mpc status %songpos%) )) &&
-        reset_bound1=true
+      pllength=$(mpc status %length%)
    done
-
-   if [[ "$reset_bound1" = true ]]; then
-      mpdc_out+=( $(mpdc pause) )
-      mpc move "$(mpc status %songpos%)" "$bound1"
-      mpc play "$bound1"
-      unset reset_bound1
-   fi
-
-done
 
 exit 0
