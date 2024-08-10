@@ -1,0 +1,42 @@
+#!/bin/bash
+
+mpdlocal=false
+localip='192.168.1.2'
+mpdpass='seven314'
+[[ ! "$gigabyte" ]] && gigabyte=music.iconoclasthero.com
+
+scriptname=$(realpath "$0")
+
+#function editscript(){ if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then (/usr/bin/nano "$scriptname"); exit; fi ; }
+function editscript(){
+  local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
+     if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
+     else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit;
+  fi; }
+
+function pause(){ read -p "$*" ; }
+
+if [[ "$1" == "edit" ]] || [[ "$1" == "e" ]] || [[ "$1" == "nano" ]]
+ then
+   editscript "$1"
+elif [[ "$1" == "help" ]] || [[ "$1" == "-h" ]];
+ then
+ echo
+fi
+
+ssid="$(iwgetid -r)"
+
+localssids=(
+'Cloud of Titties'
+'sysknil'
+)
+
+#printf %s\\n "${localssids[@]}"
+
+[[ "${localssids[@]}" == *"$ssid"* ]] && mpdlocal=true
+
+"$mpdlocal" && gigabyte="$localip"
+
+mpc -h "$mpdpass@$gigabyte" "$@"
+
+
