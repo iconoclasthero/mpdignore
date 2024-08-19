@@ -1,0 +1,63 @@
+#!/bin/bash
+# nb: the swp file that editscript relies on is provided by nano
+
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+
+pause(){ read -rp "$*" ; }
+
+[[ "$1" == @(edit|e|-e) ]] && editscript
+
+
+#
+#Jun 01 08:16 : player: played "87-easy/Rufus Wainwright -- Vibrate: The Best of Rufus Wainwright (2014)/Rufus Wainwright -- 02-10 - If Love Were All (live at Kenwood House, 3 July 2010).flac"
+#Jun 01 08:18 : player: played "Gillian Welch/Gillian Welch -- Boots No. 2: The Lost Songs, Vol. 2 (2020)/Gillian Welch -- 03 - Good Baby.flac"
+#Jun 01 08:21 : player: played "Béla Fleck/Béla Fleck -- Drive (2005)/Béla Fleck -- 08 - Down In The Swamp.flac"
+#Jun 01 08:23 : player: played "92-folk/Buffy Sainte-Marie/Buffy Sainte-Marie -- I'm Gonna Be a Country Girl Again (1968)/Buffy Sainte-Marie -- 09 - They Gotta Quit Kickin' My Dawg Around.flac"
+#Jun 01 08:27 : player: played "Ryan Adams/Ryan Adams -- Love Is Hell, Part 1 (2003)/Ryan Adams -- 02 - Afraid Not Scared.flac"
+#Jun 01 08:56 : player: played "97-afrobeat/Fela Kuti/Fela Anikulapo Kuti -- The Complete Works of Fela Anikulapo-Kuti (2010)/04-01 - Fela Anikulapo Kuti & Egypt '80 -- Underground System.flac"
+#Jun 01 09:01 : player: played "John Lee Hooker/John Lee Hooker -- The Healer (1989)/John Lee Hooker -- 01 - The Healer.flac"
+
+
+# Read the log file line by line
+while IFS= read -r line; do
+    # Extract timestamp
+    timestamp="${line%% played*}"
+    timestamp="${timestamp% : *}"
+
+    # Extract reporting and action fields
+    reporting="${line#* : }"
+    action="${reporting##*: }"
+    reporting="${reporting%%:*}"
+    action="${action%% *}"
+
+echo "line $line"
+#echo "reporting $reporting"
+#pause "$action" </dev/tty
+
+    # Extract whole path
+    whole_path="${line#*\"}"
+    whole_path="${whole_path%\"*}"
+
+    # Split the path into separate variables
+    IFS='/' read -r -a path_parts <<< "$whole_path"
+    path1="${path_parts[0]}"
+    path2="${path_parts[1]}"
+    path3="${path_parts[2]}"
+    path4="${path_parts[3]}"
+    path5="${path_parts[4]}"
+
+    # Print the parsed information
+    echo "Timestamp: $timestamp"
+    echo "Reporting: $reporting"
+    echo "Action: $action"
+    echo "Whole Path: $whole_path"
+    echo "Path1: $path1"
+    echo "Path2: $path2"
+    echo "Path3: $path3"
+    echo "Path4: $path4"
+    echo "Path5: $path5"
+    echo
+done < <(tail /var/log/mpd/mpd.log|grep player)
