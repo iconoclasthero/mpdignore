@@ -4,10 +4,20 @@ servername="gigabyte"
 server="192.168.1.2"
 mpdport="6600"
 scriptname=$(realpath "$0")
+red=$(tput setaf 1)
+green=$(tput setaf 2)
+yellow=$(tput setaf 3)
+blue=$(tput setaf 4)
+magenta=$(tput setaf 5)
+cyan=$(tput setaf 6)
+white=$(tput setaf 7)
+bold="$(tput bold)"
+tput0=$(tput sgr0) # reset color
 
 lines=$(tput lines 2> /dev/null) || lines=$(tput -T xterm-256color lines)
 
 export TERM=xterm-256color
+
 editscript(){
   local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
      if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
@@ -16,6 +26,195 @@ editscript(){
 
 pause(){ read -p "$*" ; }
 
+searchfn(){
+  local mpccommand="playlist"
+  [[ "$1" = listall ]] && mpccommand="listall"
+  [[ "$1" = current ]] && mpccommand="current"
+  # Define colors using tput
+  red=$(tput setaf 1)
+  green=$(tput setaf 2)
+  yellow=$(tput setaf 3)
+  blue=$(tput setaf 4)
+  magenta=$(tput setaf 5)
+  cyan=$(tput setaf 6)
+  white=$(tput setaf 7)
+  bold="$(tput bold)"
+  tput0=$(tput sgr0) # reset color
+
+  # Read the playlist into an array
+  readarray -t playlistarray < <(
+    {
+       if [[ "$mpccommand" = playlist ]]; then
+          printf '(-pos-)~title~album artist~album~TT-DD~(mm:ss)~file\n'
+         \mpc ${remote:-} ${mpccommand} -f \(%position%\)~%title%~%albumartist%~%album%~\(%disc%-%track%\)~\(%time%\)~%file%~%artist% | grep -i --color=never "$query"
+     elif [[ "$mpccommand" = listall ]]; then
+          printf '(-pos-)~title~album artist~album~TT-DD~(mm:ss)~file\n'
+         \mpc ${remote:-} ${mpccommand} -f \(%position%\)~%title%~%albumartist%~%album%~\(%disc%-%track%\)~\(%time%\)~%file%~%artist% | grep -i --color=never "$query"
+     elif [[ "$mpccommand" = current ]]; then
+         \mpc ${REMOTE:-} playlist -f \(%position%\)~%title%~%albumartist%~%album%~\(%disc%-%track%\)~\(%time%\)~%file%~%artist%|
+#        { printf '(-POS-)~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; }
+        { printf '(-POS-)~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C150 ; }
+#|
+#     column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% current).*"
+       fi
+
+    } |
+    awk -F '~' -v red="$red" -v green="$green" -v cyan="$cyan" -v magenta="$magenta" -v yellow="$yellow" -v white="$white" -v blue="$blue" -v tput0="$tput0" -v bold="$bold" '
+function reverse_path(path) {
+    n = split(path, components, "/")
+    reversed = components[n]
+    for (i = n - 1; i >= 1; i--) {
+        reversed = reversed "/" components[i]
+    }
+    return reversed
+}
+ function clean_artist(artist) {
+        # Strip "with", "feat", and similar terms
+        gsub(/ with .*| feat.*| ft.*/i, "", artist)
+        return artist
+    }
+   {if (NR == 1) {
+#        print $0;  # Print the header as is
+      $1 = bold blue $1 tput0
+#     $2 = bold green $2 tput0
+      $2 = bold green (length($2) > 40 ? substr($2, 1, 38) "…" : $2) tput0
+      $3 = bold cyan (length($3) > 30 ? substr($3, 1, 28) "…" : $3) tput0
+#      $3 = bold cyan $3 tput0
+      $4 = bold magenta (length($4) > 30 ? substr($4, 1, 28) "…" : $4)  tput0
+      $5 = bold red $5 tput0
+#      $5 = bold red disc "-" track tput0
+     $6 = bold yellow $6 tput0
+     $7 = bold $7 tput0
+      print $1 "~" $2 "~" $3 "~" $4 "~" $5 "~" $6 "~" $7
+    } else {
+            album_artist = $3
+            primary_artist = $8
+
+            if (album_artist == "Various Artists") {
+                primary_artist = clean_artist(primary_artist)
+            }
+
+# Extract disc and track numbers -- this works with DD-TT
+#    gsub(/[()]/,"",$5)
+#    split($5, nums, "-")
+#    disc = sprintf("%02d", nums[1])
+#    track = sprintf("%02d", nums[2])
+
+# Extract disc and track numbers -- this is supposed to add support for TTT - Artist -- Title.ext
+    # Extract disc and track numbers
+ gsub(/[()]/,"",$5)
+    split($5, nums, "-")
+    disc = sprintf("%02d", nums[1])
+    track = (length(nums[length(nums)]) == 3) ? sprintf("%03d", nums[length(nums)]) : sprintf("%02d", nums[length(nums)])
+
+      $1 = blue $1 tput0
+#     $2 = green $2 tput0
+      $2 = green (length($2) > 40 ? substr($2, 1, 38) "…" : $2) tput0
+      $3 = cyan (length(primary_artist) > 30 ? substr(primary_artist, 1, 28) "…" : primary_artist) tput0
+#     $3 = cyan (length($3) > 30 ? substr($3, 1, 28) "…" : $3) tput0
+#     $3 = cyan $3 tput0
+      $4 = magenta (length($4) > 30 ? substr($4, 1, 28) "…" : $4)  tput0
+#     $5 = red $5 tput0
+      $5 = red disc "-" track tput0
+      $6 = yellow $6 tput0
+      $7 = white $7 tput0
+#     $7 = white reverse_path($7) tput0
+      print $1 "~" $2 "~" $3 "~" $4 "~" $5 "~" $6 "~" $7
+    }
+   }' |
+   column -t -s "~" -o " | "
+ )
+  argmax=1992844 #worked
+  argmax=1993500 #fialed
+  argmax=1993000
+
+    n="${#playlistarray[@]}"
+##    printf 'Hits: %s\n' "$n"
+
+##   printf 'Lines: %s; Hits: %s\n\n' $((lines-lines/10-1)) "$n"
+##   echo "$argmax argmax"
+##   startsize="$(printf %s "${playlistarray[@]}"|wc -c)"
+##   echo "$startsize startsize"
+    if (( n > 7000 )); then
+      printf '%sResults truncated, refine search futher.%s\n' "$red" "$white"
+      truncatedarray=("${playlistarray[@]:0:5500}")
+      totalbytes="$(printf %s "${truncatedarray[@]}"|wc -m)"
+      for item in "${playlistarray[@]:5500}"; do
+        item_bytes=${#item}
+        if (( "$totalbytes" + item_bytes > argmax)); then
+          break
+        fi
+        truncatedarray+=("$item")
+        totalbytes=$((totalbytes + item_bytes))
+      done
+      playlistarray=("${truncatedarray[@]}")
+    fi
+    (( n == 0 )) && printf 'Exiting.\n' && exit 1
+    totalbytes2="$(printf %s "${playlistarray[@]}"|wc -m)"
+
+##  echo "$n original hits"
+##  echo "${#playlistarray[@]} truncated hits"
+##  echo "$argmax argmax"
+      printf 'Hits: %s (%s)  -  ' "$n" "$mpccommand"
+	      printf '%s/%s playlist array size\n' "$totalbytes2" "$argmax"
+
+if [[ "$mpccommand" = playlist ]]; then
+   i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(( $(tput lines) - 14 )) --header="${playlistarray[0]}" --header.padding="0 2")
+#  i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(( $(tput lines) - $(tput lines)/10 )) --header="${playlistarray[0]}" --header.padding="0 2")
+#  i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
+elif [[ "$mpccommand" = current ]]; then
+  timeout=$(( $(sex2sec $(\mpc status %totaltime%)) - $(sex2sec $(\mpc status %currenttime%)) ))
+  i=$(gum choose --position=middle --timeout="${timeout}s" --selected=">>" --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
+fi
+  (( n == 0 )) && printf 'Exiting.\n' && exit 1
+
+  selection="$i"
+  i="${i%%\)*}"
+  i="${i#*\(}"
+
+  $(pause "Play $selection, y/n? ") && \mpc ${remote:-} play "$i"
+
+}
+
+sex2sec(){
+  local time="$1";
+#  [[ ! "$time" =~ [[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2} ]] && time='00:00:00' #&& pause "${time@A}"
+  [[ ! "$time" =~ [[:digit:]]{1,2}:[[:digit:]]{2} ]] && time='00:00' #&& pause "${time@A}"
+#  local hours=$(echo "$time" | awk -F: '{print $1}'); # pause "$hours"
+  local minutes=$(echo "$time" | awk -F: '{print $1}'); # pause "$minutes"
+  local seconds=$(echo "$time" | awk -F: '{print $2}'); # pause "$seconds"
+  local total_seconds=$(( ( 10#$minutes * 60) + 10#$seconds ));
+# pause "no sec $(local total_seconds=$(( (10#$hours * 3600) + (10#$minutes * 60) )) )"
+#  pause "no min $(local total_seconds=$(( (10#$hours * 3600) + (10#$seconds) )) )"
+#  pause "no hours $(local total_seconds=$(( (10#$minutes * 60) + (10#$seconds) )) )"
+  echo "$total_seconds" ;  }
+##--> sexagesimal_to_sec() <--##################################################################
+
+
+searchfn_backup(){
+  red="$(tput setaf 1)"
+  green='\033[0;32m'
+  yellow='\033[0;33m'
+  blue='\033[0;34m'
+  magenta='\033[0;35m'
+  cyan='\033[0;36m'
+  white='\033[0m' # No Color
+
+      readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%artist%~%album%~\(%track%\)~%title%~\(%time%\)|grep -i --color=always "$query"|
+         { printf '%s(-POS-)~%sArtist~%sAlbum~%s(%s#%s)~%sTitle%s~(mm:ss)\n' "${blue}" "${green}" "${cyan}" "${white}" "${magenta}" "${white}" "${yellow}" "${white}"; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; } |
+         column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% current).*")
+      n="${#playlistarray[@]}"
+      printf 'Hits: %s\n' "$n"
+
+#      printf '$((lines-lines/10-1))=%s' $((lines-lines/10-1))
+      printf 'Lines: %s; Hits: %s\n\n' $((lines-lines/10-1)) "$n"
+#     i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"/1)) --header="${playlistarray[0]}" --header.padding="0 2")
+pause "${playlistarray[@]}"
+      i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
+      (( n == 0 )) && printf 'Exiting.\n' && exit 1
+      selection="$i"; i="${i%%\)*}"; i="${i#*\(}"
+      $(pause "Play $selection, Y/n? ") && \mpc ${REMOTE:-} play "$i"
+}
 
 confirm() {
     read -p "$1" -n 1 -r;
@@ -28,88 +227,184 @@ confirm() {
 }
 
 remotefn() {
-[[ "$(uname -n)" != "$servername" ]] && REMOTE="-h $server"
+  [[ "$(uname -n)" != "$servername" ]] && REMOTE="-h $server"
 }
 
 
 title(){
-artist="$(mpc current -f %artist%)"
-album="$(mpc current -f %album%)"
-title="$(mpc current -f %title%)"
-printf "\n\033[0mArtist: %s\nAlbum : %s\nTitle : %s\n" "$artist" "$album" "$title"
+  artist="$(mpc current -f %artist%)"
+  album="$(mpc current -f %album%)"
+  title="$(mpc current -f %title%)"
+  printf "\n\033[0mArtist: %s\nAlbum : %s\nTitle : %s\n" "$artist" "$album" "$title"
+  mpc current -f "%file%"|awk -F / -v OFS=/ '{$1="\033[1;33m" $1 "\033[0m"; $NF="\033[1;34m" $NF "\033[0m"; print}'
+# mpc current -f "%title% on %album% by %artist%\n%file%"
+  printf '\n'
+  mpc queued -f "%file%"|awk -F / -v OFS=/ '{$1="Up next: \033[1;33m" $1 "\033[0m"; $NF="\033[1;34m" $NF "\033[0m"; print}'
+  printf '\n'
+}
 
-mpc current -f "%file%"|awk -F / -v OFS=/ '{$1="\033[1;33m" $1 "\033[0m"; $NF="\033[1;34m" $NF "\033[0m"; print}'
-
-#mpc current -f "%title% on %album% by %artist%\n%file%"
-printf '\n'
-mpc queued -f "%file%"|awk -F / -v OFS=/ '{$1="Up next: \033[1;33m" $1 "\033[0m"; $NF="\033[1;34m" $NF "\033[0m"; print}'
-printf '\n'
+reverse_path() {
+  local path="$1"
+  echo "$path" | awk -F'/' '{for(i=NF; i>1; i--) printf("%s/", $i); printf("%s\n", $1)}'
 }
 
 remotefn
 
 echo
 
-if [[ "$1" == @(edit|e|nano) ]]
-  then
-   editscript
-elif [[ "$1" == -a ]] || [[ "$1" == -A ]]
-    then
-      query="${*:2}"
-      printf 'Searching for "%s"...\n\n' "$query"
-      readarray -t playlistarray < <(\mpc ${REMOTE:-} listall|grep -i --color=always "$query"|column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
-      n="${#playlistarray[@]}"
-      printf 'Hits: %s\n' "$n"
-      (( n == 0 )) && printf 'Exiting.\n' && exit 1
-#      echo $(("$lines"-"$lines"/10-1))
+if [[ "$1" == @(edit|e|nano) ]]; then
+  editscript
+elif [[ "$1" = -a ]] || [[ "$1" = -A ]]; then
+  argmax=1995090 #works
+  argmax=1995121 #fails
+  argmax=1995120
+  query="${*:2}"
+  if [[ "$query" ]]; then
+    printf 'Searching for "%s"...\n\n' "$query"
+    readarray -t playlistarray < <(
+      {
+#   { printf '(-pos-)~title~album artist~album~TT-DD~(mm:ss)\n'; \mpc ${REMOTE:-} listall|grep -i --color=always "$query"|column --table -s "~" -o " | " ; } )
+         printf '(-pos-)~title~album artist~album~TT-DD~(mm:ss)~file\n'
+         \mpc ${remote:-} listall -f \(%position%\)~%title%~%albumartist%~%album%~\(%disc%-%track%\)~\(%time%\)~%file%~%artist% | grep -i --color=never "$query"
+       } |
+    awk -F '~' -v red="$red" -v green="$green" -v cyan="$cyan" -v magenta="$magenta" -v yellow="$yellow" -v white="$white" -v blue="$blue" -v tput0="$tput0" -v bold="$bold" '
+ function reverse_path(path) {
+    n = split(path, components, "/")
+    reversed = components[n]
+    for (i = n - 1; i >= 1; i--) {
+        reversed = reversed "/" components[i]
+    }
+    return reversed
+   }
+ function clean_artist(artist) {
+        # Strip "with", "feat", and similar terms
+        gsub(/ with .*| feat.*| ft.*/i, "", artist)
+        return artist
+   }
+   {if (NR == 1) {
+#     print $0;  # Print the header as is
+      $1 = bold blue $1 tput0
+#     $2 = bold green $2 tput0
+      $2 = bold green (length($2) > 40 ? substr($2, 1, 38) "…" : $2) tput0
+      $3 = bold cyan (length($3) > 30 ? substr($3, 1, 28) "…" : $3) tput0
+#     $3 = bold cyan $3 tput0
+      $4 = bold magenta (length($4) > 30 ? substr($4, 1, 28) "…" : $4)  tput0
+      $5 = bold red $5 tput0
+#     $5 = bold red disc "-" track tput0
+      $6 = bold yellow $6 tput0
+      $7 = bold $7 tput0
+      print $1 "~" $2 "~" $3 "~" $4 "~" $5 "~" $6 "~" $7
+    } else {
+            album_artist = $3
+            primary_artist = $8
 
-      i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"-"$lines"/10-1)) --header="${playlistarray[0]}" --header.padding="0 2")
+            if (album_artist == "Various Artists") {
+                primary_artist = clean_artist(primary_artist)
+            }
 
-      selection="$i"; i="${i%%\)*}"; i="${i#*\(}"
-      if $(pause "Play all matches Y/n? ")
-        then
+# Extract disc and track numbers -- this works with DD-TT
+#    gsub(/[()]/,"",$5)
+#    split($5, nums, "-")
+#    disc = sprintf("%02d", nums[1])
+#    track = sprintf("%02d", nums[2])
+
+# Extract disc and track numbers -- this is supposed to add support for TTT - Artist -- Title.ext
+      gsub(/[()]/,"",$5)
+      split($5, nums, "-")
+      disc = sprintf("%02d", nums[1])
+      track = (length(nums[length(nums)]) == 3) ? sprintf("%03d", nums[length(nums)]) : sprintf("%02d", nums[length(nums)])
+
+      $1 = blue $1 tput0
+#     $2 = green $2 tput0
+      $2 = green (length($2) > 40 ? substr($2, 1, 38) "…" : $2) tput0
+      $3 = cyan (length(primary_artist) > 30 ? substr(primary_artist, 1, 28) "…" : primary_artist) tput0
+#     $3 = cyan (length($3) > 30 ? substr($3, 1, 28) "…" : $3) tput0
+#     $3 = cyan $3 tput0
+      $4 = magenta (length($4) > 30 ? substr($4, 1, 28) "…" : $4)  tput0
+#     $5 = red $5 tput0
+      $5 = red disc "-" track tput0
+      $6 = yellow $6 tput0
+      $7 = white $7 tput0
+ #     $7 = white reverse_path($7) tput0
+
+      print $1 "~" $2 "~" $3 "~" $4 "~" $5 "~" $6 "~" $7
+    }
+   }' |
+   column -t -s "~" -o " | "
+ )
+    n="${#playlistarray[@]}"
+    printf 'Hits: %s\n' "$n"
+    echo "$argmax argmax"
+    startsize="$(printf %s "${playlistarray[@]}"|wc -c)"
+    echo "$startsize startsize"
+    if (( n > 7000 )); then
+      printf '%sResults truncated, refine search futher.%s\n' "$red" "$white"
+      truncatedarray=("${playlistarray[@]:0:5500}")
+      totalbytes="$(printf %s "${truncatedarray[@]}"|wc -m)"
+      for item in "${playlistarray[@]:5500}"; do
+        item_bytes=${#item}
+        if (( "$totalbytes" + item_bytes > argmax)); then
+          break
+        fi
+        truncatedarray+=("$item")
+        totalbytes=$((totalbytes + item_bytes))
+      done
+      playlistarray=("${truncatedarray[@]}")
+    fi
+    (( n == 0 )) && printf 'Exiting.\n' && exit 1
+      totalbytes2="$(printf %s "${playlistarray[@]}"|wc -m)"
+    echo "${#playlistarray[@]}/$n current/original hits"
+    echo "$argmax argmax"
+    echo "$totalbytes2 playlist array size"
+#    i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"-"$lines"/10-1)) --header="${playlistarray[0]}" --header.padding="0 2") || exit 1
+    i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height="$lines" --header="${playlistarray[0]}" --header.padding="0 2") || exit 1
+    selection="$i"; i="${i%%\)*}"; i="${i#*\(}"
+    if $(pause "Play all matches Y/n? "); then
       readarray -t queuearray < <(mpc ${REMOTE:-} listall|grep -i --color=never "$query")
       start=$(($(mpc ${REMOTE:-} status %length%)+1))
-      for i in "${queuearray[@]}"
-        do
-          mpc ${REMOTE:-} add "$i"
-        done
+      for i in "${queuearray[@]}"; do
+        mpc ${REMOTE:-} add "$i"
+      done
       mpc ${REMOTE:-} play "$start"
-      fi
-elif [[ -n "$1" ]]
-    then
-      query="${*}"
+    fi
+  else
+    echo "No query provided; mpc listall is inappropriate here without query ... "
+    echo
+    exit 1
+  fi
+elif [[ -n "$1" ]]; then
+  query="${*}"
+  clear -x
+  title
+#      readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|
+#        grep -i --color=always "$query"|
+#        column --table -s "~" -o " | " -N \(POS\),file)
+#      n="${#playlistarray[@]}"
 
-      readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|
-        grep -i --color=always "$query"|
-        column --table -s "~" -o " | " -N \(POS\),file)
-#        column --table -s "~" -o " | " -C name=\(POS\) -C name=file)
-
-      n="${#playlistarray[@]}"
-#      printf '$(("$lines"-"$lines"/10-1))=%s' "$(("$lines"-"$lines"/10-1))"
-      printf 'Lines: %s; Hits: %s\n\n' "$(("$lines"-"$lines"/10-1))" "$n"
-      (( n == 0 )) && printf 'Exiting.\n' && exit 1
-      i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"-"$lines"/10-3)) --header="${playlistarray[0]}" --header.padding="0 2")
-      selection="$i"; i="${i%%\)*}"; i="${i#*\(}"
-      $(pause "Play $selection, Y/n? ") && \mpc ${REMOTE:-} play "$i"
-#    else
-#      \mpc ${REMOTE:-} playlist -f \(%position%\)~%file%|column --table -s "~" -o " | " -C name=\(POS\) -C name=Title
-#   fi
+#      i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"-"$lines"/10-3)) --header="${playlistarray[0]}" --header.padding="0 2")
+  searchfn
 else
   clear -x
   title
-#  mpc ${REMOTE:-} current -f "%file%\n%title% on %album% by %artist%" ; mpc ${REMOTE:-} queued -f "Up next: %file%"; mpc ${REMOTE:-}
-  lines=$(tput lines 2>&1 /dev/null) || lines=$(tput -T xterm-256color lines)
-  readarray -t playlistarray < <(\mpc ${REMOTE:-} playlist -f \(%position%\)~%artist%~%album%~\(%track%\)~%title%~\(%time%\)|
-      { printf '(-POS-)~Artist~Album~(#)~Title~(mm:ss)\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; } |
-      column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% current).*")
-  n="${#playlistarray[@]}"
-  printf 'Hits: %s\n' "$n"
-# i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"/1)) --header="${playlistarray[0]}" --header.padding="0 2")
- i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
-  i="${i%%)*}"
-  i="${i#(}"
-  mpc ${REMOTE:-} play "$i"
+  searchfn current
+###  readarray -t playlistarray < <(
+###    \mpc ${REMOTE:-} playlist -f \(%position%\)~%artist%~%album%~\(%track%\)~%title%~\(%time%\)|
+###    {
+###      printf '(-POS-)~Artist~Album~(#)~Title~(mm:ss)\n'
+###      \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ;
+###    } |
+###     column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% current).*"
+###    )
+###
+###  n="${#playlistarray[@]}"
+###  printf 'Hits: %s\n' "$n"
+#### i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(("$lines"/1)) --header="${playlistarray[0]}" --header.padding="0 2")
+####  i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
+###  i=$(gum choose --position=150 --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
+###  i="${i%%)*}"
+###  i="${i#(}"
+###  mpc ${REMOTE:-} play "$i"
+
 fi
 
 exit
@@ -240,3 +535,60 @@ mpc status "\[%state\] #%songpos%/%length%    %currenttime%/%totaltime% (%percen
                                                                   ├──────────────┼──────────────────────────────────────────────────────────────────────┤
                                                                   │%consume%     │ Current status of consume mode. 'on' or 'off'                        │
                                                                   └──────────────┴──────────────────────────────────────────────────────────────────────┘
+
+
+
+
+                        Name             Description
+                              ────────────────────────────────────────────────────────
+                                %name%           A name for this song.  This is  not
+                                                 the  song  title. The exact meaning
+                                                 of this tag is not well-defined. It
+                                                 is often used by  badly  configured
+                                                 internet radio stations with broken
+                                                 tags  to  squeeze  both  the artist
+                                                 name and the song title in one tag.
+                              ────────────────────────────────────────────────────────
+                                %artist%         Artist file tag
+                              ────────────────────────────────────────────────────────
+                                %album%          Album file tag
+                              ────────────────────────────────────────────────────────
+                                %albumartist%    Album Artist file tag
+                              ────────────────────────────────────────────────────────
+                                %comment%        Comment file tag  (not  enabled  by
+                                                 default    in    mpd.conf's   meta‐
+                                                 data_to_use)
+                              ────────────────────────────────────────────────────────
+                                %composer%       Composer file tag
+                              ────────────────────────────────────────────────────────
+                                %date%           Date file tag
+                              ────────────────────────────────────────────────────────
+                                %originaldate%   Original Date file tag
+                              ────────────────────────────────────────────────────────
+                                %disc%           Disc file tag
+                              ────────────────────────────────────────────────────────
+                                %genre%          Genre file tag
+                              ────────────────────────────────────────────────────────
+                                %performer%      Performer file tag
+                              ────────────────────────────────────────────────────────
+                                %title%          Title file tag
+                              ────────────────────────────────────────────────────────
+                                %track%          Track file tag
+                              ────────────────────────────────────────────────────────
+                                %time%           Duration of file
+                              ────────────────────────────────────────────────────────
+                                %file%           Path of file, relative to MPD's mu‐
+                                                 sic_directory variable
+                              ────────────────────────────────────────────────────────
+                                %position%       Queue track number
+                              ────────────────────────────────────────────────────────
+                                %id%             Queue track id number
+                              ────────────────────────────────────────────────────────
+                                %prio%           Priority in the (random) queue.
+                              ────────────────────────────────────────────────────────
+                                %mtime%          Date and time of last file  modifi‐
+                                                 cation
+                              ────────────────────────────────────────────────────────
+                                %mdate%          Date of last file modification
+                              ────────────────────────────────────────────────────────
+                                %audioformat%    The audio format of the song.

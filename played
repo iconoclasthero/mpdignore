@@ -40,7 +40,7 @@ while read -r line
 #    printf '%s\n' "$i"
     playedarr["$n"]="$i"
     ((n++))
-  done < <(\grep player /var/log/mpd/mpd.log|tail -n 120)
+  done < <(\grep player /var/log/mpd/mpd.log|tail -n 120; echo "$(date +"%b %d %H:%M") : player: playing \"$(mpc current -f %file%)\"")
 
 for ((n-1; n>=0; n--)); do
   revarray+=( "$( printf '%s ' ${playedarr[$n]} )" )
@@ -60,7 +60,7 @@ resultfile="${resultpath##*\/}"
 #    j="${BASH_REMATCH[1]}"									# this matches the capture group in the last [[ =~
 #fi															# not especially useful here.
 
-exitapp=$(gum choose "mediainfo" "add" "ignore" "picard" "ls ${resultdir}")
+exitapp=$(gum choose "mediainfo" "add" "play" "ignore" "picard" "ls ${resultdir}")
 clear -x
 #pause "$resultpath"
 
@@ -97,6 +97,10 @@ done
 
   elif [[ "$exitapp" = add ]]; then
    mpc add "$resultpath"
+
+  elif [[ "$exitapp" = play ]]; then
+   mpc add "$resultpath"
+   mpc play "$(mpc status %length%)"
 
 
   elif [[ "$exitapp" = ignore ]]; then

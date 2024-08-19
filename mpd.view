@@ -2,7 +2,7 @@
 # nb: the swp file that editscript relies on is provided by nano
 
 MPDSOCK="/var/run/mpd/socket"
-LINES_TO_CLEAR=28
+LINES_TO_CLEAR="$(tput lines)"
 # Define tput variables for formatting
 bold=$(tput bold)
 tput0=$(tput sgr0)
@@ -123,7 +123,6 @@ mono_mpd_response() {
         esac
     done
 
-    # If nextsong_id is not empty, get the next song's info
     if [ -n "$nextsong_id" ]; then
         nextsong_info=$(mpdc "playlistinfo $nextsong_id")
 
@@ -142,14 +141,11 @@ mono_mpd_response() {
     fi
 
 
-    # Calculate the percentage of the song that has played
     percentage=$(awk -v e="$elapsed" -v d="$duration" 'BEGIN { printf "%.0f", (e / d) * 100 }')
 
-    # Format file paths to wrap at slashes
     file_wrapped=$(echo "$file" | sed 's/\//\n\//g')
     next_file_wrapped=$(echo "$next_file" | sed 's/\//\n\//g')
 
-    # Clear the top LINES_TO_CLEAR lines
     tput cup 0 0
     for ((i = 0; i < LINES_TO_CLEAR; i++)); do
         tput el
@@ -157,7 +153,6 @@ mono_mpd_response() {
     done
     tput cup 0 0
 
-    # Format and print the output
     echo "${tput0}${red}${bold}"
     echo "[${state}] #${song_pos}/${song_total}   ${elapsed}/${duration} (${percentage}%)"
     echo "volume: ${volume}%   repeat: ${repeat}   random: ${random}   single: ${single}   consume: ${consume}${tput0}"
@@ -170,23 +165,25 @@ mono_mpd_response() {
     echo "${blue1}$(format_path "${next_file}") ${tput0}"
     echo
 
-#this will print out a useless playlist snippet...
-#for ((i=1; i<=6; i++)); do
-#    while read -r line; do
-#            case "$line" in
-#                file:*)
-#                    next_file="${line#file: }";;
-#                Album:*)
-#                    next_album="${line#Album: }";;
-#                Artist:*)
-#                    next_artist="${line#Artist: }";;
-#                Title:*)
-#                    next_title="${line#Title: }";;
-#            esac
-#        done < <(mpdc playlistinfo\ $(( current + i )))
-#  echo "$next_file"
-#done
 
+useless_playlist_snippet(){
+#this will print out a useless playlist snippet...
+for ((i=1; i<=6; i++)); do
+    while read -r line; do
+            case "$line" in
+                file:*)
+                    next_file="${line#file: }";;
+                Album:*)
+                    next_album="${line#Album: }";;
+                Artist:*)
+                    next_artist="${line#Artist: }";;
+                Title:*)
+                    next_title="${line#Title: }";;
+            esac
+        done < <(mpdc playlistinfo\ $(( current + i )))
+  echo "$next_file"
+done
+}
 
 }
 
@@ -230,7 +227,6 @@ parse_mpd_response() {
         esac
     done
 
-    # If nextsong_id is not empty, get the next song's info
     if [ -n "$nextsong_id" ]; then
         nextsong_info=$(mpdc "playlistinfo $nextsong_id")
 
@@ -249,14 +245,11 @@ parse_mpd_response() {
     fi
 
 
-    # Calculate the percentage of the song that has played
     percentage=$(awk -v e="$elapsed" -v d="$duration" 'BEGIN { printf "%.0f", (e / d) * 100 }')
 
-    # Format file paths to wrap at slashes
     file_wrapped=$(echo "$file" | sed 's/\//\n\//g')
     next_file_wrapped=$(echo "$next_file" | sed 's/\//\n\//g')
 
-    # Clear the top LINES_TO_CLEAR lines
 bg_blue=$(tput setab 4)
     tput cup 0 0
     for ((i = 0; i < LINES_TO_CLEAR; i++)); do
@@ -303,23 +296,6 @@ echo "$bg_blue"
 #    printf '%*s\n' "$term_width" '' | tr ' ' ' '
     printf '└%*s┘' "$(( term_width - 2 ))" '' | sed 's/ /─/g'
     printf "${tput0}"
-#this will print out a useless playlist snippet...
-#for ((i=1; i<=6; i++)); do
-#    while read -r line; do
-#            case "$line" in
-#                file:*)
-#                    next_file="${line#file: }";;
-#                Album:*)
-#                    next_album="${line#Album: }";;
-#                Artist:*)
-#                    next_artist="${line#Artist: }";;
-#                Title:*)
-#                    next_title="${line#Title: }";;
-#            esac
-#        done < <(mpdc playlistinfo\ $(( current + i )))
-#  echo "$next_file"
-#done
-
 }
 
 mpdc() {
