@@ -1,8 +1,11 @@
 #!/bin/bash
+mpdlocal=~/.config/mpd-local.conf
 mpdconf=/etc/mpd.conf
-installdir=/usr/local/sbin
+installdir=/usr/local/bin
 
-if [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this is defined in the mpd.conf file found at /etc/mpd.conf by default
+if [[ -f "$mpdlocal" ]]; then 
+  source "$mpdlocal"
+elif [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this is defined in the mpd.conf file found at /etc/mpd.conf by default
  then
    mpdpass="$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep password | grep control | head -n 1)"
    mpdpass="${mpdpass%*\"}"
@@ -13,8 +16,9 @@ if [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this i
 #   mpdpass="Passwword123"		# manually code the location if /etc/mpd.conf doesn't exist.
 fi
 
+rm "$installdir/ignore.sh" "$installdir/skip.sh" "$installdir/mpdignore.sh"
 cp ./ignore.sh ./skip.sh ./mpdignore.sh "$installdir"
-chown root:root "$installdir/ignore.sh" "$installdir/skip.sh" "$installdir/mpdignore.sh" 
+chown root:root "$installdir/ignore.sh" "$installdir/skip.sh" "$installdir/mpdignore.sh"
 chmod +X "$installdir/ignore.sh" "$installdir/skip.sh" "$installdir/mpdignore.sh"
 
 if [[ ! -L "$installdir/skip" ]]; then

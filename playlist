@@ -53,7 +53,7 @@ searchfn(){
      elif [[ "$mpccommand" = current ]]; then
          \mpc ${REMOTE:-} playlist -f \(%position%\)~%title%~%albumartist%~%album%~\(%disc%-%track%\)~\(%time%\)~%file%~%artist%|
 #        { printf '(-POS-)~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; }
-        { printf '(-POS-)~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C150 ; }
+        { printf '  (-pos-)  ~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C400; }
 #|
 #     column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% current).*"
        fi
@@ -74,17 +74,14 @@ function reverse_path(path) {
         return artist
     }
    {if (NR == 1) {
-#        print $0;  # Print the header as is
+#     print $0;  # Print the header as is
       $1 = bold blue $1 tput0
-#     $2 = bold green $2 tput0
       $2 = bold green (length($2) > 40 ? substr($2, 1, 38) "…" : $2) tput0
       $3 = bold cyan (length($3) > 30 ? substr($3, 1, 28) "…" : $3) tput0
-#      $3 = bold cyan $3 tput0
       $4 = bold magenta (length($4) > 30 ? substr($4, 1, 28) "…" : $4)  tput0
       $5 = bold red $5 tput0
-#      $5 = bold red disc "-" track tput0
-     $6 = bold yellow $6 tput0
-     $7 = bold $7 tput0
+      $6 = bold yellow $6 tput0
+      $7 = bold $7 tput0
       print $1 "~" $2 "~" $3 "~" $4 "~" $5 "~" $6 "~" $7
     } else {
             album_artist = $3
@@ -164,7 +161,8 @@ if [[ "$mpccommand" = playlist ]]; then
 #  i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
 elif [[ "$mpccommand" = current ]]; then
   timeout=$(( $(sex2sec $(\mpc status %totaltime%)) - $(sex2sec $(\mpc status %currenttime%)) ))
-  i=$(gum choose --position=middle --timeout="${timeout}s" --selected=">>" --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
+  i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(( $(tput lines) - 14 )) --header="${playlistarray[0]}" --header.padding="0 2" --position=middle --timeout="${timeout}s" --selected=">>")
+#  i=$(gum choose --position=middle --timeout="${timeout}s" --selected=">>" --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
 fi
   (( n == 0 )) && printf 'Exiting.\n' && exit 1
 
@@ -175,6 +173,7 @@ fi
   $(pause "Play $selection, y/n? ") && \mpc ${remote:-} play "$i"
 
 }
+##--> searchfn() <--###########################################################################
 
 sex2sec(){
   local time="$1";
@@ -215,6 +214,7 @@ pause "${playlistarray[@]}"
       selection="$i"; i="${i%%\)*}"; i="${i#*\(}"
       $(pause "Play $selection, Y/n? ") && \mpc ${REMOTE:-} play "$i"
 }
+##--> searchfn_backup() <--##################################################################
 
 confirm() {
     read -p "$1" -n 1 -r;
@@ -252,6 +252,11 @@ remotefn
 
 echo
 
+cline=150
+if [[ "$1" = -n ]]; then
+ cline="$2"
+fi
+
 if [[ "$1" == @(edit|e|nano) ]]; then
   editscript
 elif [[ "$1" = -a ]] || [[ "$1" = -A ]]; then
@@ -259,7 +264,7 @@ elif [[ "$1" = -a ]] || [[ "$1" = -A ]]; then
   argmax=1995121 #fails
   argmax=1995120
   query="${*:2}"
-  if [[ "$query" ]]; then
+#  if [[ "$query" ]]; then
     printf 'Searching for "%s"...\n\n' "$query"
     readarray -t playlistarray < <(
       {
@@ -367,11 +372,13 @@ elif [[ "$1" = -a ]] || [[ "$1" = -A ]]; then
       done
       mpc ${REMOTE:-} play "$start"
     fi
-  else
-    echo "No query provided; mpc listall is inappropriate here without query ... "
-    echo
-    exit 1
-  fi
+#  else
+#    echo "No query provided; mpc listall is inappropriate here without query ... "
+#    echo
+#    exit 1
+#  fi
+
+
 elif [[ -n "$1" ]]; then
   query="${*}"
   clear -x
