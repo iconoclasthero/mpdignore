@@ -170,7 +170,7 @@ fi
   i="${i%%\)*}"
   i="${i#*\(}"
 
-  $(pause "Play $selection, y/n? ") && \mpc ${remote:-} play "$i"
+  $(pause "Play $selection, Y/n? ") && \mpc ${remote:-} play "$i"
 
 }
 ##--> searchfn() <--###########################################################################

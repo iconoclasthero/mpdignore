@@ -1,6 +1,8 @@
 #!/bin/bash
 # nb: the swp file that editscript relies on is provided by nano
 
+. "/home/$USER/.config/mpd-local.conf"
+
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
      [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
@@ -15,4 +17,5 @@ pactl load-module module-native-protocol-tcp
 ec="$?"
 (("$ec" != 0)) && echo "Something is fucked up with the pulse tcp module"
 
+mpc --host "$mpdpass@$mpdhost" enable $(\mpc outputs|\grep ^Output|grep \(\ Pulse\ Output\ \)|awk '{print $2}')
 

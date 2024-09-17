@@ -5,6 +5,8 @@
 #usermpdpd=  #manually define mpd playlist directory here
 #usermpdlf=  #manually define mpd logfile path here
 
+. "$XDG_CONFIG_HOME/mpd-local.conf"
+
 watchfile=".mpdignore.m3u"              # defines the watched playlist; default = .mpdignore.m3u
 mpdconf="/etc/mpd.conf"                 # defines mpd.conf location; default = /etc/mpd.conf
 mpduser="mpd"                           # defines the user mpd service runs as; default = mpd
@@ -74,12 +76,13 @@ fi
 logsong() {
    i=$(date "+%b %d %H:%M : player: $1 ")
    j=$(mpcp current -f %file%)
-   printf '%s\"%s\"\n' "$i" "$j" | cat >> "$mpdlog"
+   local logged=$(printf '%s\"%s\"\n' "$i" "$j")
+   ssh -p "$sshport" "$mpdhost" "echo "$logged" >> "$mpdlog""
 }
 
 mpcp() {
     [[ ! -n "$mpdpass" ]] && getmpdpass
-    command mpc -P "$mpdpass" "$@"
+    command mpc -P "$mpdpass" -h "$mpdhost" "$@"
 }
 
 
