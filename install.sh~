@@ -3,7 +3,7 @@ mpdlocal=~/.config/mpd-local.conf
 mpdconf=/etc/mpd.conf
 installdir=/usr/local/bin
 
-if [[ -f "$mpdlocal" ]]; then 
+if [[ -f "$mpdlocal" ]]; then
   source "$mpdlocal"
 elif [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this is defined in the mpd.conf file found at /etc/mpd.conf by default
  then
@@ -17,9 +17,12 @@ elif [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this
 fi
 
 rm "$installdir/ignore.sh" "$installdir/skip.sh" "$installdir/mpdignore.sh"
-cp ./ignore.sh ./skip.sh ./mpdignore.sh "$installdir"
-chown root:root "$installdir/ignore.sh" "$installdir/skip.sh" "$installdir/mpdignore.sh"
-chmod +X "$installdir/ignore.sh" "$installdir/skip.sh" "$installdir/mpdignore.sh"
+for i in ignore.sh skip.sh mpdignore.sh; do
+  ln -sf "/home/$SUDO_USER/bin/gits/mpdignore/$i" "$installdir/"
+done
+
+#chown root:root "$installdir/ignore.sh" "$installdir/skip.sh" "$installdir/mpdignore.sh"
+#chmod +X "$installdir/ignore.sh" "$installdir/skip.sh" "$installdir/mpdignore.sh"
 
 if [[ ! -L "$installdir/skip" ]]; then
  ln -s "$installdir/skip.sh" "$installdir/skip"
@@ -31,8 +34,8 @@ fi
 
 sed -i "s/Passwword123/$mpdpass/g" /usr/local/sbin/skip.sh
 
-sudo cp mpdignore.service /etc/systemd/system/
-sudo cp mpdignore.path /etc/systemd/system/
-sudo chown root:root /etc/systemd/system/mpdignore.path /etc/systemd/system/mpdignore.service 
-sudo systemctl daemon-reload
-sudo systemctl enable mpdignore.path && sudo systemctl start mpdignore.path && sudo systemctl status mpdignore.path
+ln -sf mpdignore.service /etc/systemd/system/
+ln -sf mpdignore.path /etc/systemd/system/
+chown root:root /etc/systemd/system/mpdignore.path /etc/systemd/system/mpdignore.service
+systemctl daemon-reload
+systemctl enable mpdignore.path && sudo systemctl start mpdignore.path && sudo systemctl status mpdignore.path
