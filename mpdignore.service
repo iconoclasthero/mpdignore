@@ -6,7 +6,7 @@ Requires=
 [Service]
 Type=oneshot
 # Set ExecStart to location of mpdigore.sh script, e.g., /usr/local/sbin/mpdignore.sh
-ExecStart=/usr/local/sbin/mpdignore.sh 
+ExecStart=/usr/local/bin/mpdignore.sh 
 
 [Install]
 Also=mpdignore.path
