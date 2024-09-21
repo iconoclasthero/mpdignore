@@ -1,0 +1,130 @@
+#!/bin/bash
+# nb: the swp file that editscript relies on is provided by nano
+
+c_path_cur=$(tput sitm; tput setaf 7) # pale whiute path
+c_path_que=$(tput sitm; tput setaf 7) # pale white
+
+#c_aa=$(tput sitm; tput setaf 4) # Blue for artist and album
+c_aa_cur=$(tput sitm; tput setaf 33) # Blue for artist and album
+c_aa_que=$(tput sitm; tput setaf 12) # Blue for artist and album
+
+#c_title_cur=$(tput sitm; tput setaf 11) # Magenta for the song file name
+#c_title_cur=$(tput sitm; tput setaf 178) # Magenta for the song file name
+c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
+c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
+
+white=$(tput setaf 7)
+tput0=$(tput sgr0)
+bold=$(tput bold)
+
+. mpdignore.functions
+
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+  [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+  printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ; }
+
+pause(){ read -rp "$*" < /dev/tty; }
+
+[[ "$1" == @(edit|e|-e) ]] && editscript
+
+title(){
+  readarray -d \~ -t tags < <(mpcp "$1" -f "%artist%~%album%~%title%~%file%")
+  artist="${tags[0]}"
+  album="${tags[1]}"
+  title="${tags[2]}"
+  filepath="${tags[3]}"
+
+  if [[ "$1" = current ]]; then
+    printf '\n%sArtist : %s%s%s\n%s Title : %s%s%s\n%s Album : %s%s%s\n' \
+           "$bold" \
+           "$c_aa_cur" \
+           "$artist" \
+           "$tput0" \
+           "$bold" \
+           "$c_title_cur" \
+           "$title" \
+           "$tput0" \
+           "$bold" \
+           "$c_aa_cur" \
+           "$album" \
+           "$tput0"
+    readarray -d \/ -t file <<< "$filepath"
+      if (( ${#file[@]} > 2)); then
+        printf '%s  File : %s%s%s%s%s/\n' "$bold" "$tput0" "$c_path" "${file[0]}" "$white" "$bold"
+        if (( ${#file[@]} - 3 > 0 )); then
+          printf '       : %s%s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white" "$bold"
+        fi
+
+        printf '       : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
+        printf '       : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
+      else
+        printf '  File : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
+        printf '       : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
+      fi
+
+  elif [[ "$1" = queued ]]; then
+    printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
+           "$c_aa_que" \
+           "$artist" \
+           "$tput0" \
+           "$c_title_que" \
+           "$title" \
+           "$tput0" \
+           "$c_aa_que" \
+           "$album" \
+           "$tput0"
+    readarray -d \/ -t file <<< "$filepath"
+    if (( ${#file[@]} > 2)); then
+      printf 'Queued : %s%s%s%s/\n' "$tput0" "$c_path" "${file[0]}" "$white"
+      if (( ${#file[@]} - 3 > 0 )); then
+        printf '       : %s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
+      fi
+      printf '       : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    else
+      printf '  File : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    fi
+
+  elif [[ "$1" = skipped ]]; then
+    printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
+           "$c_aa_que" \
+           "$artist" \
+           "$tput0" \
+           "$c_title_que" \
+           "$title" \
+           "$tput0" \
+           "$c_aa_que" \
+           "$album" \
+           "$tput0"
+    readarray -d \/ -t file <<< "$filepath"
+    if (( ${#file[@]} > 2)); then
+      printf 'Skipped : %s%s%s%s/\n' "$tput0" "$c_path" "${file[0]}" "$white"
+      if (( ${#file[@]} - 3 > 0 )); then
+        printf '       : %s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
+      fi
+      printf '       : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    else
+      printf '  File : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    fi
+
+  fi
+
+}
+
+printf '\n%s------   ------------ QUEUED ------------   %s' "${tput0}" "${tput0}"
+title queued
+
+printf '\n%s------   ------------ CURRENT -----------   %s' "${bold}" "${tput0}"
+title current
+
+#mpcp status -f ""
+printf \\n
+printf %s%s%s\ -\ %s%s%s\\n "$bold""$c_aa_cur" "$artist" "$c_title_cur" "$title" "$tput0"
+\mpc status "\[%state%\] ##%songpos%/%length%  %currenttime%/%totaltime% (%percenttime%)\nvolume:%volume%   repeat: %repeat%   random: %random%   single: %single%   consume: %consume%"
+
+#tput cuu 1
+\mpc -q  --host "$mpdpass@$mpdhost" "$@"
