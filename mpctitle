@@ -115,6 +115,10 @@ title(){
 
 }
 
+
+. mpdignore.functions
+
+
 printf '\n%s------   ------------ QUEUED ------------   %s' "${tput0}" "${tput0}"
 title queued
 

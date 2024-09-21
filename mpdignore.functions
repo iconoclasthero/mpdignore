@@ -5,7 +5,7 @@
 #usermpdpd=  #manually define mpd playlist directory here
 #usermpdlf=  #manually define mpd logfile path here
 
-[[ "$XDG_CONFIG_HOME/mpd-local.conf" ]] &&
+[[ "$XDG_CONFIG_HOME" ]] &&
     . "$XDG_CONFIG_HOME/mpd-local.conf" ||
     . /home/"$USER"/.config/mpd-local.conf
 
