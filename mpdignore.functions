@@ -5,7 +5,9 @@
 #usermpdpd=  #manually define mpd playlist directory here
 #usermpdlf=  #manually define mpd logfile path here
 
-. "$XDG_CONFIG_HOME/mpd-local.conf" || . /home/"$USER"/.config/mpd-local.conf
+[[ "$XDG_CONFIG_HOME/mpd-local.conf" ]] &&
+    . "$XDG_CONFIG_HOME/mpd-local.conf" ||
+    . /home/"$USER"/.config/mpd-local.conf
 
 watchfile=".mpdignore.m3u"              # defines the watched playlist; default = .mpdignore.m3u
 mpdconf="/etc/mpd.conf"                 # defines mpd.conf location; default = /etc/mpd.conf
