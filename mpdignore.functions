@@ -5,7 +5,7 @@
 #usermpdpd=  #manually define mpd playlist directory here
 #usermpdlf=  #manually define mpd logfile path here
 
-. "$XDG_CONFIG_HOME/mpd-local.conf"
+. "$XDG_CONFIG_HOME/mpd-local.conf" || . /home/"$USER"/.config/mpd-local.conf
 
 watchfile=".mpdignore.m3u"              # defines the watched playlist; default = .mpdignore.m3u
 mpdconf="/etc/mpd.conf"                 # defines mpd.conf location; default = /etc/mpd.conf
@@ -105,6 +105,115 @@ mediaduration(){
   printf "\nDuration of .opus files: "
   find -type f -iname "*.opus" -print0 | xargs -0 mplayer -vo dummy -ao dummy -identify 2>/dev/null | perl -nle '/ID_LENGTH=([0-9\.]+)/ && ($t +=$1) && printf "%02d:%02d:%02d\n",$t/3600,$t/60%60,$t%60' | tail -n 1
 }
+
+
+
+title(){
+  c_path_cur=$(tput sitm; tput setaf 7) # pale whiute path
+  c_path_que=$(tput sitm; tput setaf 7) # pale white
+
+  #c_aa=$(tput sitm; tput setaf 4) # Blue for artist and album
+  c_aa_cur=$(tput sitm; tput setaf 33) # Blue for artist and album
+  c_aa_que=$(tput sitm; tput setaf 12) # Blue for artist and album
+
+  #c_title_cur=$(tput sitm; tput setaf 11) # Magenta for the song file name
+  #c_title_cur=$(tput sitm; tput setaf 178) # Magenta for the song file name
+  c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
+  c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
+
+  white=$(tput setaf 7)
+  tput0=$(tput sgr0)
+  bold=$(tput bold)
+
+  query="$1"
+  [[ "$query" = skipped ]] && query=current
+
+  readarray -d \~ -t tags < <(mpcp "$query" -f "%artist%~%album%~%title%~%file%")
+  artist="${tags[0]}"
+  album="${tags[1]}"
+  title="${tags[2]}"
+  filepath="${tags[3]}"
+
+  if [[ "$1" = current ]]; then
+    printf '\n%sArtist : %s%s%s\n%s Title : %s%s%s\n%s Album : %s%s%s\n' \
+           "$bold" \
+           "$c_aa_cur" \
+           "$artist" \
+           "$tput0" \
+           "$bold" \
+           "$c_title_cur" \
+           "$title" \
+           "$tput0" \
+           "$bold" \
+           "$c_aa_cur" \
+           "$album" \
+           "$tput0"
+    readarray -d \/ -t file <<< "$filepath"
+      if (( ${#file[@]} > 2)); then
+        printf '%s  File : %s%s%s%s%s/\n' "$bold" "$tput0" "$c_path" "${file[0]}" "$white" "$bold"
+        if (( ${#file[@]} - 3 > 0 )); then
+          printf '       : %s%s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white" "$bold"
+        fi
+
+        printf '       : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
+        printf '       : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
+      else
+        printf '  File : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
+        printf '       : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
+      fi
+
+  elif [[ "$1" = queued ]]; then
+    printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
+           "$c_aa_que" \
+           "$artist" \
+           "$tput0" \
+           "$c_title_que" \
+           "$title" \
+           "$tput0" \
+           "$c_aa_que" \
+           "$album" \
+           "$tput0"
+    readarray -d \/ -t file <<< "$filepath"
+    if (( ${#file[@]} > 2)); then
+      printf 'Queued : %s%s%s%s/\n' "$tput0" "$c_path" "${file[0]}" "$white"
+      if (( ${#file[@]} - 3 > 0 )); then
+        printf '       : %s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
+      fi
+      printf '       : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    else
+      printf '  File : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    fi
+
+  elif [[ "$1" = skipped ]]; then
+    printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
+           "$c_aa_que" \
+           "$artist" \
+           "$tput0" \
+           "$c_title_que" \
+           "$title" \
+           "$tput0" \
+           "$c_aa_que" \
+           "$album" \
+           "$tput0"
+    readarray -d \/ -t file <<< "$filepath"
+    if (( ${#file[@]} > 2)); then
+      printf 'Queued : %s%s%s%s/\n' "$tput0" "$c_path" "${file[0]}" "$white"
+      if (( ${#file[@]} - 3 > 0 )); then
+        printf '       : %s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
+      fi
+      printf '       : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    else
+      printf '  File : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    fi
+
+  fi
+
+}
+
 
 
 [[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript

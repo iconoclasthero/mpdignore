@@ -20,8 +20,8 @@
 # else
 #   mpdlog="/var/log/mpd/mpd.log"  # manually code the location if /etc/mpd.conf doesn't exist.
 #fi
-
-. "$XDG_CONFIG_HOME/mpd-local.conf"
+echo "$USER"
+. "$XDG_CONFIG_HOME/mpd-local.conf" || . /home/"$USER"/.config/mpd-local.conf
 . mpdignore.functions
 logsong "skipped"
 mpcp next
