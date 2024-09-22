@@ -31,7 +31,7 @@ editscript "$1"
 #   musicdir="/library/music"		# manually code the location if /etc/mpd.conf doesn't exist.
 #fi
 
-getmpdmusicdir
+[[ ! "$musicdir" ]] && getmpdmusicdir
 
 ####################################################
 #This block is now defined in mpdignore.functions
@@ -45,7 +45,7 @@ getmpdmusicdir
 #   pldir="/var/lib/mpd/playlists"	# manually code the location if /etc/mpd.conf doesn't exist.
 #fi
 
-getmpdpldir
+[[ ! "$mpdpldir" ]] && getmpdpldir
 
 ####################################################
 #This block is now defined in mpdignore.functions
@@ -59,31 +59,30 @@ getmpdpldir
 #   mpdlog="/var/log/mpd/mpd.log"	# manually code the location if /etc/mpd.conf doesn't exist.
 #fi
 
-getmpdlog
+[[ ! "$mpdlog" ]] && getmpdlog
 
-watchpath="$pldir/$watchfile"		# sets full path of watchfile
-ignoredpath="$pldir/$ignoredm3u"        # sets full path of ignoredm3u
+watchpath="$mpdpldir/$watchfile"		# sets full path of watchfile
+ignoredpath="$mpdpldir/$ignoredm3u"        # sets full path of ignoredm3u
 
-while read -r line
- do
+while read -r line; do
   song="${line##*/}"
   songdir="${line%/*}"
   ignoredir="$musicdir/$songdir"
-  if [[ -f "$ignoredir"/.mpdignore ]]
-     then
-        cp "$ignoredir"/.mpdignore "$ignoredir"/.mpdignore~
+  if [[ -f "$ignoredir"/.mpdignore ]]; then
+    cp "$ignoredir"/.mpdignore "$ignoredir"/.mpdignore~
   fi
-											#mpd does not recognize file names with square brackets in .mpdignore files and the
-  if [[ "$song" =~ \[ ]] || [[ "$song" =~ \] ]]						#individual square bracket characters must be escaped such that they will be recognized
-     then
-        song=$(sed -e 's/\\\]/\]/g' -e 's/\\\[/\[/g' -e 's/\[/\\\[/g' -e 's/\]/\\\]/g' <<< "$song" )
+
+### mpd does not recognize file names with square brackets in .mpdignore files and the
+### individual square bracket characters must be escaped such that they will be recognized
+  if [[ "$song" =~ \[ ]] || [[ "$song" =~ \] ]]; then
+    song=$(sed -e 's/\\\]/\]/g' -e 's/\\\[/\[/g' -e 's/\[/\\\[/g' -e 's/\]/\\\]/g' <<< "$song" )
   fi
 
   printf "%s\n# added on %s\n" "$song" "$(date)" >> "$ignoredir"/.mpdignore
   printf '%s has been added to .mpdignore in %s\n' "$song" "$ignoredir"
   printf '%s\n' "$line" >> "$ignoredpath"
   printf '%s\n' "$(date '+%b %d %H:%M : player: ignored ')\"$line\"" | cat >> "$mpdlog"
- done < "$watchpath"
+done < "$watchpath"
 
 echo "#last run $(date)" >> "$ignoredpath"
 
