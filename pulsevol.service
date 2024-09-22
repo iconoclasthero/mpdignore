@@ -1,0 +1,5 @@
+[Unit]
+Description=Volume Control Service
+
+[Service]
+ExecStart=/usr/local/bin/pulsevol %i
