@@ -223,7 +223,7 @@ title(){
 
 
 get-current-json(){
-  current_json=$(mpd-current-json)
+  current_json=$(mpd-current-json -h "$mpdhost" -p "$mpdport")
   state=$(echo "$current_json" | jq -r '.status.state')
   song_position=$(echo "$current_json" | jq -r '.status.song_position')
   song_length=$(echo "$current_json" | jq -r '.status.playlist_length')

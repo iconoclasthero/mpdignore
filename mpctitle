@@ -179,7 +179,7 @@ printf "[%s] #%s/%s  %s/%s (%s%%)\n" \
   "$(sec2sex "$total_time")" \
   "${percent_time%.*}"
 
-printf "volume: %s   repeat: %s   random: %s   consume: %s   %s\n\n" \
+printf "volume: %s%%   repeat: %s   random: %s   consume: %s   %s\n\n" \
   "$volume" \
   "$repeat" \
   "$random" \

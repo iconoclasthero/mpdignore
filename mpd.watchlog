@@ -1,0 +1,72 @@
+#!/bin/bash
+. ~/bin/indexopus.lib
+. ~/.config/abc.conf
+#define abs_token; abs_logpath; abs_server
+# in the file ~/.config/abc.conf
+tput0="$(tput sgr0)"
+bold="$(tput bold)"
+ita="$(tput sitm)"
+itr="$(tput ritm)"
+cyan="$(tput setaf 6)"
+grey="$(tput setaf 7)"
+white="$(tput setaf 15)"
+green="$(tput setaf 2)"
+blue="$(tput setaf 4)"
+yellow="$(tput setaf 3)"
+red="$(tput setaf 1)"
+numout="30"
+
+colorize_log() {
+    while IFS= read -r line; do
+        # Extract the date and time from the log entry
+        timestamp=$(echo "$line" | awk '{print $1 " " $2}')
+        # Extract the log level and message
+        level=$(echo "$line" | awk '{print $3}' | sed 's/:$//')
+        message=$(echo "$line" | sed 's/^[^ ]* [^ ]* [^:]*: //')
+
+        # Determine the color for the log level
+        case "$level" in
+            "player") color_level="$green$level$tput0" ;;  # Green
+            "exception") color_level="$red$level$tput0" ;; # Red
+            "flac") color_level="$yellow$level$tput0" ;;    # Yellow
+            "output") color_level="$blue$level$tput0" ;;   # Blue
+            "client") color_level="$cyan$level$tput0" ;;   # Cyan
+            *) color_level="$level" ;;
+        esac
+
+        timestamp="${cyan}${bold}[${tput0}${cyan}$timestamp${bold}]$tput0"  # Cyan
+        message="${tput0}$message"
+
+        printf "%-56s %-17s %s\n" "$timestamp" "$color_level" "$message"
+    done
+}
+
+while (( $# > 0 )); do
+  [[ "$1" = '-n' ]] && shift && numout="$1" && shift
+  [[ "$1" = '-i' ]] && shift && ignore+=("$1") && shift && flag_ignore=true
+  [[ "$1" = '-l' ]] && shift && abs_logpath="$1" && shift
+done
+
+# Set the default log path to /var/log/mpd/mpd.log
+[[ ! "$abs_logpath" ]] && abs_logpath="/var/log/mpd/mpd.log"
+
+echo "${bold}abs log path: $abs_logpath$tput0"
+
+[[ ! -f "$abs_logpath" || ! "$abs_server" || ! "$abs_token" ]] &&
+    echo "Check ~/.config/abc.conf" &&
+    exit 1
+
+unset ignore_tmp
+
+if [[ ${flag_ignore} = true ]] ; then
+  ignores="$( IFS=\|; echo "${ignore[*]}" )"
+
+  pause "$ignores"
+
+  tail -n "$numout" -f "$abs_logpath" | grep -Evi "$ignores" | colorize_log
+
+else
+  tail -n "$numout" -f "$abs_logpath" | colorize_log
+fi
+
+exit
