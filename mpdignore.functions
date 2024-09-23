@@ -7,7 +7,8 @@
 
 [[ "$XDG_CONFIG_HOME" ]] &&
     . "$XDG_CONFIG_HOME/mpd-local.conf" ||
-    . /home/"$USER"/.config/mpd-local.conf
+    . /home/"$USER"/.config/mpd-local.conf ||
+    . /etc/default/mpd-local.conf
 
 watchfile=".mpdignore.m3u"              # defines the watched playlist; default = .mpdignore.m3u
 mpdconf="/etc/mpd.conf"                 # defines mpd.conf location; default = /etc/mpd.conf
@@ -130,11 +131,11 @@ title(){
   query="$1"
   [[ "$query" = skipped ]] && query=current
 
-  readarray -d \~ -t tags < <(mpcp "$query" -f "%artist%~%album%~%title%~%file%")
-  artist="${tags[0]}"
-  album="${tags[1]}"
-  title="${tags[2]}"
-  filepath="${tags[3]}"
+#  readarray -d \~ -t tags < <(mpcp "$query" -f "%artist%~%album%~%title%~%file%")
+#  artist="${tags[0]}"
+#  album="${tags[1]}"
+#  title="${tags[2]}"
+#  filepath="${tags[3]}"
 
   if [[ "$1" = current ]]; then
     printf '\n%sArtist : %s%s%s\n%s Title : %s%s%s\n%s Album : %s%s%s\n' \
@@ -165,6 +166,11 @@ title(){
       fi
 
   elif [[ "$1" = queued ]]; then
+    readarray -d \~ -t tags < <(mpcp "$query" -f "%artist%~%album%~%title%~%file%")
+    artist="${tags[0]}"
+    album="${tags[1]}"
+    title="${tags[2]}"
+    filepath="${tags[3]}"
     printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
            "$c_aa_que" \
            "$artist" \
@@ -214,6 +220,49 @@ title(){
 
   fi
 
+}
+
+
+get-current-json(){
+  current_json=$(mpd-current-json -h "$mpdhost" -p "$mpdport")
+  state=$(echo "$current_json" | jq -r '.status.state')
+  song_position=$(echo "$current_json" | jq -r '.status.song_position')
+  song_length=$(echo "$current_json" | jq -r '.status.playlist_length')
+  elapsed=$(echo "$current_json" | jq -r '.status.elapsed')
+  total_time=$(echo "$current_json" | jq -r '.tags.duration')
+  percent_time=$(echo "$current_json" | jq -r '.status.elapsed_percent')
+  filepath=$(echo "$current_json"| jq -r '.tags.filename')
+  title=$(echo "$current_json" | jq -r '.tags.title')
+  artist=$(echo "$current_json" | jq -r '.tags.artist')
+  album=$(echo "$current_json" | jq -r '.tags.album')
+  year=$(echo "$current_json" | jq -r '.tags.date')
+  volume=$(echo "$current_json" | jq -r '.status.volume')
+  repeat=$(echo "$current_json" | jq -r '.status.repeat')
+  single=$(echo "$current_json" | jq -r '.status.single')
+  random=$(echo "$current_json" | jq -r '.status.random')
+  consume=$(echo "$current_json" | jq -r '.status.consume')
+  songpath=$(echo "$current_json" | jq -r '.tags.filename')
+  [[ "$repeat"  = true ]] && repeat="✅"  || repeat="❌"
+  [[ "$consume" = true ]] && consume="✅" || consume="❌"
+  [[ "$random"  = true ]] && random="✅" || random="❌"
+  [[ "$single"  = true ]] && single="✅" || unset single
+}
+
+sec2sex() {
+  local h m s
+  local input="${1%.*}"
+  local dec="${1#*.}"; dec="${dec:0:1}"
+  [[ "$dec" > 4 ]] && ((input++))
+
+  h=$(( input / 3600 ))
+  m=$(( (input % 3600) / 60 ))
+  s=$(( input % 60 ))
+
+  if (( h > 0 )); then
+    printf "%02d:%02d:%02d" "$h" "$m" "$s"
+  else
+    printf "%d:%02d" "$m" "$s"
+  fi
 }
 
 
