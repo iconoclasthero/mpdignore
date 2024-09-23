@@ -226,6 +226,10 @@ title(){
 
 
 get-current-json(){
+  local green="$(tput setaf 10)"
+  local bold="$(tput bold)"
+  local tput0="$(tput sgr0)"
+  local red="$(tput setaf 9)"
   current_json=$(mpd-current-json -h "$mpdhost" -p "$mpdport")
   state=$(echo "$current_json" | jq -r '.status.state')
   song_position=$(echo "$current_json" | jq -r '.status.song_position')
@@ -244,10 +248,12 @@ get-current-json(){
   random=$(echo "$current_json" | jq -r '.status.random')
   consume=$(echo "$current_json" | jq -r '.status.consume')
   songpath=$(echo "$current_json" | jq -r '.tags.filename')
-  [[ "$repeat"  = true ]] && repeat="✅"  || repeat="❌"
+#  [[ "$repeat"  = true ]] && repeat="✅"  || repeat="❌"
+  [[ "$repeat"  = true ]] && repeat="${bold}${green}⟳${tput0}"  || repeat="$(tput setaf 7)⟳${tput0}"
   [[ "$consume" = true ]] && consume="✅" || consume="❌"
   [[ "$random"  = true ]] && random="✅" || random="❌"
   [[ "$single"  = true ]] && single="✅" || unset single
+  [[ "$state"   = playing ]] && state="$green$state$tput0" || [[ "$state" = paused ]] && state="$red$state$tput0"
 }
 
 sec2sex() {
