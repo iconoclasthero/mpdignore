@@ -1,6 +1,8 @@
 #!/bin/bash
 # nb: the swp file that editscript relies on is provided by nano
 
+echo "next called $(date -Im)" >>/cache/next.log
+
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
      [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit

@@ -159,6 +159,8 @@ pause(){ read -rp "$*" < /dev/tty; }
 
 . mpdignore.functions
 
+[[ "$1" = rand ]] && mpc -q -h "$mpdpass@$mpdhost" rand && ~/bin/gits/mpdignore/mpctitle && exit
+
 printf '\n%s------- ------------- QUEUED ------------   %s' "${tput0}" "${tput0}"
 title queued
 

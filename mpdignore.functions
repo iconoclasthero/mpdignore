@@ -171,6 +171,8 @@ title(){
     album="${tags[1]}"
     title="${tags[2]}"
     filepath="${tags[3]}"
+#    get-current-json
+#    echo "$random"
     printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
            "$c_aa_que" \
            "$artist" \
