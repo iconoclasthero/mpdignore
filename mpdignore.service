@@ -1,7 +1,7 @@
 #mpdignore.service
 [Unit]
-Description=Creates and updates .mpdignore files in music directories when songs are added to /var/lib/mpd/playlists/.mpdignore.mp3 via mpd client.
-Requires=
+Description=Creates and updates .mpdignore files in music directories when songs are added to /library/music/mpd\ playlists/.mpdignore.mp3 via mpd client.
+Requires=mpdignore.path
 
 [Service]
 Type=oneshot
