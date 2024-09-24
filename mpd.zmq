@@ -1,0 +1,65 @@
+#!/bin/bash
+# nb: the swp file that editscript relies on is provided by nano
+
+. "$XDG_CONFIG_HOME/mpd-local.conf" 2>/dev/null || . ~/.config/mpd-local.conf
+
+
+bold="$(tput bold)"
+tput0="$(tput sgr0)"
+verbose=false
+tunport=5555
+retport=6666
+autosshpid="/tmp/autossh_${tunport}.pid"
+ffplaypid="/tmp/ffplayzmq-$(date -Im).pid"
+
+mpcp(){ [[ "$mpdpass" ]] && mpco+=(-P "$mpdpass")
+        [[ "$mpdhost" ]] && mpco+=(-h "$mpdhost")
+       \mpc "${mpco[@]}" "$@"
+      }
+
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+
+pause(){ read -rp "$*" < /dev/tty; }
+
+[[ "$1" == @(edit|e|-e) ]] && editscript
+[[ "$1" = @(--verbose|-v) ]] && verbose=true && shift
+
+if ! ps aux | grep "[a]utossh.*-L${port}:localhost:${port}.*${mpdhost}.*-p${sshport}" > /dev/null; then
+  autossh -fvN -M0 -L"${tunport}":localhost:"${tunport}" -R"${retport}":localhost:22 "${mpdhost}" -p"${sshport}"&
+  echo "$!" > "${autosshpid}"  #this works
+fi
+
+screen -S mpd.zmq -X quit &>/dev/null
+screen -wipe &>/dev/null
+
+if "$verbose"; then
+  printf '\n%sAn autossh/ssh should be running a tunnel to %s on %s%s: \n' "${bold}" "$mpdhost" "$tunport" "$tput0"
+  mpdhost1="[${mpdhost:0:1}]${mpdhost:1}"
+  ps aux|grep --color=always "$mpdhost1" || ps aux|grep --color=always [a]utossh
+  printf '\n%sNo mpd.zmq screens should be open%s: \n' "$bold" "$tput0"
+  screen -ls
+fi
+
+zmqoutput="$(mpcp outputs|\grep zmq|awk '{print $2}')"
+enableout=$(mpcp enable "$zmqoutput")
+playout=$(mpcp play)
+
+# Start a new detached screen session named "mpd.zmq" running ffplay
+#screen -dmS mpd.zmq ffplay -nodisp zmq:tcp://localhost:5555 -loglevel debug
+screen -dmS mpd.zmq sh -c 'ffplay -nodisp zmq:tcp://localhost:5555 -loglevel debug & echo $! > "$0"; wait' "${ffplaypid}"
+
+if "$verbose"; then
+ \sleep 1.25s
+  printf %s\ %s\\n\\n "$autosshpid" "$(cat "$autosshpid")"
+ \sleep 1.25s
+#  echo "$ffplaypid $(cat "$ffplaypid")"
+  printf %s\ %s\\n\\n "$ffplaypid" "$(cat "$ffplaypid")"
+ \sleep 1.25s
+  echo "$enableout"|grep --color=always ffmpeg\ zmq
+ \sleep 1.25s
+  printf \\n%s\\n "$playout"
+fi
+
