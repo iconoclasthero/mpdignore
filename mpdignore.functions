@@ -263,8 +263,8 @@ get-current-json(){
   mb_reltrackid=$(echo "$current_json" | jq -r '.tags.musicbrainz_releasetrackid')
 #    [[ "$repeat"  = true ]] && repeat="✅"  || repeat="❌"
      [[ "$repeat"  = true ]] && repeat="${bold}${green}⟳${tput0}"  || repeat="$(tput setaf 7)⟳${tput0}"
-     [[ "$consume" = true ]] && consume="✅" || consume="❌"
-     [[ "$random"  = true ]] && random="✅" || random="❌"
+     [[ "$consume" = true ]] && consume="${bold}✅${tput0}" || consume="${bold}❌${tput0}"
+     [[ "$random"  = true ]] && random="${bold}✅${tput0}" || random="${bold}❌${tput0}"
      [[ "$single"  = true ]] && single="✅" || unset single
   [[ "$state"   = playing ]] && state="${green}${bold}$state${tput0}" || [[ "$state" = paused ]] && state="${red}${state}${tput0}"
 
