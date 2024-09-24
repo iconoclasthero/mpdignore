@@ -10,6 +10,8 @@ editscript(){
 
 pause(){ read -rp "$*" < /dev/tty; }
 
+mpcp(){ \mpc --host "$mpdpass@$mpdhost" "$@"; }
+
 [[ "$1" == @(edit|e|-e) ]] && editscript
 
 pactl unload-module module-native-protocol-tcp 2>/dev/null
@@ -17,5 +19,9 @@ pactl load-module module-native-protocol-tcp
 ec="$?"
 (("$ec" != 0)) && echo "Something is fucked up with the pulse tcp module"
 
-mpc --host "$mpdpass@$mpdhost" enable $(\mpc outputs|\grep ^Output|grep \(\ Pulse\ Output\ \)|awk '{print $2}')
+#enableout=$(mpc --host "$mpdpass@$mpdhost" enable $(\mpc outputs|\grep ^Output|grep \(\ Pulse\ Output\ \)|awk '{print $2}'))
+enableout=$(mpcp enable $(\mpc outputs|\grep ^Output|grep \(\ Pulse\ Output\ \)|awk '{print $2}')|grep \(\ Pulse\ Output\ \))
+mpctitle play
+. mpdignore.functions
+printf '%s%s%s\n\n' "${bold}" "$(echo $enableout)" "${tput0}"
 

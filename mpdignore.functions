@@ -21,6 +21,13 @@ editscript(){
      [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptname") && exit
      printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit ;}
 
+mpdc() {
+    ! [[ "$MPDSOCK" ]] && MPDSOCK="/var/run/mpd/socket"
+    local command="$@"
+    echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPDSOCK"
+}
+
+
 getmpdconf(){
 mpdconf="$(grep MPDCONF /etc/default/mpd)"
 mpdconf="${mpdconf#*=}"
@@ -171,8 +178,6 @@ title(){
     album="${tags[1]}"
     title="${tags[2]}"
     filepath="${tags[3]}"
-#    get-current-json
-#    echo "$random"
     printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
            "$c_aa_que" \
            "$artist" \
@@ -184,6 +189,7 @@ title(){
            "$album" \
            "$tput0"
     readarray -d \/ -t file <<< "$filepath"
+#    readarray -d \/ -t file <<< "$next_filepath"
     if (( ${#file[@]} > 2)); then
       printf 'Queued : %s%s%s%s/\n' "$tput0" "$c_path" "${file[0]}" "$white"
       if (( ${#file[@]} - 3 > 0 )); then
@@ -231,29 +237,71 @@ get-current-json(){
   local tput0="$(tput sgr0)"
   local red="$(tput setaf 9)"
   current_json=$(mpd-current-json -h "$mpdhost" -p "$mpdport")
-  state=$(echo "$current_json" | jq -r '.status.state')
+          state=$(echo "$current_json" | jq -r '.status.state')
   song_position=$(echo "$current_json" | jq -r '.status.song_position')
-  song_length=$(echo "$current_json" | jq -r '.status.playlist_length')
-  elapsed=$(echo "$current_json" | jq -r '.status.elapsed')
-  total_time=$(echo "$current_json" | jq -r '.tags.duration')
-  percent_time=$(echo "$current_json" | jq -r '.status.elapsed_percent')
-  filepath=$(echo "$current_json"| jq -r '.tags.filename')
-  title=$(echo "$current_json" | jq -r '.tags.title')
-  artist=$(echo "$current_json" | jq -r '.tags.artist')
-  album=$(echo "$current_json" | jq -r '.tags.album')
-  year=$(echo "$current_json" | jq -r '.tags.date')
-  volume=$(echo "$current_json" | jq -r '.status.volume')
-  repeat=$(echo "$current_json" | jq -r '.status.repeat')
-  single=$(echo "$current_json" | jq -r '.status.single')
-  random=$(echo "$current_json" | jq -r '.status.random')
-  consume=$(echo "$current_json" | jq -r '.status.consume')
-  songpath=$(echo "$current_json" | jq -r '.tags.filename')
-#  [[ "$repeat"  = true ]] && repeat="✅"  || repeat="❌"
-  [[ "$repeat"  = true ]] && repeat="${bold}${green}⟳${tput0}"  || repeat="$(tput setaf 7)⟳${tput0}"
-  [[ "$consume" = true ]] && consume="✅" || consume="❌"
-  [[ "$random"  = true ]] && random="✅" || random="❌"
-  [[ "$single"  = true ]] && single="✅" || unset single
-  [[ "$state"   = playing ]] && state="$green$state$tput0" || [[ "$state" = paused ]] && state="$red$state$tput0"
+    song_length=$(echo "$current_json" | jq -r '.status.playlist_length')
+        elapsed=$(echo "$current_json" | jq -r '.status.elapsed')
+     total_time=$(echo "$current_json" | jq -r '.status.duration')
+   percent_time=$(echo "$current_json" | jq -r '.status.elapsed_percent')
+       filepath=$(echo "$current_json" | jq -r '.filename')
+#      filepath=$(echo "$current_json" | jq -r '.tags.filename')
+#      songpath=$(echo "$current_json" | jq -r '.tags.filename')
+          title=$(echo "$current_json" | jq -r '.tags.title')
+         artist=$(echo "$current_json" | jq -r '.tags.artist')
+   album_artist=$(echo "$current_json" | jq -r '.tags.album_artist')
+          album=$(echo "$current_json" | jq -r '.tags.album')
+           year=$(echo "$current_json" | jq -r '.tags.date')
+         volume=$(echo "$current_json" | jq -r '.status.volume')
+         repeat=$(echo "$current_json" | jq -r '.status.repeat')
+         single=$(echo "$current_json" | jq -r '.status.single')
+         random=$(echo "$current_json" | jq -r '.status.random')
+        consume=$(echo "$current_json" | jq -r '.status.consume')
+  next_filepath=$(echo "$current_json" | jq -r '.next_filename')
+    mb_artistid=$(echo "$current_json" | jq -r '.tags.musicbrainz_artistid')
+     mb_albumid=$(echo "$current_json" | jq -r '.tags.musicbrainz_albumid')
+     mb_trackid=$(echo "$current_json" | jq -r '.tags.musicbrainz_trackid')
+  mb_reltrackid=$(echo "$current_json" | jq -r '.tags.musicbrainz_releasetrackid')
+#    [[ "$repeat"  = true ]] && repeat="✅"  || repeat="❌"
+     [[ "$repeat"  = true ]] && repeat="${bold}${green}⟳${tput0}"  || repeat="$(tput setaf 7)⟳${tput0}"
+     [[ "$consume" = true ]] && consume="✅" || consume="❌"
+     [[ "$random"  = true ]] && random="✅" || random="❌"
+     [[ "$single"  = true ]] && single="✅" || unset single
+  [[ "$state"   = playing ]] && state="${green}${bold}$state${tput0}" || [[ "$state" = paused ]] && state="${red}${state}${tput0}"
+
+  printmpcjson() {
+    echo -ne          "${name:+Name: $name\n}"
+    echo -ne         "${title:+  Title: $title\n}"
+    echo -ne        "${artist:+ Artist: $artist\n}"
+    echo -ne         "${album:+  Album: $album\n}"
+    echo -ne          "${year:+   Year: $year\n}"
+   echo -ne   "${album_artist:+AlbmArt: $album_artist\n}"
+    echo -ne       "${comment:+Comment: $comment\n}"
+#   echo -ne      "${composer:+Composer: $composer\n}"
+    echo -ne          "${date:+   Date: $date\n}"
+#   echo -ne  "${originaldate:+Original Date: $originaldate\n}"
+    echo -ne          "${disc:+   Disc: $disc\n}"
+    echo -ne         "${genre:+  Genre: $genre\n}"
+    echo -ne     "${performer:+Performer: $performer\n}"
+    echo -ne         "${track:+  Track: $track\n}"
+    echo -ne   "${mb_artistid:+mbartid: $mb_artistid\n}"
+    echo -ne    "${mb_albumid:+mbalbid: $mb_albumid\n}"
+    echo -ne    "${mb_trackid:+mbtrkid: $mb_trackid\n}"
+    echo -ne "${mb_reltrackid:+mbreltk: $mb_reltrackid\n}"
+    echo -ne          "${time:+   Time: $time\n}"
+    echo -ne         "${state:+  State: $state\n}"
+    echo -ne        "${volume:+ Volume: $volume\n}"
+    echo -ne "${song_position:+  Queue: $song_position\n}"
+    echo -ne       "${elapsed:+   Time: $(sec2sex $elapsed)}"
+    echo -ne    "${total_time:+ $(sec2sex $total_time)}"
+    echo -ne  "${percent_time:+ (${percent_time%.*}%)\n}"
+    echo -ne        "${repeat:+ Repeat: $repeat\n}"
+    echo -ne        "${random:+ Random: $random\n}"
+    echo -ne        "${single:+ Single: $single\n}"
+    echo -ne       "${consume:+Consume: $consume\n}"
+    echo -ne      "${filepath:+Current: $filepath\n}"
+    echo -ne "${next_filepath:+   Next: $next_filepath\n}"
+  }
+#  printmpcjson
 }
 
 sec2sex() {

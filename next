@@ -30,7 +30,7 @@ pause(){ read -rp "$*" < /dev/tty; }
   # notify-send -i audio-x-generic "Next song:" "$queued by $qartist"
     skip &>/dev/null
 #   readarray -t current < <(mpcp current -f "%file%\n%title% on %album% by %artist%")
-    local qfile="$(mpcp queued -f %file%)"
+    qfile="$(mpcp queued -f %file%)"
 #   printf '%sCurrent:%s %s%s\n\n%s%sUp next: %s%s%s %s\n\n' "${bold}" "${tput0}" "${crcolor}" "${current[0]%.*}" "${tput0}" "${bold}" "${tput0}" "${qucolor}" "${qfile%.*}" "${tput0}"
     printf '\n%s------   ------------ QUEUED ------------   %s' "${tput0}" "${tput0}";
     title queued;

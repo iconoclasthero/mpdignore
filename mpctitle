@@ -16,6 +16,7 @@ c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
 white=$(tput setaf 7)
 tput0=$(tput sgr0)
 bold=$(tput bold)
+italics=$(tput sitm)
 
 . mpdignore.functions
 
@@ -159,7 +160,12 @@ pause(){ read -rp "$*" < /dev/tty; }
 
 . mpdignore.functions
 
-[[ "$1" = @(rand@(|om)|consume|repeat|single) ]] && mpc -q -h "$mpdpass@$mpdhost" "$1" && ~/bin/gits/mpdignore/mpctitle && exit
+if [[ "$1" = @(rand@(|om)|toggle|consume|repeat|single) ]]; then
+ \mpc -q -h "$mpdpass@$mpdhost" "$1"
+  shift
+  ~/bin/gits/mpdignore/mpctitle
+  exit
+fi
 
 printf '\n%s------- ------------- QUEUED ------------   %s' "${tput0}" "${tput0}"
 title queued
@@ -169,48 +175,40 @@ get-current-json
 printf '\n%s------- ------------- CURRENT -----------   %s' "${bold}" "${tput0}"
 title current
 
-printf \\n
-printf %s%s%s\ -\ %s%s%s\\n "$bold""$c_aa_cur" "$artist" "$c_title_cur" "$title" "$tput0"
+printf \\n%s%s%s\ -\ %s%s%s\\n "$bold""$c_aa_cur" "$artist" "$c_title_cur" "$title" "$tput0"
+
 #\mpc status "\[%state%\] ##%songpos%/%length%  %currenttime%/%totaltime% (%percenttime%)\nvolume:%volume%   repeat: %repeat%   random: %random%   single: %single%   consume: %consume%"
 
-printf "[%s] #%s/%s  %s/%s (%s%%)\n" \
+
+
+printf '%s%s[%s%s%s%s%s] #%s%s/%s  %s/%s (%s%%)\n' \
+  "$italics" \
+  "$bold" \
+  "$tput0" \
+  "$italics" \
   "$state" \
+  "$tput0" \
+  "$bold" \
+  "$italics" \
   "$song_position" \
   "$song_length" \
   "$(sec2sex "$elapsed")" \
   "$(sec2sex "$total_time")" \
   "${percent_time%.*}"
 
-printf "volume: %s%%   repeat: %s   random: %s   consume: %s   %s\n\n" \
+#printf "volume: %s%%   repeat: %s   random: %s   consume: %s   %s\n\n" \
+printf 'volume: %s%%%s %s  %srandom: %s%s%s  consume: %s %s\n\n' \
   "$volume" \
+  "$tput0" \
   "$repeat" \
+  "$italics" \
+  "$tput0" \
   "$random" \
+  "$italics" \
+  "$tput0" \
   "$consume" \
   "${single:+single: $single}"
 
 [[ "$@" ]] && \mpc -q  --host "$mpdpass@$mpdhost" "$@"
 
 
-printmpcjson() {
-echo -ne "${name:+Name: $name\n}"
-echo -ne "${artist:+Artist: $artist\n}"
-echo -ne "${album:+Album: $album\n}"
-echo -ne "${albumartist:+Album Artist: $albumartist\n}"
-echo -ne "${comment:+Comment: $comment\n}"
-echo -ne "${composer:+Composer: $composer\n}"
-echo -ne "${date:+Date: $date\n}"
-echo -ne "${originaldate:+Original Date: $originaldate\n}"
-echo -ne "${disc:+Disc: $disc\n}"
-echo -ne "${genre:+Genre: $genre\n}"
-echo -ne "${performer:+Performer: $performer\n}"
-echo -ne "${title:+Title: $title\n}"
-echo -ne "${track:+Track: $track\n}"
-echo -ne "${time:+Time: $time\n}"
-echo -ne "${file:+File: $file\n}"
-echo -ne "${state:+State: $state\n}"
-echo -ne "${volume:+Volume: $volume\n}"
-echo -ne "${repeat:+Repeat: $repeat\n}"
-echo -ne "${random:+Random: $random\n}"
-echo -ne "${single:+Single: $single\n}"
-echo -ne "${consume:+Consume: $consume\n}"
-}
