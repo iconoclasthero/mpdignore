@@ -180,8 +180,6 @@ title current
 unset paused
 [[ "$state" =~ paused ]] && paused=true
 
-pause "$paused"
-
 printf \\n%s%s%s%s%s\ -\ %s%s%s%s%s\\n \
   "$bold" \
   "$c_aa_cur" \
