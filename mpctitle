@@ -168,7 +168,7 @@ if [[ "$1" = @(rand@(|om)|toggle|consume|repeat|single) ]]; then
   exit
 fi
 
-printf '\n%s------- ------------- QUEUED ------------   %s' "${tput setaf 7}" "${tput0}"
+printf '\n%s------- ------------- QUEUED ------------   %s' "$(tput setaf 7)" "${tput0}"
 title queued
 
 unset paused
