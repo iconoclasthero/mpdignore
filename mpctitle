@@ -197,7 +197,7 @@ printf '%s%s[%s%s%s%s%s] #%s%s/%s  %s/%s (%s%%)\n' \
   "${percent_time%.*}"
 
 #printf "volume: %s%%   repeat: %s   random: %s   consume: %s   %s\n\n" \
-printf 'volume: %s%%%s %s  %srandom: %s%s%s  consume: %s %s\n\n' \
+printf 'volume: %s%%%s %s  %srandom: %s%s%s consume: %s %s  %s%s\n\n' \
   "$volume" \
   "$tput0" \
   "$repeat" \
@@ -207,8 +207,9 @@ printf 'volume: %s%%%s %s  %srandom: %s%s%s  consume: %s %s\n\n' \
   "$italics" \
   "$tput0" \
   "$consume" \
-  "${single:+single: $single}"
+  "${single:+single: $single}" \
+  "$tput0"
 
-[[ "$@" ]] && \mpc -q  --host "$mpdpass@$mpdhost" "$@"
+[[ "$@" ]] && \mpc -q -h "$mpdpass@$mpdhost" "$@"
 
 
