@@ -14,14 +14,17 @@ function editscript(){
 
 function pause(){ read -p "$*" ; }
 
+
+#pactl load-module module-native-protocol-tcp auth-ip-acl="127.0.0.1;192.168.0.0/16" auth-anonymous=1
+
 checktcpmodule(){
   checktcp="$(ssh "$ip" pactl list short modules|grep module-native-protocol-tcp)"
   checktcperr="$?"
-  (( checktcperr != 0 )) && unloadmodule=$(ssh "$ip" pactl unload-module module-native-protocol-tcp)
-  (( checktcperr != 0 )) && loadmodule=$(ssh "$ip" pactl load-module module-native-protocol-tcp)
-  loadmoderr="$?"
-  echo "$checktcp $checktcperr"
-  echo "$loadmodule $loadmoderr"
+  (( checktcperr != 0 )) && unloadmodule="$(ssh "$ip" pactl unload-module module-native-protocol-tcp 2>&1 )"
+  (( checktcperr != 0 )) && loadmodule="$(ssh "$ip" pactl load-module module-native-protocol-tcp auth-ip-acl='127.0.0.1\;192.168.0.0/16' auth-anonymous=1)" && loadmoderr="$?"
+  (( checktcperr = 0 )) && loadmodule="$checktcp"
+#  echo "$checktcp $checktcperr"
+  echo "Module loaded: $loadmodule ${loadmoderr:+stderr: $loadmoderr}"
 }
 
 if [[ "$1" == "edit" ]] || [[ "$1" == "e" ]] || [[ "$1" == "nano" ]]; then
@@ -70,11 +73,11 @@ checktcpmodule
 if [[ -z "$sink" ]]; then
   sink="$(pulsemixer --server="$ip" --list-sinks | grep JBL | awk '{print $3}')"
   sink="${sink%,}"
-  pause "$sink"
+  echo "$sink"
 fi
 
 if [[ -n "$cmd" ]]; then
-  pulsemixer --server="$ip" --id "$sink" $cmd
+  pulsemixer --server="$ip" --id "$sink" "$cmd"
 else
   echo "Usage: $0 --compaq|--gig|--mute|<volume_change>"
   exit 1
