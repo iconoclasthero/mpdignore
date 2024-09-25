@@ -180,7 +180,7 @@ title current
 unset paused
 [[ "$state" =~ paused ]] && paused=true
 
-printf \\n%s%s%s%s%s\ -\ %s%s%s%s%s\\n \
+printf '\n         %s%s%s%s%s - %s%s%s%s%s\n' \
   "$bold" \
   "$c_aa_cur" \
   "${ritm}" \
@@ -194,7 +194,7 @@ printf \\n%s%s%s%s%s\ -\ %s%s%s%s%s\\n \
 
 #\mpc status "\[%state%\] ##%songpos%/%length%  %currenttime%/%totaltime% (%percenttime%)\nvolume:%volume%   repeat: %repeat%   random: %random%   single: %single%   consume: %consume%"
 
-printf '%s%s[%s%s%s%s%s] #%s%s/%s  %s/%s (%s%%)\n' \
+printf '         %s%s[%s%s%s%s%s] #%s%s%s/%s  %s/%s (%s%%)\n' \
   "${paused:+$italics}" \
   "$bold" \
   "$tput0" \
@@ -202,6 +202,7 @@ printf '%s%s[%s%s%s%s%s] #%s%s/%s  %s/%s (%s%%)\n' \
   "$state" \
   "$tput0" \
   "$bold" \
+  "$tput0" \
   "${paused:+$italics}" \
   "$song_position" \
   "$song_length" \
@@ -211,7 +212,7 @@ printf '%s%s[%s%s%s%s%s] #%s%s/%s  %s/%s (%s%%)\n' \
 
 #printf "volume: %s%%   repeat: %s   random: %s   consume: %s   %s\n\n" \
 
-printf 'volume: %s%%%s %s  %srandom: %s%s%s consume: %s %s  %s%s\n\n' \
+printf '         volume: %s%%%s %s  %srandom: %s%s%s consume: %s %s  %s%s\n\n' \
   "$volume" \
   "$tput0" \
   "$repeat" \
