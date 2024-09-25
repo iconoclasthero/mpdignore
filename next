@@ -20,7 +20,7 @@ pause(){ read -rp "$*" < /dev/tty; }
     qucolor="$(tput setaf 3)";
 #  readarray -t skipped < <( mpcp current -f "%file%\n%title% on %album% by %artist%")
 # printf '%sSkipping:%s %s%s%s\n\n' "${bold}" "${tput0}" "${skcolor}" "${skipped[0]%.*}" "${tput0}"
-    printf '\n%s------   ------------ SKIPPED -----------   %s' "${tput0}" "${tput0}";
+    printf '\n%s------   ------------ SKIPPED -----------   %s' "${white}" "${tput0}";
     get-current-json
     title skipped
     if pgrep -x "notify-osd" > /dev/null; then
@@ -32,7 +32,7 @@ pause(){ read -rp "$*" < /dev/tty; }
 #   readarray -t current < <(mpcp current -f "%file%\n%title% on %album% by %artist%")
     qfile="$(mpcp queued -f %file%)"
 #   printf '%sCurrent:%s %s%s\n\n%s%sUp next: %s%s%s %s\n\n' "${bold}" "${tput0}" "${crcolor}" "${current[0]%.*}" "${tput0}" "${bold}" "${tput0}" "${qucolor}" "${qfile%.*}" "${tput0}"
-    printf '\n%s------   ------------ QUEUED ------------   %s' "${tput0}" "${tput0}";
+    printf '\n%s------   ------------ QUEUED ------------   %s' "${white}" "${tput0}";
     title queued;
     get-current-json;
     printf '\n%s------   ------------ CURRENT -----------   %s' "${bold}" "${tput0}";
