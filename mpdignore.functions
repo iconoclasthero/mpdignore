@@ -236,7 +236,7 @@ get-current-json(){
   local bold="$(tput bold)"
   local tput0="$(tput sgr0)"
   local red="$(tput setaf 9)"
-  current_json=$(mpd-current-json -h "$mpdhost" -p "$mpdport")
+  current_json=$(/usr/local/bin/mpd-current-json -h "$mpdhost" -p "$mpdport")
           state=$(echo "$current_json" | jq -r '.status.state')
   song_position=$(echo "$current_json" | jq -r '.status.song_position')
     song_length=$(echo "$current_json" | jq -r '.status.playlist_length')
