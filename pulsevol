@@ -43,14 +43,8 @@ while [[ "$#" -gt 0 ]]; do
     --gig|--gigabyte) ip="192.168.1.2"; shift ;;
     --mute|mute) cmd="--toggle-mute"; shift ;;
     --sink) sink="$2"; shift 2 ;;
+    --mixer) cmd='mixer'; break ;;
     *)
-#      if [[ "$1" =~ ^-?[0-9]+$ ]]; then
-#      if [[ "$1" =~ ^(-|\+)?[0-9]{1,3}$ ]]; then
-#        if (( "$1" >= 0 )); then
-#          cmd="--set-volume $1"
-#        else
-#          cmd="--change-volume $1"
-#        fi
       if [[ "$1" =~ ^(-|\+)?[0-9]{1,3}$ ]]; then
         if [[ "$1" =~ ^[0-9]+$ ]]; then
           cmd="--set-volume $1"  # Unsigned sets volume
@@ -66,17 +60,16 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-
 checktcpmodule
-
 
 if [[ -z "$sink" ]]; then
   sink="$(pulsemixer --server="$ip" --list-sinks | grep JBL | awk '{print $3}')"
   sink="${sink%,}"
-  echo "$sink"
 fi
 
-if [[ -n "$cmd" ]]; then
+if [[ "$cmd" = 'mixer' ]]; then
+  pulsemixer --server="$ip"
+elif [[ -n "$cmd" ]]; then
   pulsemixer --server="$ip" --id "$sink" "$cmd"
 else
   echo "Usage: $0 --compaq|--gig|--mute|<volume_change>"
