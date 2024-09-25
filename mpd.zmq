@@ -1,6 +1,6 @@
 #!/bin/bash
 # nb: the swp file that editscript relies on is provided by nano
-export LC_CTYPE="UTF-8"
+#export LC_CTYPE="UTF-8"
 
 . "$XDG_CONFIG_HOME/mpd-local.conf" 2>/dev/null || . ~/.config/mpd-local.conf
 
@@ -17,8 +17,16 @@ ffplaypid="/tmp/ffplayzmq-$(date -Im).pid"
 sinkMAC='00:42:79:D9:B6:AF'
 sinkname='JBL Xtreme 2'
 
-hr(){ printf -- '%*s\n' "${1:-$COLUMNS}" | tr ' ' "${2:--}"; }
 pause(){ read -rp "$@" < /dev/tty; }
+
+#hr(){ printf -- '%*s\n' "${1:-$COLUMNS}" | tr ' ' "${2:--}"; }
+
+hr() {
+  local width="$(tput cols)"
+#  local width=${1:-${COLUMNS:-80}}  # Default to 80 if COLUMNS is unset
+#  printf -- '%.0s—' $(seq "${1:-$COLUMNS}"); echo; }
+  printf -- '%.0s—' $(seq 1 "$width"); echo; }
+
 
 mpcp(){ [[ "$mpdpass" ]] && mpco+=(-P "$mpdpass")
         [[ "$mpdhost" ]] && mpco+=(-h "$mpdhost")
@@ -28,9 +36,16 @@ mpcp(){ [[ "$mpdpass" ]] && mpco+=(-P "$mpdpass")
 resetzmq(){
 #  printf '\n%sBluetooth:%s\n%s\n\n' "$btctlout"
   btctlout="$(bluetoothctl disconnect "$sinkMAC"|grep -v "Attempting to disconnect from $sinkMAC")"
-  printf '\n%s%sAttempting to disconnect %s%s/%s%s:%s\n%s%s\n' "$yellow" "$bold" "$blue" "$sinkname" "$sinkMAC" "$yellow" "$tput0" "$btctlout" "$(hr)"
-  printf %s "$(hr)" "$(hr)" "$(hr)"
-  hr;hr
+  printf '\n%s%sAttempting to disconnect %s%s/%s%s:%s\n%s\n' \
+    "$yellow" \
+    "$bold" \
+    "$blue" \
+    "$sinkname" \
+    "$sinkMAC" \
+    "$yellow" \
+    "$tput0" \
+    "$btctlout"
+  printf %s\\n "$(hr)"
 
   echo
   before=before
@@ -126,11 +141,11 @@ hr
     "$btctlout" \
     "$tput0"
 hr
- \sleep 1.25s
+ \sleep 1s
   printf '\n%s%sMPD enable fmpeg/zmq output:%s\n' "$bold" "$yellow" "$tput0"
   printf %s\\n "$(echo "$enableout"|grep --color=always ffmpeg\ zmq)"
   hr
- \sleep 1.25s
+ \sleep 1s
   printf %s\\n\\n "$playout"
 fi
 
