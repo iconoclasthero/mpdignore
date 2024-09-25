@@ -24,7 +24,7 @@ checktcpmodule(){
   (( checktcperr != 0 )) && loadmodule="$(ssh "$ip" pactl load-module module-native-protocol-tcp auth-ip-acl='127.0.0.1\;192.168.0.0/16' auth-anonymous=1)" && loadmoderr="$?"
   (( checktcperr = 0 )) && loadmodule="$checktcp"
 #  echo "$checktcp $checktcperr"
-  echo "Module loaded: $loadmodule ${loadmoderr:+stderr: $loadmoderr}"
+  echo "${loadmodule:+Module loaded: $loadmodule} ${loadmoderr:+stderr: $loadmoderr}"
 }
 
 if [[ "$1" == "edit" ]] || [[ "$1" == "e" ]] || [[ "$1" == "nano" ]]; then
