@@ -14,6 +14,16 @@ function editscript(){
 
 function pause(){ read -p "$*" ; }
 
+checktcpmodule(){
+  checktcp="$(ssh "$ip" pactl list short modules|grep module-native-protocol-tcp)"
+  checktcperr="$?"
+  (( checktcperr != 0 )) && unloadmodule=$(ssh "$ip" pactl unload-module module-native-protocol-tcp)
+  (( checktcperr != 0 )) && loadmodule=$(ssh "$ip" pactl load-module module-native-protocol-tcp)
+  loadmoderr="$?"
+  echo "$checktcp $checktcperr"
+  echo "$loadmodule $loadmoderr"
+}
+
 if [[ "$1" == "edit" ]] || [[ "$1" == "e" ]] || [[ "$1" == "nano" ]]; then
   editscript "$1"
 elif [[ "$1" == "help" ]] || [[ "$1" == "-h" ]]; then
@@ -52,6 +62,10 @@ while [[ "$#" -gt 0 ]]; do
       ;;
   esac
 done
+
+
+checktcpmodule
+
 
 if [[ -z "$sink" ]]; then
   sink="$(pulsemixer --server="$ip" --list-sinks | grep JBL | awk '{print $3}')"
