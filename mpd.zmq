@@ -1,65 +1,136 @@
 #!/bin/bash
 # nb: the swp file that editscript relies on is provided by nano
+export LC_CTYPE="UTF-8"
 
 . "$XDG_CONFIG_HOME/mpd-local.conf" 2>/dev/null || . ~/.config/mpd-local.conf
 
 
 bold="$(tput bold)"
 tput0="$(tput sgr0)"
+yellow="$(tput setaf 214)"
+blue="$(tput setaf 33)"
 verbose=false
 tunport=5555
 retport=6666
 autosshpid="/tmp/autossh_${tunport}.pid"
 ffplaypid="/tmp/ffplayzmq-$(date -Im).pid"
+sinkMAC='00:42:79:D9:B6:AF'
+sinkname='JBL Xtreme 2'
+
+hr(){ printf -- '%*s\n' "${1:-$COLUMNS}" | tr ' ' "${2:--}"; }
+pause(){ read -rp "$@" < /dev/tty; }
 
 mpcp(){ [[ "$mpdpass" ]] && mpco+=(-P "$mpdpass")
         [[ "$mpdhost" ]] && mpco+=(-h "$mpdhost")
        \mpc "${mpco[@]}" "$@"
-      }
+}
+
+resetzmq(){
+#  printf '\n%sBluetooth:%s\n%s\n\n' "$btctlout"
+  btctlout="$(bluetoothctl disconnect "$sinkMAC"|grep -v "Attempting to disconnect from $sinkMAC")"
+  printf '\n%s%sAttempting to disconnect %s%s/%s%s:%s\n%s%s\n' "$yellow" "$bold" "$blue" "$sinkname" "$sinkMAC" "$yellow" "$tput0" "$btctlout" "$(hr)"
+  printf %s "$(hr)" "$(hr)" "$(hr)"
+  hr;hr
+
+  echo
+  before=before
+  for j in psaux pkill psaux; do
+    printf %s%s "$bold" "$yellow"
+    [[ "$j" = psaux ]] && echo "$j $before:" || echo "$j:"
+    printf %s "$tput0"
+    for i in autossh ffplay bin/mpd.zmq; do
+      "$j" "$i"|grep -v -- '--reset'
+    done
+    [[ "$before"=before ]] && before=after
+    hr
+    echo
+  done
+  pause "${yellow}${bold}^C to exit, [Enter] to continue.${tput0}"
+  hr
+}
+
+startssh(){
+if ! ps aux | grep "[a]utossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}" > /dev/null; then
+  autossh -fvN -M0 -L"${tunport}":localhost:"${tunport}" -R"${retport}":localhost:22 "${mpdhost}" -p"${sshport}"&
+  echo "$!" > "${autosshpid}"  #this works
+fi
+}
+
+startffplay(){
+screen -dmS mpd.zmq sh -c 'ffplay -nodisp zmq:tcp://localhost:5555 -loglevel debug & echo $! > "$0"; wait' "${ffplaypid}"
+}
 
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
      [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
      printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
 
-pause(){ read -rp "$*" < /dev/tty; }
-
-[[ "$1" == @(edit|e|-e) ]] && editscript
+[[ "$1" == @(edit|e|-e) ]] && editscript && exit
+[[ "$1" = --reset ]] && shift && resetzmq
 [[ "$1" = @(--verbose|-v) ]] && verbose=true && shift
 
-if ! ps aux | grep "[a]utossh.*-L${port}:localhost:${port}.*${mpdhost}.*-p${sshport}" > /dev/null; then
-  autossh -fvN -M0 -L"${tunport}":localhost:"${tunport}" -R"${retport}":localhost:22 "${mpdhost}" -p"${sshport}"&
-  echo "$!" > "${autosshpid}"  #this works
-fi
+connected=$(bluetoothctl info "$sinkMAC"|grep Connected|awk '{print $2}')
+[[ "$connected" = 'no' ]] && btctlout=$(bluetoothctl list; bluetoothctl connect "$sinkMAC" &) || btctlout=$(bluetoothctl list; bluetoothctl info "$sinkMAC")
+
+startssh&
 
 screen -S mpd.zmq -X quit &>/dev/null
 screen -wipe &>/dev/null
 
 if "$verbose"; then
-  printf '\n%sAn autossh/ssh should be running a tunnel to %s on %s%s: \n' "${bold}" "$mpdhost" "$tunport" "$tput0"
-  mpdhost1="[${mpdhost:0:1}]${mpdhost:1}"
-  ps aux|grep --color=always "$mpdhost1" || ps aux|grep --color=always [a]utossh
-  printf '\n%sNo mpd.zmq screens should be open%s: \n' "$bold" "$tput0"
-  screen -ls
+  screenout=$(screen -ls)
+  printf '\n%s%sNo mpd.zmq screens should be open:%s \n%s' "$yellow" "$bold" "$tput0" "$screenout"
+  hr
+fi
+
+startffplay&
+
+if "$verbose"; then
+true
 fi
 
 zmqoutput="$(mpcp outputs|\grep zmq|awk '{print $2}')"
 enableout=$(mpcp enable "$zmqoutput")
-playout=$(mpcp play)
+playout=$(mpctitle play)
 
 # Start a new detached screen session named "mpd.zmq" running ffplay
 #screen -dmS mpd.zmq ffplay -nodisp zmq:tcp://localhost:5555 -loglevel debug
-screen -dmS mpd.zmq sh -c 'ffplay -nodisp zmq:tcp://localhost:5555 -loglevel debug & echo $! > "$0"; wait' "${ffplaypid}"
 
 if "$verbose"; then
+  printf '\n%s%sAn autossh/ssh should be running a tunnel to %s on %s:%s \n' \
+    "${yellow}" \
+    "${bold}" \
+    "$mpdhost" \
+    "$tunport" \
+    "$tput0"
+  mpdhost1="[${mpdhost:0:1}]${mpdhost:1}"
+  ps aux|grep --color=always '[5]555\|[s]sh.iconoclasthero.com' || ps aux|grep --color=always [a]utossh
+  #ps aux|grep -E --color=always '5555\|"$mpdhost1"' || ps aux|grep --color=always [a]utossh
+hr
  \sleep 1.25s
-  printf %s\ %s\\n\\n "$autosshpid" "$(cat "$autosshpid")"
+  printf '\n%s%sProcess pid info:%s\n' "$bold" "$yellow" "$tput0"
+  printf %s\ %s\\n "$autosshpid" "$(cat "$autosshpid")"
  \sleep 1.25s
 #  echo "$ffplaypid $(cat "$ffplaypid")"
-  printf %s\ %s\\n\\n "$ffplaypid" "$(cat "$ffplaypid")"
+  printf %s\ %s\\n "$ffplaypid" "$(cat "$ffplaypid")"
+hr
+  [[ "$connected" = no ]] && btctlout="$btctlout $(echo; bluetoothctl info)"
+  printf \\n%s%sBluetooth\ device%s\ %s%s\/%s%s\:\\n%s%s\\n \
+    "$bold" \
+    "$yellow" \
+    "$tput0" \
+    "$blue" \
+    "$sinkname" \
+    "$sinkMAC" \
+    "$yellow" \
+    "$btctlout" \
+    "$tput0"
+hr
  \sleep 1.25s
-  echo "$enableout"|grep --color=always ffmpeg\ zmq
+  printf '\n%s%sMPD enable fmpeg/zmq output:%s\n' "$bold" "$yellow" "$tput0"
+  printf %s\\n "$(echo "$enableout"|grep --color=always ffmpeg\ zmq)"
+  hr
  \sleep 1.25s
-  printf \\n%s\\n "$playout"
+  printf %s\\n\\n "$playout"
 fi
 

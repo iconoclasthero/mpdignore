@@ -56,6 +56,7 @@ done
 if [[ -z "$sink" ]]; then
   sink="$(pulsemixer --server="$ip" --list-sinks | grep JBL | awk '{print $3}')"
   sink="${sink%,}"
+  pause "$sink"
 fi
 
 if [[ -n "$cmd" ]]; then

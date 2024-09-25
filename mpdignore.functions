@@ -128,8 +128,8 @@ title(){
 
   #c_title_cur=$(tput sitm; tput setaf 11) # Magenta for the song file name
   #c_title_cur=$(tput sitm; tput setaf 178) # Magenta for the song file name
-  c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
-  c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
+  c_title_cur=$(tput sitm; tput setaf 214) # Yellow for the song name
+  c_title_que=$(tput sitm; tput setaf 3) # Yellow for the song file name
 
   white=$(tput setaf 7)
   tput0=$(tput sgr0)
