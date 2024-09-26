@@ -169,7 +169,7 @@ if [[ "$1" = @(rand@(|om)|toggle|consume|repeat|single) ]]; then
 fi
 
 printf '\n%s------- ------------- QUEUED ------------   %s' "$(tput setaf 7)" "${tput0}"
-title queued
+title queued || exit
 
 unset paused
 get-current-json
