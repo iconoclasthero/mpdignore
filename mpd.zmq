@@ -72,7 +72,9 @@ fi
 }
 
 startffplay(){
-screen -dmS mpd.zmq sh -c 'ffplay -nodisp zmq:tcp://localhost:5555 -loglevel debug & echo $! > "$0"; wait' "${ffplaypid}"
+screen -dmS mpd.zmq sh -c \
+  'ffplay -nodisp zmq:tcp://localhost:5555 -loglevel debug & echo $! > "$0"; wait' \
+  "${ffplaypid}"
 }
 
 editscript(){

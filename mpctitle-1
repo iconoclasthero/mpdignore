@@ -1,0 +1,108 @@
+#!/bin/bash
+# nb: the swp file that editscript relies on is provided by nano
+
+c_path_cur=$(tput sitm; tput setaf 7) # pale whiute path
+c_path_que=$(tput sitm; tput setaf 7) # pale white
+
+#c_aa=$(tput sitm; tput setaf 4) # Blue for artist and album
+c_aa_cur=$(tput sitm; tput setaf 33) # Blue for artist and album
+c_aa_que=$(tput sitm; tput setaf 12) # Blue for artist and album
+
+#c_title_cur=$(tput sitm; tput setaf 11) # Magenta for the song file name
+#c_title_cur=$(tput sitm; tput setaf 178) # Magenta for the song file name
+c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
+c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
+
+white=$(tput setaf 7)
+tput0=$(tput sgr0)
+bold=$(tput bold)
+italics=$(tput sitm)
+ritm="$(tput ritm)"
+
+. mpdignore.functions
+
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+  [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+  printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ; }
+
+pause(){ read -rp "$*" < /dev/tty; }
+
+[[ "$1" == @(edit|e|-e) ]] && editscript
+
+. mpdignore.functions
+
+if [[ "$1" = @(rand@(|om)|toggle|pause|play|consume|repeat|single) ]]; then
+ \mpc -q -h "$mpdpass@$mpdhost" "$1"
+  shift
+  mpctitle "$@"
+  exit
+elif [[ "$1" = @(seek) ]]; then
+  \mpc -q -h "$mpdpass@$mpdhost" "$1" "$2"
+  shift 2
+  mpctitle "$@"
+  exit
+fi
+
+output=( "$(printf '\n%s-------- ------------- QUEUED ------------   %s' "$(tput setaf 7)" "${tput0}")" )
+output+=( "$(title queued)" )
+
+unset paused
+get-current-json
+
+output+=( "$(printf '\n%s-------- ------------- CURRENT -----------   %s' "${bold}" "${tput0}")" )
+output+=( "$(title current)" )
+
+unset paused
+[[ "$state" =~ paused ]] && paused=true
+
+output+=( "$( printf '\n         %s%s%s%s%s - %s%s%s%s%s\n' \
+  "$bold" \
+  "$c_aa_cur" \
+  "${ritm}" \
+  "${paused:+$italics}" \
+  "$artist" \
+  "$c_title_cur" \
+  "${ritm}" \
+  "${paused:+$italics}" \
+  "$title" \
+  "$tput0" )" )
+
+#\mpc status "\[%state%\] ##%songpos%/%length%  %currenttime%/%totaltime% (%percenttime%)\nvolume:%volume%   repeat: %repeat%   random: %random%   single: %single%   consume: %consume%"
+
+output+=( "$(printf '         %s%s[%s%s%s%s%s] #%s%s%s/%s  %s/%s (%s%%)\n' \
+  "${paused:+$italics}" \
+  "$bold" \
+  "$tput0" \
+  "${paused:+$italics}" \
+  "$state" \
+  "$tput0" \
+  "$bold" \
+  "$tput0" \
+  "${paused:+$italics}" \
+  "$song_position" \
+  "$song_length" \
+  "$(sec2sex "$elapsed")" \
+  "$(sec2sex "$total_time")" \
+  "${percent_time%.*}" )" )
+
+#printf "volume: %s%%   repeat: %s   random: %s   consume: %s   %s\n\n" \
+
+output+=( "$(printf '         volume: %s%%%s %s %srandom: %s%s%s consume: %s%s %s%s\n\n' \
+  "$volume" \
+  "$tput0" \
+  "$repeat" \
+  "${paused:+$italics}" \
+  "$tput0" \
+  "$random" \
+  "${paused:+$italics}" \
+  "$tput0" \
+  "$consume" \
+  "${single:+single: $single}" \
+  "$tput0" )" )
+
+[[ "$@" ]] && output+=( "$(\mpc -q -h "$mpdpass@$mpdhost" "$@")" )
+
+printf %s\\n "${output[@]}"
+
+

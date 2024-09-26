@@ -134,6 +134,7 @@ title(){
   white=$(tput setaf 7)
   tput0=$(tput sgr0)
   bold=$(tput bold)
+#  st=$(tput smxx)
 
   query="$1"
   [[ "$query" = skipped ]] && query=current
@@ -145,7 +146,7 @@ title(){
 #  filepath="${tags[3]}"
 
   if [[ "$1" = current ]]; then
-    printf '\n%sArtist : %s%s%s\n%s Title : %s%s%s\n%s Album : %s%s%s\n' \
+    printf '%s Artist : %s%s%s\n%s  Title : %s%s%s\n%s  Album : %s%s%s\n' \
            "$bold" \
            "$c_aa_cur" \
            "$artist" \
@@ -159,17 +160,17 @@ title(){
            "$album" \
            "$tput0"
     readarray -d \/ -t file <<< "$filepath"
-      if (( ${#file[@]} > 2)); then
-        printf '%s  File : %s%s%s%s%s/\n' "$bold" "$tput0" "$c_path" "${file[0]}" "$white" "$bold"
-        if (( ${#file[@]} - 3 > 0 )); then
-          printf '       : %s%s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white" "$bold"
+      if (( "${#file[@]}" > 2)); then
+        printf '%s   File : %s%s%s%s%s/\n' "$bold" "$tput0" "$c_path" "${file[0]}" "$white" "$bold"
+        if (( "${#file[@]}" - 3 > 0 )); then
+          printf '        : %s%s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white" "$bold"
         fi
 
-        printf '       : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
-        printf '       : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
+        printf '        : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
+        printf '        : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
       else
-        printf '  File : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
-        printf '       : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
+        printf '   File : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
+        printf '        : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
       fi
 
   elif [[ "$1" = queued ]]; then
@@ -178,52 +179,63 @@ title(){
     album="${tags[1]}"
     title="${tags[2]}"
     filepath="${tags[3]}"
-    printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
+    printf '%s Artist : %s%s%s%s\n  Title : %s%s%s%s\n  Album : %s%s%s\n' \
+           "$white" \
            "$c_aa_que" \
            "$artist" \
            "$tput0" \
+           "$white" \
            "$c_title_que" \
            "$title" \
            "$tput0" \
+           "$white" \
            "$c_aa_que" \
            "$album" \
            "$tput0"
     readarray -d \/ -t file <<< "$filepath"
 #    readarray -d \/ -t file <<< "$next_filepath"
     if (( ${#file[@]} > 2)); then
-      printf 'Queued : %s%s%s%s/\n' "$tput0" "$c_path" "${file[0]}" "$white"
+      printf '%s Queued : %s%s%s/\n' "$white" "$c_path" "${file[0]}" "$white"
       if (( ${#file[@]} - 3 > 0 )); then
-        printf '       : %s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
+        printf '        %s: %s%s%s/\n' "$white" "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
       fi
-      printf '       : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
-      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+      printf '        %s: %s%s%s/\n' "$white" "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '        %s: %s%s%s\n' "$white" "$c_title_que" "${file[-1]%.*}" "$tput0"
     else
-      printf '  File : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
-      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+      printf '%s Queued %s: %s%s%s/\n' "$white" "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '        %s: %s%s%s\n' "$white" "$c_title_que" "${file[-1]%.*}" "$tput0"
     fi
-
   elif [[ "$1" = skipped ]]; then
-    printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
+    printf '\n%s%s Artist %s: %s%s%s\n%s%s  Title %s: %s%s%s\n%s%s  Album %s: %s%s%s\n' \
+           "${st:+$st}" \
+           "$white" \
+           "$tput0" \
            "$c_aa_que" \
            "$artist" \
            "$tput0" \
+           "${st:+$st}" \
+           "$white" \
+           "$tput0" \
            "$c_title_que" \
            "$title" \
+           "$tput0" \
+           "${st:+$st}" \
+           "$white" \
            "$tput0" \
            "$c_aa_que" \
            "$album" \
            "$tput0"
     readarray -d \/ -t file <<< "$filepath"
     if (( ${#file[@]} > 2)); then
-      printf 'Queued : %s%s%s%s/\n' "$tput0" "$c_path" "${file[0]}" "$white"
+      printf '%s%sSkipped %s%s: %s%s%s/\n' "${st:+$st}" "$white" "$tput0" "$white" "$c_path" "${file[0]}" "$tput0"
       if (( ${#file[@]} - 3 > 0 )); then
-        printf '       : %s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
+        printf '%s        %s%s: %s%s%s/\n' "${st:+$st}" "$tput0" "$white" "$c_path" "${file[@]:1:${#file[@]}-3}" "$tput0"
       fi
-      printf '       : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
-      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+      printf '%s        %s%s: %s%s%s/\n' "${st:+$st}" "$white" "$tput0" "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '%s        %s%s: %s%s%s\n' "${st:+$st}" "$white" "$tput0" "$c_title_que" "${file[-1]%.*}" "$tput0"
     else
-      printf '  File : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
-      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+      printf '%s%sSkipped %s: %s%s%s/\n' "${st:+$st}" "$white" "$tput0" "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '%s        %s%s: %s%s%s\n' "${st:+$st}" "$white" "$tput0" "$c_title_que" "${file[-1]%.*}" "$tput0"
     fi
 
   fi
