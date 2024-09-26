@@ -4,10 +4,10 @@ scriptname=$(realpath "$0")
 
 function editscript(){
   local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
-  if [[ ! -e "$swp" ]]; then 
-    printf "\n\n%s\n\n" "$swp"; 
+  if [[ ! -e "$swp" ]]; then
+    printf "\n\n%s\n\n" "$swp";
     (/usr/bin/nano "$scriptname"); exit
-  else 
+  else
     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit
   fi
 }
@@ -60,7 +60,7 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-checktcpmodule
+#checktcpmodule
 
 if [[ -z "$sink" ]]; then
   sink="$(pulsemixer --server="$ip" --list-sinks | grep JBL | awk '{print $3}')"
@@ -68,8 +68,7 @@ if [[ -z "$sink" ]]; then
 fi
 
 if [[ "$cmd" = 'mixer' ]]; then
-  pause "pulsemixer --server="$ip""
-  pulsemixer --server="$ip"
+  pulsemixer "--server=$ip"
 elif [[ -n "$cmd" ]]; then
   pulsemixer "--server=$ip" "--id=$sink" "$cmd"
 # args=( "--server=$ip" "--id=$sink" "$cmd" )
