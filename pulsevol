@@ -68,8 +68,7 @@ if [[ -z "$sink" ]]; then
 fi
 
 if [[ "$cmd" = 'mixer' ]]; then
-  pause "pulsemixer --server="$ip""
-  pulsemixer --server="$ip"
+  pulsemixer "--server=$ip"
 elif [[ -n "$cmd" ]]; then
   pulsemixer "--server=$ip" "--id=$sink" "$cmd"
 # args=( "--server=$ip" "--id=$sink" "$cmd" )
