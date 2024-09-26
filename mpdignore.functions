@@ -178,13 +178,14 @@ title(){
     album="${tags[1]}"
     title="${tags[2]}"
     filepath="${tags[3]}"
-    printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
+    printf '\n%sArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
+           "$white" \
            "$c_aa_que" \
            "$artist" \
-           "$tput0" \
+           "$white" \
            "$c_title_que" \
            "$title" \
-           "$tput0" \
+           "$white" \
            "$c_aa_que" \
            "$album" \
            "$tput0"
