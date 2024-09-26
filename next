@@ -21,9 +21,9 @@ pause(){ read -rp "$*" < /dev/tty; }
  crcolor="$(tput setaf 27)"
  qucolor="$(tput setaf 3)"
 
- printf '\n%s------   ------------ SKIPPED -----------   %s' "${white}" "${tput0}"
-
  get-current-json
+
+ printf '\n%s-------- ------------- SKIPPED -----------   %s' "${white}" "${tput0}"
  title skipped
 
  if pgrep -x "notify-osd" > /dev/null; then
@@ -32,6 +32,6 @@ pause(){ read -rp "$*" < /dev/tty; }
 
 #notify-send -i audio-x-generic "Next song:" "$queued by $qartist"
 
- skip &>/dev/null
+# skip &>/dev/null
  /usr/local/bin/mpctitle "$@"
 
