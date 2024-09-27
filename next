@@ -1,15 +1,27 @@
 #!/bin/bash
 # nb: the swp file that editscript relies on is provided by nano
 
+red="$(tput red)"
  bold="$(tput bold)"
  tput0="$(tput sgr0)"
  white="$(tput setaf 7)"
- skcolor="$(tput setaf 1)"
+brwhite="$(tput setaf 15)"
+skcolor="$(tput setaf 1)"
  crcolor="$(tput setaf 27)"
  qucolor="$(tput setaf 3)"
 
 
- . "$XDG_CONFIG_HOME/mpd-local.conf" || . /home/"$USER"/.config/mpd-local.conf
+ xdgconfigset="$( . "$XDG_CONFIG_HOME/mpd-local.conf" )" || . "/home/$USER/.config/mpd-local.conf"
+ [[ "$xdgconfigset" = "* /mpd-local.conf: No such file or directory" ]] &&
+    printf '%s[%sWARN%s] %s%S%s: check the definition of "\$XDG_CONFIG_HOME"'
+         "$bold" \
+         "$red" \
+         "$brwhite" \
+         "$(date -Im)" \
+         "$tput0"
+         "$white"
+
+
  . mpdignore.functions
 
 
