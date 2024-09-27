@@ -119,7 +119,7 @@ mediaduration(){
 
 
 title(){
-  c_path_cur=$(tput sitm; tput setaf 7) # pale whiute path
+  c_path_cur=$(tput sitm; tput setaf 15) # white path
   c_path_que=$(tput sitm; tput setaf 7) # pale white
 
   #c_aa=$(tput sitm; tput setaf 4) # Blue for artist and album
@@ -161,9 +161,9 @@ title(){
            "$tput0"
     readarray -d \/ -t file <<< "$filepath"
       if (( "${#file[@]}" > 2)); then
-        printf '%s   File : %s%s%s%s%s/\n' "$bold" "$tput0" "$c_path" "${file[0]}" "$white" "$bold"
+        printf '%s   File : %s%s%s%s%s%s/\n' "$bold" "$tput0" "$c_path_cur" "${file[0]}" "$tput0" "$white" "$bold"
         if (( "${#file[@]}" - 3 > 0 )); then
-          printf '        : %s%s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white" "$bold"
+          printf '        : %s%s%s%s%s/\n' "$c_path_cur" "${file[@]:1:${#file[@]}-3}" "$tput0" "$white" "$bold"
         fi
 
         printf '        : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
@@ -286,7 +286,7 @@ get-current-json(){
     echo -ne        "${artist:+ Artist: $artist\n}"
     echo -ne         "${album:+  Album: $album\n}"
     echo -ne          "${year:+   Year: $year\n}"
-   echo -ne   "${album_artist:+AlbmArt: $album_artist\n}"
+    echo -ne  "${album_artist:+AlbmArt: $album_artist\n}"
     echo -ne       "${comment:+Comment: $comment\n}"
 #   echo -ne      "${composer:+Composer: $composer\n}"
     echo -ne          "${date:+   Date: $date\n}"
