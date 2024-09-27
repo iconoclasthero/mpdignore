@@ -1,7 +1,19 @@
 #!/bin/bash
 # nb: the swp file that editscript relies on is provided by nano
 
-echo "next called $(date -Im)" >>/cache/next.log
+ bold="$(tput bold)"
+ tput0="$(tput sgr0)"
+ white="$(tput setaf 7)"
+ skcolor="$(tput setaf 1)"
+ crcolor="$(tput setaf 27)"
+ qucolor="$(tput setaf 3)"
+
+
+ . "$XDG_CONFIG_HOME/mpd-local.conf" || . /home/"$USER"/.config/mpd-local.conf
+ . mpdignore.functions
+
+
+#echo "next called $(date -Im)" >>/cache/next.log
 
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
@@ -10,20 +22,18 @@ editscript(){
 
 pause(){ read -rp "$*" < /dev/tty; }
 
-[[ "$1" == @(edit|e|-e) ]] && editscript
+skip(){
+  logsong "skipped"
+  mpcp next
+}
 
- . mpdignore.functions
+ [[ "$1" == @(edit|e|-e) ]] && editscript
 
- bold="$(tput bold)"
- tput0="$(tput sgr0)"
- white="$(tput setaf 7)"
- skcolor="$(tput setaf 1)"
- crcolor="$(tput setaf 27)"
- qucolor="$(tput setaf 3)"
-
- printf '\n%s------   ------------ SKIPPED -----------   %s' "${white}" "${tput0}"
+# mpctitleout="$(/usr/local/bin/mpctitle "$@" &)"
 
  get-current-json
+
+ printf '\n%s-------- ------------- SKIPPED -----------   %s' "${white}" "${tput0}"
  title skipped
 
  if pgrep -x "notify-osd" > /dev/null; then
@@ -32,6 +42,7 @@ pause(){ read -rp "$*" < /dev/tty; }
 
 #notify-send -i audio-x-generic "Next song:" "$queued by $qartist"
 
- skip &>/dev/null
+ logsong "skipped" &
+ mpcp -q next
  /usr/local/bin/mpctitle "$@"
-
+# printf %s\\n "$mpctitleout"

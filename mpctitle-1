@@ -35,17 +35,22 @@ pause(){ read -rp "$*" < /dev/tty; }
 if [[ "$1" = @(rand@(|om)|toggle|pause|play|consume|repeat|single) ]]; then
  \mpc -q -h "$mpdpass@$mpdhost" "$1"
   shift
-  ~/bin/gits/mpdignore/mpctitle "$@"
+  mpctitle "$@"
+  exit
+elif [[ "$1" = @(seek) ]]; then
+  \mpc -q -h "$mpdpass@$mpdhost" "$1" "$2"
+  shift 2
+  mpctitle "$@"
   exit
 fi
 
-output=( "$(printf '\n%s------- ------------- QUEUED ------------   %s' "$(tput setaf 7)" "${tput0}")" )
+output=( "$(printf '\n%s-------- ------------- QUEUED ------------   %s' "$(tput setaf 7)" "${tput0}")" )
 output+=( "$(title queued)" )
 
 unset paused
 get-current-json
 
-output+=( "$(printf '\n%s------- ------------- CURRENT -----------   %s' "${bold}" "${tput0}")" )
+output+=( "$(printf '\n%s-------- ------------- CURRENT -----------   %s' "${bold}" "${tput0}")" )
 output+=( "$(title current)" )
 
 unset paused
