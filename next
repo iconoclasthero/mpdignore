@@ -4,7 +4,7 @@
    bold="$(tput bold)"
   tput0="$(tput sgr0)"
   white="$(tput setaf 7)"
-    red="$(tput setaf 9)"
+    red="$(tput setaf 1)"
 brwhite="$(tput setaf 15)"
 skcolor="$(tput setaf 1)"
 crcolor="$(tput setaf 27)"
@@ -13,7 +13,7 @@ qucolor="$(tput setaf 3)"
 
  xdgconfigset="$( . "$XDG_CONFIG_HOME/mpd-local.conf" 2>&1 >/dev/null )" || . "/home/$USER/.config/mpd-local.conf"
  [[ "$xdgconfigset" = "* /mpd-local.conf: No such file or directory" ]] &&
-    printf '%s[%sWARN%s] %s%S%s: check the definition of "\$XDG_CONFIG_HOME"'
+    printf '%s[%sWARN%s] %s%S%s: check the definition of "\$XDG_CONFIG_HOME"' \
          "$bold" \
          "$red" \
          "$brwhite" \
