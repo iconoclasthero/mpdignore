@@ -1,5 +1,6 @@
-#!/bin/bash
 # nb: the swp file that editscript relies on is provided by nano
+
+ . mpdignore.functions
 
    bold="$(tput bold)"
   tput0="$(tput sgr0)"
@@ -9,7 +10,6 @@ brwhite="$(tput setaf 15)"
 skcolor="$(tput setaf 1)"
 crcolor="$(tput setaf 27)"
 qucolor="$(tput setaf 3)"
- 
 
 xdgconfigset="$( . "$XDG_CONFIG_HOME/mpd-local.conf" 2>&1 >/dev/null )" || . "/home/$USER/.config/mpd-local.conf"
 [[ "$xdgconfigset" =~ .+\ \/mpd-local.conf\:\ No\ such\ file\ or\ directory ]] &&
@@ -20,8 +20,6 @@ xdgconfigset="$( . "$XDG_CONFIG_HOME/mpd-local.conf" 2>&1 >/dev/null )" || . "/h
     "$(date -Im)" \
     "$tput0" \
     "$white"
-
- . mpdignore.functions
 
 #echo "next called $(date -Im)" >>/cache/next.log
 
@@ -55,4 +53,3 @@ skip(){
 logsong "skipped" &
 mpcp -q next
 /usr/local/bin/mpctitle "$@"
-# printf %s\\n "$mpctitleout"
