@@ -116,7 +116,7 @@ output+=( "$(printf '         volume: %s%%%s %s %srandom: %s%s%s consume: %s%s %
   "${single:+single: $single}" \
   "$tput0" )" )
 
-[[ "$@" ]] && output+=( "$(\mpc -q -h "$mpdpass@$mpdhost" "$@")" )
+[[ "$@" ]] && output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpdhost" "$@")" )
 
 printf %s\\n "${output[@]}"
 

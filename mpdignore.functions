@@ -1,5 +1,11 @@
 #!/bin/bash
 
+editscript(){
+  local scriptname script path swp; scriptname=$(realpath "$0" 2>/dev/null); script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptname") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit ;}
+
+
 #usermpdpw=  #manually define mpd password here
 #usermpdmd=  #maunally define mpd music directory here
 #usermpdpd=  #manually define mpd playlist directory here
@@ -16,10 +22,13 @@ mpduser="mpd"                           # defines the user mpd service runs as; 
 mpdgroup="media"                        # defines the group mpd service runs as; default = media
 ignoredm3u="mpdignored.m3u"             # defines the playlist of songs ignored by mpdignore; default = mpdignored.m3u
 
-editscript(){
-  local scriptname script path swp; scriptname=$(realpath "$0" 2>/dev/null); script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
-     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptname") && exit
-     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit ;}
+
+
+white=$(tput setaf 7)
+tput0=$(tput sgr0)
+bold=$(tput bold)
+italics=$(tput sitm)
+ritm="$(tput ritm)"
 
 mpdc() {
     ! [[ "$MPDSOCK" ]] && MPDSOCK="/var/run/mpd/socket"
@@ -333,7 +342,41 @@ sec2sex() {
   fi
 }
 
+hr2() {
+  local width="$(tput cols)"
+  local status="$1"
+  local left_padding="${2:-22}"
+  local left_dashes=$(printf -- '%.0s—' $(seq 1 "$left_padding"))
+  local right_dashes=$(printf -- '%.0s—' $(seq 1 "$((width - left_padding - ${#status} - 2))"))
+  printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
+}
+
+
+
+hr2() {
+  local width="$(tput cols)"
+  local status="$1"
+  local left_padding="${2:-22}"
+  local left_dashes right_dashes total_dashes
+
+  if [[ "$1" == "--center" || "$2" == @(center|--center) ]]; then
+    # Shift arguments if $1 is --center
+    [[ "$1" == "--center" ]] && status="$2"
+
+    # Center the status text
+    total_dashes=$(( (width - ${#status} - 2) / 2 ))
+    left_dashes=$(printf -- '%.0s—' $(seq 1 "$total_dashes"))
+    right_dashes=$(printf -- '%.0s—' $(seq 1 "$((width - total_dashes - ${#status} - 2))"))
+    printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
+  else
+    # Default behavior: left-aligned with specified or default padding
+    left_dashes=$(printf -- '%.0s—' $(seq 1 "$left_padding"))
+    right_dashes=$(printf -- '%.0s—' $(seq 1 "$((width - left_padding - ${#status} - 2))"))
+    printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
+  fi
+}
 
 
 [[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript
 
+editscript

@@ -170,7 +170,7 @@ stopmpdzmq(){
      confirm "${yellow}${bold}Are ffplay and autossh closed? $tput0" && stopautossh=true
      nine='-9'
    else
-     printf '%s%s\n\nThe autossh tunnel is closed.\n%s' "$bold" "$yellow" "$tput0"
+     printf '%s%s\nThe autossh tunnel is closed.\n%s' "$bold" "$yellow" "$tput0"
      hr
      stopautossh=true
    fi
@@ -179,15 +179,15 @@ stopmpdzmq(){
  echo
 
  if confirm "${yellow}${bold}Disconnect bluetooth speaker $sinkname? $tput0"; then
-  echo
-  btctlout="$(bluetoothctl disconnect "$sinkMAC")"
-  printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC"\|Successful\ disconnected
-  echo
-  hr
+   echo
+   btctlout="$(bluetoothctl disconnect "$sinkMAC")"
+   printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC"\|Successful\ disconnected
+   echo
  fi
+ hr
 
  echo
- confirm "Pause mpd on $mpdhost? " && mpctitle pause
+ confirm "${yellow}${bold}Pause mpd on $mpdhost? $tput0" && mpctitle pause
  hr
 }
 
@@ -234,7 +234,7 @@ fi
 
 startffplay&
 
-zmqoutput="$(mpcp outputs|\grep zmq|awk '{print $2}')"
+zmqoutput="$(mpcp outputs|\grep ffmpeg\/zmq|awk '{print $2}')"
 enableout=$(mpcp enable "$zmqoutput")
 playout=$(mpctitle play)
 
@@ -275,7 +275,7 @@ if "$verbose"; then
  \sleep 1s
   printf '\n%s%sMPD enable fmpeg/zmq output:%s\n' "$bold" "$yellow" "$tput0"
   hr
-  printf %s\\n "$(echo "$enableout"|grep --color=always ffmpeg\ zmq)"
+  printf %s\\n "$(echo "$enableout"|grep --color=always ffmpeg\/\ zmq)"
  \sleep 1s
   printf '\n%s%sPlay mpd: %s' "$bold" "$yellow" "$tput0"
   printf %s\\n\\n "$playout"
