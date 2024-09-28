@@ -36,12 +36,16 @@ if [[ "$1" = @(rand@(|om)|toggle|pause|play|consume|repeat|single) ]]; then
  \mpc -q -h "$mpdpass@$mpdhost" "$1"
   shift
   mpctitle "$@"
-  exit
+  exit "$?"
 elif [[ "$1" = @(seek) ]]; then
   \mpc -q -h "$mpdpass@$mpdhost" "$1" "$2"
   shift 2
   mpctitle "$@"
-  exit
+  exit "$?"
+elif [[ "$1" = @(next) ]]; then
+  shift
+  next "$@"
+  exit "$?"
 fi
 
 output=( "$(printf '\n%s-------- ------------- QUEUED ------------   %s' "$(tput setaf 7)" "${tput0}")" )

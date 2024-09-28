@@ -65,10 +65,10 @@ resetzmq(){
 }
 
 startssh(){
-if ! ps aux | grep "[a]utossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}" > /dev/null; then
-  autossh -fvN -M0 -L"${tunport}":localhost:"${tunport}" -R"${retport}":localhost:22 "${mpdhost}" -p"${sshport}"&
-  echo "$!" > "${autosshpid}"  #this works
-fi
+  if ! ps aux | grep "[a]utossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}" > /dev/null; then
+    autossh -fvN -M0 -L"${tunport}":localhost:"${tunport}" -R"${retport}":localhost:22 "${mpdhost}" -p"${sshport}"&
+    echo "$!" > "${autosshpid}"  #this works
+  fi
 }
 
 startffplay(){

@@ -11,19 +11,17 @@ crcolor="$(tput setaf 27)"
 qucolor="$(tput setaf 3)"
  
 
- xdgconfigset="$( . "$XDG_CONFIG_HOME/mpd-local.conf" 2>&1 >/dev/null )" || . "/home/$USER/.config/mpd-local.conf"
- [[ "$xdgconfigset" = "* /mpd-local.conf: No such file or directory" ]] &&
-    printf '%s[%sWARN%s] %s%S%s: check the definition of "\$XDG_CONFIG_HOME"' \
-         "$bold" \
-         "$red" \
-         "$brwhite" \
-         "$(date -Im)" \
-         "$tput0" \
-         "$white"
-
+xdgconfigset="$( . "$XDG_CONFIG_HOME/mpd-local.conf" 2>&1 >/dev/null )" || . "/home/$USER/.config/mpd-local.conf"
+[[ "$xdgconfigset" =~ .+\ \/mpd-local.conf\:\ No\ such\ file\ or\ directory ]] &&
+  printf '\n%s[%sWARN%s] %s%s%s: check the definition of "$XDG_CONFIG_HOME"\n' \
+    "$bold" \
+    "$red" \
+    "$brwhite" \
+    "$(date -Im)" \
+    "$tput0" \
+    "$white"
 
  . mpdignore.functions
-
 
 #echo "next called $(date -Im)" >>/cache/next.log
 
@@ -54,7 +52,7 @@ skip(){
 
 #notify-send -i audio-x-generic "Next song:" "$queued by $qartist"
 
- logsong "skipped" &
-# mpcp -q next
- /usr/local/bin/mpctitle "$@"
+logsong "skipped" &
+mpcp -q next
+/usr/local/bin/mpctitle "$@"
 # printf %s\\n "$mpctitleout"
