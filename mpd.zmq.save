@@ -174,7 +174,6 @@ stopmpdzmq(){
  echo
  confirm "Pause mpd on $mpdhost? " && mpctitle pause
  hr
-# exit
 }
 
 connectBT(){
@@ -197,9 +196,7 @@ mkfifo "$btctlfifo"
 
 connected=$(bluetoothctl info "$sinkMAC"|grep Connected|awk '{print $2}')
 #[[ "$connected" = 'false' ]] && btctlout="$(bluetoothctl list; bluetoothctl connect "$sinkMAC" &)" || btctlout=$(bluetoothctl list; bluetoothctl info "$sinkMAC")
-#pause "a $connected"
 if [[ "$connected" = no ]]; then
-#  btctlout="$( connectBT &)"
   connectBT&
 #  btctlout=$(<"$btctlfifo")
   . "$btctlfifo"
