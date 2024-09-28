@@ -1,22 +1,19 @@
 #!/bin/bash
-# nb: the swp file that editscript relies on is provided by nano
 #export LC_CTYPE="UTF-8"
 
 . "$XDG_CONFIG_HOME/mpd-local.conf" 2>/dev/null || . ~/.config/mpd-local.conf
-
 
 bold="$(tput bold)"
 tput0="$(tput sgr0)"
 yellow="$(tput setaf 214)"
 blue="$(tput setaf 33)"
 verbose=false
-tunport=5555
-retport=6666
+tunport="$mpdzmqtunport"
+retport="$mpdzmqretport"
 autosshpid="/tmp/autossh_${tunport}.pid"
 ffplaypid="/tmp/ffplayzmq-$(date -Im).pid"
 sinkMAC='00:42:79:D9:B6:AF'
 sinkname='JBL Xtreme 2'
-#btctlfifo='/tmp/btctl_fifo'
 
 pause(){ read -rp "$@" < /dev/tty; }
 
@@ -67,14 +64,15 @@ resetzmq(){
 
 startautossh(){
 if ! ps aux | grep "[a]utossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}" > /dev/null; then
+
 #  autossh -fvN -M0 -L"${tunport}":localhost:"${tunport}" -R"${retport}":localhost:22 "${mpdhost}" -p"${sshport}"&
 #Since you're using -f, you do not need the & at the end of the command; autossh will automatically run in the background. If you include the &, it won’t hurt anything, but it's redundant. You can safely remove it if you prefer. 
 
   autossh -fvN -M0 -L"${tunport}":localhost:"${tunport}" -R"${retport}":localhost:22 "${mpdhost}" -p"${sshport}"
   \sleep 1
   autossh_pid=$(pgrep -f "autossh/autossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}")
-#  echo "$!" > "${autosshpid}"  #this works
-  echo "$autossh_pid" > "${autosshpid}"
+#  echo "$!" > "${autosshpid}"  #this works...but gives the wrong pid.
+  echo "$autossh_pid" > "${autosshpid}"  #this might be the right pid?
 fi
 
 #
@@ -140,8 +138,8 @@ confirm(){
        [Nn]) return 1;;
      esac
    done
-}
 ##--> confirm() <--###################################################################################
+}
 
 stopmpdzmq(){
  local stopped=false
