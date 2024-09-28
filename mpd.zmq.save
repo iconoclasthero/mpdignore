@@ -178,8 +178,8 @@ stopmpdzmq(){
 
 connectBT(){
   btctlout=("$(bluetoothctl list)")
-  btctlout+=("$(bluetoothctl connect "$sinkMAC" 2>&1)") && #pause "$(echo "connect error: $?")" &&
-    connected=yes #&& pause "b $connected"
+  btctlout+=("$(bluetoothctl connect "$sinkMAC" 2>&1)") &&
+    connected=yes
   btctlout+=("$(bluetoothctl info "$sinkMAC")")
   declare -p btctlout > "$btctlfifo"
 }
@@ -195,7 +195,6 @@ btctlfifo=$(mktemp -u)
 mkfifo "$btctlfifo"
 
 connected=$(bluetoothctl info "$sinkMAC"|grep Connected|awk '{print $2}')
-#[[ "$connected" = 'false' ]] && btctlout="$(bluetoothctl list; bluetoothctl connect "$sinkMAC" &)" || btctlout=$(bluetoothctl list; bluetoothctl info "$sinkMAC")
 if [[ "$connected" = no ]]; then
   connectBT&
 #  btctlout=$(<"$btctlfifo")
