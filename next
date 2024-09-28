@@ -1,11 +1,11 @@
-# nb: the swp file that editscript relies on is provided by nano
+#!/bin/bash
 
  . mpdignore.functions
 
-   bold="$(tput bold)"
-  tput0="$(tput sgr0)"
-  white="$(tput setaf 7)"
-    red="$(tput setaf 1)"
+#   bold="$(tput bold)"
+#  tput0="$(tput sgr0)"
+#  white="$(tput setaf 7)"
+#    red="$(tput setaf 1)"
 brwhite="$(tput setaf 15)"
 skcolor="$(tput setaf 1)"
 crcolor="$(tput setaf 27)"

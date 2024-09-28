@@ -21,11 +21,11 @@ c_aa_que=$(tput sitm; tput setaf 12) # Blue for artist and album
 c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
 c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
 
-white=$(tput setaf 7)
-tput0=$(tput sgr0)
-bold=$(tput bold)
-italics=$(tput sitm)
-ritm="$(tput ritm)"
+#white=$(tput setaf 7)
+#tput0=$(tput sgr0)
+#bold=$(tput bold)
+#italics=$(tput sitm)
+#ritm="$(tput ritm)"
 
 pause(){ read -rp "$*" < /dev/tty; }
 

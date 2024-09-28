@@ -16,21 +16,22 @@ editscript(){
     . /home/"$USER"/.config/mpd-local.conf ||
     . /etc/default/mpd-local.conf
 
-watchfile=".mpdignore.m3u"              # defines the watched playlist; default = .mpdignore.m3u
-mpdconf="/etc/mpd.conf"                 # defines mpd.conf location; default = /etc/mpd.conf
-mpduser="mpd"                           # defines the user mpd service runs as; default = mpd
-mpdgroup="media"                        # defines the group mpd service runs as; default = media
-ignoredm3u="mpdignored.m3u"             # defines the playlist of songs ignored by mpdignore; default = mpdignored.m3u
+   watchfile=".mpdignore.m3u"            # defines the watched playlist; default = .mpdignore.m3u
+     mpdconf="/etc/mpd.conf"             # defines mpd.conf location; default = /etc/mpd.conf
+     mpduser="mpd"                       # defines the user mpd service runs as; default = mpd
+    mpdgroup="media"                     # defines the group mpd service runs as; default = media
+  ignoredm3u="mpdignored.m3u"            # defines the playlist of songs ignored by mpdignore; default = mpdignored.m3u
 
+        bold="$(tput bold)"
+       tput0="$(tput sgr0)"
+       white="$(tput setaf 7)"
+         red="$(tput setaf 1)"
+     italics="$(tput sitm)"
+        ritm="$(tput ritm)"
+      yellow="$(tput setaf 214)"
+        blue="$(tput setaf 33)"
 
-
-white=$(tput setaf 7)
-tput0=$(tput sgr0)
-bold=$(tput bold)
-italics=$(tput sitm)
-ritm="$(tput ritm)"
-
-mpdc() {
+mpdc(){
     ! [[ "$MPDSOCK" ]] && MPDSOCK="/var/run/mpd/socket"
     local command="$@"
     echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPDSOCK"
@@ -140,9 +141,9 @@ title(){
   c_title_cur=$(tput sitm; tput setaf 214) # Yellow for the song name
   c_title_que=$(tput sitm; tput setaf 3) # Yellow for the song file name
 
-  white=$(tput setaf 7)
-  tput0=$(tput sgr0)
-  bold=$(tput bold)
+#  white=$(tput setaf 7)
+#  tput0=$(tput sgr0)
+#  bold=$(tput bold)
 #  st=$(tput smxx)
 
   query="$1"

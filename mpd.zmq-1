@@ -1,36 +1,38 @@
 #!/bin/bash
 #export LC_CTYPE="UTF-8"
 
-. mpdignore.functions
-
-bold="$(tput bold)"
-tput0="$(tput sgr0)"
-yellow="$(tput setaf 214)"
-blue="$(tput setaf 33)"
-verbose=false
-tunport="$mpdzmqtunport"
-retport="$mpdzmqretport"
-autosshpid="/tmp/autossh_${tunport}.pid"
-ffplaypid="/tmp/ffplayzmq-$(date -Im).pid"
-sinkMAC='00:42:79:D9:B6:AF'
-sinkname='JBL Xtreme 2'
-
-
-pause(){ read -rp "$@" < /dev/tty; }
-
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
      [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
      printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
 
-hr() {
+[[ "$1" = @(edit|e|-e) ]] && editscript && exit
+
+. mpdignore.functions
+
+#     bold="$(tput bold)"
+#    tput0="$(tput sgr0)"
+#   yellow="$(tput setaf 214)"
+#     blue="$(tput setaf 33)"
+   verbose=false
+   tunport="$mpdzmqtunport"
+   retport="$mpdzmqretport"
+autosshpid="/tmp/autossh_${tunport}.pid"
+ ffplaypid="/tmp/ffplayzmq-$(date -Im).pid"
+   sinkMAC='00:42:79:D9:B6:AF'
+  sinkname='JBL Xtreme 2'
+
+
+pause(){ read -rp "$@" < /dev/tty; }
+
+hr(){
   local width="$(tput cols)"
 #  local width=${1:-${COLUMNS:-80}}  # Default to 80 if COLUMNS is unset
 #  printf -- '%.0s—' $(seq "${1:-$COLUMNS}"); echo; }
   printf -- '%.0s—' $(seq 1 "$width"); echo; }
 
 resetzmq(){
-#  printf '\n%sBluetooth:%s\n%s\n\n' "$btctlout"
+# printf '\n%sBluetooth:%s\n%s\n\n' "$btctlout"
   btctlout="$(bluetoothctl disconnect "$sinkMAC"|grep -v "Attempting to disconnect from $sinkMAC")"
   printf '\n%s%sAttempting to disconnect %s%s/%s%s:%s\n%s\n' \
     "$yellow" \
@@ -203,7 +205,6 @@ connectBT(){
 }
 
 
-[[ "$1" = @(edit|e|-e) ]] && editscript && exit
 [[ "$1" = --reset ]] && shift && resetzmq
 [[ "$1" = @(--verbose|-v) ]] && verbose=true && shift
 [[ "$1" = @(--quit|--exit|quit|exit) ]] && { stopmpdzmq; exit; }
