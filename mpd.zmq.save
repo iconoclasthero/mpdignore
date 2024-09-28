@@ -177,37 +177,11 @@ stopmpdzmq(){
 # exit
 }
 
-#
-#connectBT(){
-#  btctlout=( "$(bluetoothctl list)" )
-##  btctlout="$btctlout $(echo)"
-#  pause "$btctlout"
-#  btctlout="$btctlout $(echo; bluetoothctl connect "$sinkMAC" 2>&1)" && connected=yes
-#  pause "$btctlout"
-#  btctlout="$btctlout $(bluetoothctl info "$sinkMAC")"
-#  pause "$btctlout"
-#  btctlout="$(echo $btctlout|grep -E 'Controller|Device|Name:|Paired:|Connected:')"
-#  pause "$btctlout"
-#}
-#
-#
-#connectBT(){
-#  btctlout=( "$(bluetoothctl list|grep Controller)" )
-#  btctlout+=( "$(bluetoothctl connect "$sinkMAC" 2>&1|grep -Ei Attempting\|Connection\|not\ available\|"$sincMAC")") &&
-#    connected=yes
-#  btctlout+=( "$(bluetoothctl info "$sinkMAC"|grep -E 'Device|Name:|Paired:|Connected:')" )
-## printf %s\\n "${btctlout[@]}"
-#}
-
 connectBT(){
   btctlout=("$(bluetoothctl list)")
   btctlout+=("$(bluetoothctl connect "$sinkMAC" 2>&1)") && #pause "$(echo "connect error: $?")" &&
     connected=yes #&& pause "b $connected"
   btctlout+=("$(bluetoothctl info "$sinkMAC")")
-# readarray -t btctlout < <( printf %s\\n "${btctlout[@]}"|grep --color=always -Ei 'Controller|Attempting|Connection|not\ available|"$sincMAC"|Device|Name:|Paired:|Connected:')
-#  pause "$(printf %s\\n "${btctlout[@]}")"
-#  export btctlout
-#  printf "%s\n" "${btctlout[@]}" > "$btctlfifo"
   declare -p btctlout > "$btctlfifo"
 }
 
@@ -218,8 +192,8 @@ connectBT(){
 [[ "$1" = @(--quit|--exit|quit|exit) ]] && { stopmpdzmq; exit; }
 
 
-btctlfifo=$(mktemp -u) # Create a unique FIFO path
-mkfifo "$btctlfifo"    # Create the FIFO
+btctlfifo=$(mktemp -u)
+mkfifo "$btctlfifo"
 
 connected=$(bluetoothctl info "$sinkMAC"|grep Connected|awk '{print $2}')
 #[[ "$connected" = 'false' ]] && btctlout="$(bluetoothctl list; bluetoothctl connect "$sinkMAC" &)" || btctlout=$(bluetoothctl list; bluetoothctl info "$sinkMAC")
