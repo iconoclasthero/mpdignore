@@ -33,7 +33,8 @@ pause(){ read -rp "$*" < /dev/tty; }
 . mpdignore.functions
 
 if [[ "$1" = @(rand@(|om)|toggle|pause|play|consume|repeat|single) ]]; then
- \mpc -q -h "$mpdpass@$mpdhost" "$1"
+ \mpc -q -h "$mpdpass@$mpdhost" "$1" ||
+  echo "Check mpd connection" && exit 1
   shift
   mpctitle "$@"
   exit "$?"
@@ -49,7 +50,8 @@ elif [[ "$1" = @(next) ]]; then
 fi
 
 output=( "$(printf '\n%s-------- ------------- QUEUED ------------   %s' "$(tput setaf 7)" "${tput0}")" )
-output+=( "$(title queued)" )
+output+=( "$(title queued)" ) ||
+  echo "Check mpd connection" && exit 1
 
 unset paused
 get-current-json

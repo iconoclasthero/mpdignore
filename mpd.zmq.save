@@ -1,7 +1,7 @@
 #!/bin/bash
 #export LC_CTYPE="UTF-8"
 
-. "$XDG_CONFIG_HOME/mpd-local.conf" 2>/dev/null || . ~/.config/mpd-local.conf
+. mpdignore.functions
 
 bold="$(tput bold)"
 tput0="$(tput sgr0)"
@@ -15,21 +15,19 @@ ffplaypid="/tmp/ffplayzmq-$(date -Im).pid"
 sinkMAC='00:42:79:D9:B6:AF'
 sinkname='JBL Xtreme 2'
 
+
 pause(){ read -rp "$@" < /dev/tty; }
 
-#hr(){ printf -- '%*s\n' "${1:-$COLUMNS}" | tr ' ' "${2:--}"; }
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
 
 hr() {
   local width="$(tput cols)"
 #  local width=${1:-${COLUMNS:-80}}  # Default to 80 if COLUMNS is unset
 #  printf -- '%.0s—' $(seq "${1:-$COLUMNS}"); echo; }
   printf -- '%.0s—' $(seq 1 "$width"); echo; }
-
-
-mpcp(){ [[ "$mpdpass" ]] && mpco+=(-P "$mpdpass")
-        [[ "$mpdhost" ]] && mpco+=(-h "$mpdhost")
-       \mpc "${mpco[@]}" "$@"
-}
 
 resetzmq(){
 #  printf '\n%sBluetooth:%s\n%s\n\n' "$btctlout"
@@ -62,16 +60,12 @@ resetzmq(){
   hr
 }
 
+
 startautossh(){
 if ! ps aux | grep "[a]utossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}" > /dev/null; then
-
-#  autossh -fvN -M0 -L"${tunport}":localhost:"${tunport}" -R"${retport}":localhost:22 "${mpdhost}" -p"${sshport}"&
-#Since you're using -f, you do not need the & at the end of the command; autossh will automatically run in the background. If you include the &, it won’t hurt anything, but it's redundant. You can safely remove it if you prefer. 
-
   autossh -fvN -M0 -L"${tunport}":localhost:"${tunport}" -R"${retport}":localhost:22 "${mpdhost}" -p"${sshport}"
   \sleep 1
   autossh_pid=$(pgrep -f "autossh/autossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}")
-#  echo "$!" > "${autosshpid}"  #this works...but gives the wrong pid.
   echo "$autossh_pid" > "${autosshpid}"  #this might be the right pid?
 fi
 
@@ -117,11 +111,6 @@ screen -dmS mpd.zmq sh -c \
   "${ffplaypid}"
 }
 
-editscript(){
-  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
-     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
-     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
-
 stopffplay(){
 screen -S mpd.zmq -X quit &>/dev/null
 screen -wipe &>/dev/null
@@ -165,7 +154,7 @@ stopmpdzmq(){
  if confirm "Disconnect bluetooth speaker $sinkname? "; then
   echo
   btctlout="$(bluetoothctl disconnect "$sinkMAC")"
-  printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC"\|Successful\ disconnect
+  printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC"\|Successful\ disconnected
   echo
   hr
  fi
@@ -180,6 +169,9 @@ connectBT(){
     connected=yes
   btctlout+=("$(bluetoothctl info "$sinkMAC")")
   declare -p btctlout > "$btctlfifo"
+  { echo "$connected"
+    declare -p btctlout
+  } > "$btctlfifo"
 }
 
 
@@ -189,14 +181,20 @@ connectBT(){
 [[ "$1" = @(--quit|--exit|quit|exit) ]] && { stopmpdzmq; exit; }
 
 
-btctlfifo=$(mktemp -u)
+tmpdir=$(mktemp -d)
+btctlfifo=$(mktemp -u "$tmpdir/fifo_XXXX")
 mkfifo "$btctlfifo"
 
 connected=$(bluetoothctl info "$sinkMAC"|grep Connected|awk '{print $2}')
 if [[ "$connected" = no ]]; then
   connectBT&
-#  btctlout=$(<"$btctlfifo")
-  . "$btctlfifo"
+#  . "$btctlfifo"
+
+  IFS= read -r connected < "$btctlfifo"  # this should grab just one line (no while)
+  fifobtctlout=$(< "$btctlfifo")  # rest of FIFO
+
+  eval "$fifobtctlout"
+pause "$connected"
 else
   btctlout="$(echo "$sinkname/$sinkMAC was already connected."; bluetoothctl list; bluetoothctl info "$sinkMAC")"
 fi
@@ -231,15 +229,11 @@ if "$verbose"; then
   ps aux|grep --color=never "[${tunport:0:1}]${tunport:1}"|grep --color=always -E autossh\|ffplay\|"$mpdhost" ||
     ps aux|grep --color=always [a]utossh
 
-#  ps aux|grep --color=always '[5]555'| awk '{ print $2, substr($0, index($0, $11)) }' || ps aux|grep --color=always [a]utossh
-# ps aux|grep --color=always '[5]555' || ps aux|grep --color=always [a]utossh
-# ps aux|grep -E --color=always '5555\|"$mpdhost1"' || ps aux|grep --color=always [a]utossh
  \sleep 1.25s
   printf '\n%s%sProcess pid info:%s\n' "$bold" "$yellow" "$tput0"
   hr
   printf %s\ %s\\n "$autosshpid" "$(cat "$autosshpid")"
  \sleep 1.25s
-# echo "$ffplaypid $(cat "$ffplaypid")"
   printf %s\ %s\\n "$ffplaypid" "$(cat "$ffplaypid")"
 # [[ "$connected" = no ]] && btctlout="$btctlout $({ bluetoothctl list; bluetoothctl info; }|grep -E 'Controller|Device|Name:|Paired:|Connected:')"
 # btctlout="$btctlout $(echo; bluetoothctl info)"
@@ -253,9 +247,7 @@ if "$verbose"; then
     "$yellow" \
     "$tput0"
   hr
-# printf %s\\n "${btctlout[@]}"|grep --color=always -Ei 'Controller|Attempting|Connection|not\ available|"$sincMAC"|Device|Name:|Paired:|Connected:'
   printf %s\\n "${btctlout[@]}"|grep --color=always -Ei 'Controller|Attempting|Connection|not\ available|"$sincMAC"|Device|Name:|Paired:|Connected:'
-# printf %s\\n "${btctlout[@]}"
  \sleep 1s
   printf '\n%s%sMPD enable fmpeg/zmq output:%s\n' "$bold" "$yellow" "$tput0"
   hr
@@ -266,3 +258,6 @@ if "$verbose"; then
   printf %s\\n\\n "$playout"
 fi
 
+rm -rf "$tmpdir"
+
+exit
