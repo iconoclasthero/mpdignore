@@ -1,9 +1,25 @@
 #!/bin/bash
-MPDPASS="$(cat ~/.config/mpdpass)"
-servername="gigabyte"
+
+editscript(){
+  scriptname=$(realpath "$0")
+  local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
+     if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
+     else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit;
+  fi; }
+
+if [[ "$1" == @(edit|e|nano) ]]; then
+  editscript; exit "$?"
+fi
+
+[[ "$XDG_CONFIG_HOME" ]] &&
+    . "$XDG_CONFIG_HOME/mpd-local.conf" ||
+    . /home/"$USER"/.config/mpd-local.conf ||
+    . /etc/default/mpd-local.conf
+
+#MPDPASS="$(cat ~/.config/mpdpass)"
+#servername="gigabyte"
+#mpdport="6600"
 server="192.168.1.2"
-mpdport="6600"
-scriptname=$(realpath "$0")
 red=$(tput setaf 1)
 green=$(tput setaf 2)
 yellow=$(tput setaf 3)
@@ -18,18 +34,16 @@ lines=$(tput lines 2> /dev/null) || lines=$(tput -T xterm-256color lines)
 
 export TERM=xterm-256color
 
-editscript(){
-  local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
-     if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
-     else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit;
-  fi; }
-
 pause(){ read -p "$*" ; }
 
 searchfn(){
   local mpccommand="playlist"
-  [[ "$1" = listall ]] && mpccommand="listall"
-  [[ "$1" = current ]] && mpccommand="current"
+  if [[ "$1" = listall ]]; then
+    mpccommand="listall"
+  elif [[ "$1" = current ]];
+    mpccommand="current"
+    currentpos="$(\mpc ${REMOTE:-} current -f %position%)"
+
   # Define colors using tput
   red=$(tput setaf 1)
   green=$(tput setaf 2)
@@ -52,8 +66,7 @@ searchfn(){
          \mpc ${remote:-} ${mpccommand} -f \(%position%\)~%title%~%albumartist%~%album%~\(%disc%-%track%\)~\(%time%\)~%file%~%artist% | grep -i --color=never "$query"
      elif [[ "$mpccommand" = current ]]; then
          \mpc ${REMOTE:-} playlist -f \(%position%\)~%title%~%albumartist%~%album%~\(%disc%-%track%\)~\(%time%\)~%file%~%artist%|
-#        { printf '(-POS-)~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; }
-        { printf '  (-pos-)  ~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C400; }
+        { printf '  (-pos-)  ~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep -E --color=always ^\($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C400; }
 #|
 #     column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% current).*"
        fi
@@ -257,9 +270,7 @@ if [[ "$1" = -n ]]; then
  cline="$2"
 fi
 
-if [[ "$1" == @(edit|e|nano) ]]; then
-  editscript
-elif [[ "$1" = -a ]] || [[ "$1" = -A ]]; then
+if [[ "$1" = -a ]] || [[ "$1" = -A ]]; then
   argmax=1995090 #works
   argmax=1995121 #fails
   argmax=1995120
