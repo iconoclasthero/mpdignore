@@ -131,51 +131,79 @@ confirm(){
 }
 
 stopmpdzmq(){
- local stopped=false
- while ! "$stopped"; do
+ local stopautossh=false
+ local stopzmqscreen=false
+ local nine ffplaypid
+ while ! "$stopautossh" || ! "$stopzmqscreen" ; do
    stopffplay
    local autossh_pid="$(cat $autosshpid)"
    killcmd="${nine:+$nine} $autossh_pid"
    kill "$killcmd" #2>/dev/null
    echo
-   screen -ls|grep --color=always mpd.zmq
-#  psaux ffplay|grep 5555
-#  psaux autossh|grep 5555:localhost:5555
-   printf 'The output of `psaux 5555` should be empty: \n'
-   hr
-   ps aux|grep --color=never "[${tunport:0:1}]${tunport:1}"|grep --color=always -E autossh\|ffplay\|"$mpdhost"
-   echo
-   hr
-   echo
-   confirm "Are ffplay and autossh closed? " && stopped=true
-   nine='-9'
+   screenlsout="$(screen -ls|grep --color=always mpd.zmq)"
+   if [[ "$screenlsout" && ! "$stopzmqscreen" ]]; then
+     if [[ "$ffplaypid" ]]; then
+       ffkill="${ffnine:+$ffnine} $ffplaypid"
+       kill "$ffkill"
+       ffnine="-9"
+     fi
+     printf '%s%sThe output of `screen -ls|grep mpd.zmq` should be empty: \n%s' "$bold" "$yellow" "$tput0"
+     hr
+     echo "$screenlsout"
+     hr
+     echo
+     confirm "Are the mpd.zmq screens closed? " && stopzmqscreen=true
+     ffplaypid=(ls /tmp/ffplayzmq-*)
+     ffplaypid="${ffplaypid[-1]}"
+   else
+     printf '%s%sThe ffplay and the mpd.zmq screen is closed.\n%s' "$bold" "$yellow" "$tput0"
+     hr
+     stopzmqscreen=true
+   fi
+   psaux5555="$(ps aux|grep --color=never "[${tunport:0:1}]${tunport:1}"|grep --color=always -E autossh\|ffplay\|"$mpdhost")"
+   if [[ "$psaux5555" && ! "$stopautossh" ]]; then
+     printf 'The output of `psaux 5555` should be empty: \n'
+     hr
+     echo "$psaux5555"
+     hr
+     echo
+     confirm "${yellow}${bold}Are ffplay and autossh closed? $tput0" && stopautossh=true
+     nine='-9'
+   else
+     printf '%s%s\n\nThe autossh tunnel is closed.\n%s' "$bold" "$yellow" "$tput0"
+     hr
+     stopautossh=true
+   fi
  done
+
  echo
- if confirm "Disconnect bluetooth speaker $sinkname? "; then
+
+ if confirm "${yellow}${bold}Disconnect bluetooth speaker $sinkname? $tput0"; then
   echo
   btctlout="$(bluetoothctl disconnect "$sinkMAC")"
   printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC"\|Successful\ disconnected
   echo
   hr
  fi
+
  echo
  confirm "Pause mpd on $mpdhost? " && mpctitle pause
  hr
 }
 
 connectBT(){
-  btctlout=("$(bluetoothctl list)")
+  local btctlout=("$(bluetoothctl list)")
   btctlout+=("$(bluetoothctl connect "$sinkMAC" 2>&1)") &&
     connected=yes
   btctlout+=("$(bluetoothctl info "$sinkMAC")")
-  declare -p btctlout > "$btctlfifo"
+#  declare -p btctlout > "$btctlfifo"
   { echo "$connected"
     declare -p btctlout
   } > "$btctlfifo"
 }
 
 
-[[ "$1" == @(edit|e|-e) ]] && editscript && exit
+[[ "$1" = @(edit|e|-e) ]] && editscript && exit
 [[ "$1" = --reset ]] && shift && resetzmq
 [[ "$1" = @(--verbose|-v) ]] && verbose=true && shift
 [[ "$1" = @(--quit|--exit|quit|exit) ]] && { stopmpdzmq; exit; }
@@ -186,15 +214,11 @@ btctlfifo=$(mktemp -u "$tmpdir/fifo_XXXX")
 mkfifo "$btctlfifo"
 
 connected=$(bluetoothctl info "$sinkMAC"|grep Connected|awk '{print $2}')
+
 if [[ "$connected" = no ]]; then
   connectBT&
-#  . "$btctlfifo"
-
   IFS= read -r connected < "$btctlfifo"  # this should grab just one line (no while)
-  fifobtctlout=$(< "$btctlfifo")  # rest of FIFO
-
-  eval "$fifobtctlout"
-pause "$connected"
+  . "$btctlfifo" # rest of FIFO
 else
   btctlout="$(echo "$sinkname/$sinkMAC was already connected."; bluetoothctl list; bluetoothctl info "$sinkMAC")"
 fi
@@ -253,8 +277,7 @@ if "$verbose"; then
   hr
   printf %s\\n "$(echo "$enableout"|grep --color=always ffmpeg\ zmq)"
  \sleep 1s
-  printf '\n%s%sPlay mpd: \n%s' "$bold" "$yellow" "$tput0"
-  hr
+  printf '\n%s%sPlay mpd: %s' "$bold" "$yellow" "$tput0"
   printf %s\\n\\n "$playout"
 fi
 
