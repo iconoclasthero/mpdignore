@@ -355,28 +355,40 @@ hr2() {
 
 hr2() {
   local width="$(tput cols)"
-  local status="$1"
-  local left_padding="${2:-22}"
-  local left_dashes right_dashes total_dashes
+  local status=""
+  local left_padding=22
 
-  if [[ "$1" == "--center" || "$2" == @(center|--center) ]]; then
-    # Shift arguments if $1 is --center
-    [[ "$1" == "--center" ]] && status="$2"
-
-    # Center the status text
-    total_dashes=$(( (width - ${#status} - 2) / 2 ))
-    left_dashes=$(printf -- '%.0s—' $(seq 1 "$total_dashes"))
-    right_dashes=$(printf -- '%.0s—' $(seq 1 "$((width - total_dashes - ${#status} - 2))"))
-    printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
+  # Determine the status and padding based on the input
+  if [[ "$1" = "--center" ]]; then
+    status="$2"
+    left_padding=$(( (width - ${#status} - 2) / 2 ))
+  elif [[ "$2" == "--center" ]]; then
+    status="$1"
+    left_padding=$(( (width - ${#status} - 2) / 2 ))
+  elif [[ "$1" =~ ^[0-9]+$ ]]; then
+    status="$2"
+    left_padding="$1"
+  elif [[ "$2" =~ ^[0-9]+$ ]]; then
+    status="$1"
+    left_padding="$2"
+  elif [[ "$1" == "center" || "$2" == "center" ]]; then
+    if [[ "$1" == "center" ]]; then
+      status="$2"
+    else
+      status="$1"
+    fi
+    left_padding=$(( (width - ${#status} - 2) / 2 ))
   else
-    # Default behavior: left-aligned with specified or default padding
-    left_dashes=$(printf -- '%.0s—' $(seq 1 "$left_padding"))
-    right_dashes=$(printf -- '%.0s—' $(seq 1 "$((width - left_padding - ${#status} - 2))"))
-    printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
+    status="$1"
+    left_padding="${2:-22}"
   fi
+
+  local left_dashes=$(printf -- '%.0s—' $(seq 1 "$left_padding"))
+  local right_dashes=$(printf -- '%.0s—' $(seq 1 "$((width - left_padding - ${#status} - 2))"))
+
+  printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
 }
 
 
 [[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript
 
-editscript
