@@ -39,7 +39,7 @@ skip(){
 logsong "skipped"&
 
 #get-current-json
-source <(/cache/status11.py)
+source <(/home/bvargo/bin/gits/mpdignore/status11.py)
 
 hr2 "SKIPPED"
 title skipped
