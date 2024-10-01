@@ -11,5 +11,5 @@ pause(){ read -rp "$*" < /dev/tty; }
 [[ "$1" == @(edit|e|-e) ]] && editscript
 
 . mpdignore.functions
-mpcp -q toggle
-mpctitle
+mpcp -q toggle &
+mpctitle #toggle "$@"

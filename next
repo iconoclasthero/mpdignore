@@ -1,6 +1,13 @@
 #!/bin/bash
 
- . mpdignore.functions
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+
+[[ "$1" == @(edit|e|-e) ]] && editscript
+
+. mpdignore.functions
 
 #   bold="$(tput bold)"
 #  tput0="$(tput sgr0)"
@@ -21,13 +28,6 @@ xdgconfigset="$( . "$XDG_CONFIG_HOME/mpd-local.conf" 2>&1 >/dev/null )" || . "/h
     "$tput0" \
     "$white"
 
-#echo "next called $(date -Im)" >>/cache/next.log
-
-editscript(){
-  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
-     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
-     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
-
 pause(){ read -rp "$*" < /dev/tty; }
 
 skip(){
@@ -35,21 +35,21 @@ skip(){
   mpcp next
 }
 
- [[ "$1" == @(edit|e|-e) ]] && editscript
-
 # mpctitleout="$(/usr/local/bin/mpctitle "$@" &)"
+logsong "skipped"&
 
- get-current-json
+#get-current-json
+source <(/cache/status11.py)
 
- printf '\n%s-------- ------------- SKIPPED -----------   %s' "${white}" "${tput0}"
- title skipped
+hr2 "SKIPPED"
+title skipped
 
- if pgrep -x "notify-osd" > /dev/null; then
-   notify-send -i audio-x-generic "Song Skipped!" "${skipped[1]}"
- fi
+if pgrep -x "notify-osd" > /dev/null; then
+  notify-send -i audio-x-generic "Song Skipped!" "${skipped[1]}"
+fi
 
 #notify-send -i audio-x-generic "Next song:" "$queued by $qartist"
 
-logsong "skipped" &
-mpcp -q next
+mpcp -q next &
 /usr/local/bin/mpctitle "$@"
+#/home/bvargo/bin/gits/mpdignore/mpctitle-2 "$@"

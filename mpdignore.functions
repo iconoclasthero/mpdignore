@@ -216,7 +216,7 @@ title(){
       printf '        %s: %s%s%s\n' "$white" "$c_title_que" "${file[-1]%.*}" "$tput0"
     fi
   elif [[ "$1" = skipped ]]; then
-    printf '\n%s%s Artist %s: %s%s%s\n%s%s  Title %s: %s%s%s\n%s%s  Album %s: %s%s%s\n' \
+    printf '%s%s Artist %s: %s%s%s\n%s%s  Title %s: %s%s%s\n%s%s  Album %s: %s%s%s\n' \
            "${st:+$st}" \
            "$white" \
            "$tput0" \

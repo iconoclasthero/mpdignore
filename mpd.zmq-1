@@ -238,6 +238,7 @@ startffplay&
 zmqoutput="$(mpcp outputs|\grep ffmpeg\/zmq|awk '{print $2}')"
 enableout=$(mpcp enable "$zmqoutput")
 playout=$(mpctitle play)
+pulsemixer --unmute
 
 # Start a new detached screen session named "mpd.zmq" running ffplay
 # screen -dmS mpd.zmq ffplay -nodisp zmq:tcp://localhost:5555 -loglevel debug

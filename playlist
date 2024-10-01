@@ -1,15 +1,11 @@
 #!/bin/bash
 
 editscript(){
-  scriptname=$(realpath "$0")
-  local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
-     if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
-     else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit;
-  fi; }
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
 
-if [[ "$1" == @(edit|e|nano) ]]; then
-  editscript; exit "$?"
-fi
+[[ "$1" == @(edit|e|-e) ]] && editscript
 
 [[ "$XDG_CONFIG_HOME" ]] &&
     . "$XDG_CONFIG_HOME/mpd-local.conf" ||
@@ -19,7 +15,6 @@ fi
 #MPDPASS="$(cat ~/.config/mpdpass)"
 #servername="gigabyte"
 #mpdport="6600"
-server="192.168.1.2"
 red=$(tput setaf 1)
 green=$(tput setaf 2)
 yellow=$(tput setaf 3)
@@ -37,12 +32,13 @@ export TERM=xterm-256color
 pause(){ read -p "$*" ; }
 
 searchfn(){
-  local mpccommand="playlist"
+   local mpccommand="playlist"
   if [[ "$1" = listall ]]; then
     mpccommand="listall"
-  elif [[ "$1" = current ]];
+  elif [[ "$1" = current ]]; then
     mpccommand="current"
     currentpos="$(\mpc ${REMOTE:-} current -f %position%)"
+  fi
 
   # Define colors using tput
   red=$(tput setaf 1)
@@ -66,7 +62,8 @@ searchfn(){
          \mpc ${remote:-} ${mpccommand} -f \(%position%\)~%title%~%albumartist%~%album%~\(%disc%-%track%\)~\(%time%\)~%file%~%artist% | grep -i --color=never "$query"
      elif [[ "$mpccommand" = current ]]; then
          \mpc ${REMOTE:-} playlist -f \(%position%\)~%title%~%albumartist%~%album%~\(%disc%-%track%\)~\(%time%\)~%file%~%artist%|
-        { printf '  (-pos-)  ~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep -E --color=always ^\($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C400; }
+#        { printf '(-POS-)~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep \($(\mpc ${REMOTE:-} current -f %position%)\) -m1 -C$(("$lines"/3)) ; }
+        { printf '  (-pos-)  ~title~albumartist~album~(dd-tt)~(mm:ss)~file\n' ; \grep --color=never ^\("$currentpos"\) -m1 -C400; }
 #|
 #     column -s "~" -o " | " --table | \grep --color=always -e '' -e ".*$(mpc ${REMOTE:-} -f %position% current).*"
        fi
@@ -240,7 +237,7 @@ confirm() {
 }
 
 remotefn() {
-  [[ "$(uname -n)" != "$servername" ]] && REMOTE="-h $server"
+  [[ "$(uname -n)" != "$servername" ]] && REMOTE="-h $mpdhost"
 }
 
 
