@@ -44,9 +44,9 @@ source <(/home/bvargo/bin/gits/mpdignore/status11.py)
 hr2 "SKIPPED"
 title skipped
 
-if pgrep -x "notify-osd" > /dev/null; then
+#if pgrep -x "notify-osd" > /dev/null; then
   notify-send -i audio-x-generic "Song Skipped!" "${skipped[1]}"
-fi
+#fi
 
 #notify-send -i audio-x-generic "Next song:" "$queued by $qartist"
 

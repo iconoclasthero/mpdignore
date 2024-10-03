@@ -32,7 +32,7 @@ pause(){ read -rp "$*" < /dev/tty; }
 notify(){
 #  if pgrep -x "notify-osd" > /dev/null; then
     get-current-json
-    notify-send -i audio-x-generic "$title" "by $artitst on $album"
+    notify-send -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>"
 #  fi
 }
 
