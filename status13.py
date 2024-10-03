@@ -8,7 +8,7 @@ class Colors:
     tput0   = "\033[0m"
     bold    = "\033[1m"
     boldoff = "\033[22m"
-    itlon   = "\033[3m"
+    itl     = "\033[3m"
     itloff  = "\033[23m"
     green   = "\033[32m"
     red     = "\033[31m"
@@ -124,7 +124,7 @@ if state == "play":
     state = f"{Colors.green}{Colors.bold}playing{Colors.white}"
 elif state == "pause":
 #    state = f"{Colors.red}{state}{Colors.tput0}"
-    state = f"{Colors.red}paused{Colors.white}"
+    state = f"{Colors.red}paused{Colors.white}{Colors.itl}"
 
 # Get the next song's details
 nextsongid = status.get("nextsongid", "")
