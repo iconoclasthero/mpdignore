@@ -33,7 +33,7 @@ notify(){
 #  if pgrep -x "notify-osd" > /dev/null; then
 #   get-current-json
     source <(mpd-current.py)
-    notify-send -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>"
+    notify-send -a "mpctitle" -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>"
 #  fi
 }
 
