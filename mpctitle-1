@@ -65,15 +65,15 @@ elif [[ "$1" = notify ]]; then
   exit "$?"
 fi
 
+#get-current-json
+source <(mpd-current.py)
+
 #output=( "$(printf '\n%s-------- ------------- QUEUED ------------   %s' "$(tput setaf 7)" "${tput0}")" )
 output=( "$(echo; hr2 QUEUED)" )
 output+=( "$(title queued)" ) ||  { echo "Check mpd connection!"; exit 1; }
 #if ! output+=( "$(title queued)" ); then echo "Check mpd connection" && exit 1; fi
 
-
 unset paused
-#get-current-json
-source <(mpd-current.py)
 
 #output+=( "$(printf '\n%s-------- ------------- CURRENT -----------   %s' "${bold}" "${tput0}")" )
 output+=( "$(echo; hr2 CURRENT)" )
