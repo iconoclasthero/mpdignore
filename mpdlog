@@ -1,7 +1,7 @@
 #!/bin/bash
 # nb: the swp wfile that editscript relies on is provided by nano
 
-MPDSOCK="/var/run/mpd/socket"
+MPD_SOCK="/var/run/mpd/socket"
 shopt -s extglob
 songdir=\/library\/music\/$(dirname "$(\mpc current -f %file%)")
 cover=( "${songdir}/"@(c|C)over.@(png|jpg|gif) )
@@ -17,9 +17,9 @@ pause(){ read -rp "$*" < /dev/tty; }
 
 
 mpdc() {
-    ! "$MPDSOCK" && MPDSOCK="/var/run/mpd/socket"
+    ! "$MPD_SOCK" && MPD_SOCK="/var/run/mpd/socket"
     local command=$1
-    echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPDSOCK"
+    echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPD_SOCK"
 }
 
 ampm() {
