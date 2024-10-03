@@ -43,7 +43,6 @@ source <(mpd-current.py)
 
 hr2 "SKIPPED"
 title skipped
-
 #if pgrep -x "notify-osd" > /dev/null; then
   notify-send -a "mpctitle next" -i audio-x-generic "Song Skipped!" "<b>$title</b> by <b>$artist</b>"
 #fi
