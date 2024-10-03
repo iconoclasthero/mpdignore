@@ -188,25 +188,25 @@ title(){
       fi
 
   elif [[ "$1" = queued ]]; then
-    readarray -d \~ -t tags < <(mpcp "$query" -f "%artist%~%album%~%title%~%file%")
-    artist="${tags[0]}"
-    album="${tags[1]}"
-    title="${tags[2]}"
-    filepath="${tags[3]}"
+#    readarray -d \~ -t tags < <(mpcp "$query" -f "%artist%~%album%~%title%~%file%")
+#    artist="${tags[0]}"
+#    album="${tags[1]}"
+#    title="${tags[2]}"
+#    filepath="${tags[3]}"
     printf '%s Artist : %s%s%s%s\n  Title : %s%s%s%s\n  Album : %s%s%s\n' \
            "$white" \
            "$c_aa_que" \
-           "$artist" \
+           "$next_artist" \
            "$tput0" \
            "$white" \
            "$c_title_que" \
-           "$title" \
+           "$next_title" \
            "$tput0" \
            "$white" \
            "$c_aa_que" \
-           "$album" \
+           "$next_album" \
            "$tput0"
-    readarray -d \/ -t file <<< "$filepath"
+    readarray -d \/ -t file <<< "$next_filepath"
 #    readarray -d \/ -t file <<< "$next_filepath"
     if (( ${#file[@]} > 2)); then
       printf '%s Queued : %s%s%s/\n' "$white" "$c_path" "${file[0]}" "$white"
