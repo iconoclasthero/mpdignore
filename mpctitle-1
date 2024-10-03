@@ -29,6 +29,13 @@ c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
 
 pause(){ read -rp "$*" < /dev/tty; }
 
+notify(){
+#  if pgrep -x "notify-osd" > /dev/null; then
+    get-current-json
+    notify-send -i audio-x-generic "$title" "by $artitst on $album"
+#  fi
+}
+
 #hr2() {
 #  local width="$(tput cols)"
 #  local status="$1"
@@ -51,6 +58,9 @@ elif [[ "$1" = @(seek) ]]; then
 elif [[ "$1" = @(next) ]]; then
   shift
   next "$@"
+  exit "$?"
+elif [[ "$1" = notify ]]; then
+  notify
   exit "$?"
 fi
 
