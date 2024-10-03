@@ -3,7 +3,7 @@
 import mpd
 
 client = mpd.MPDClient()
-client.connect("localhost", 6600)
+client.connect("ssh.iconoclasthero.com", 6600)
 
 # Escape single quotes in strings
 def escape_quotes(string):
