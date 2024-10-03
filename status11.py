@@ -1,6 +1,35 @@
 #!/usr/bin/env python3
 
 import mpd
+import os
+import configparser
+
+
+config_file = os.path.expanduser('~/.config/mpd-local.conf')
+
+# Read the configuration file
+config = configparser.ConfigParser()
+config.read(config_file)
+
+# Get the mpdhost and mpdport from the config file
+mpdhost = config.get('DEFAULT', 'mpdhost')
+mpdport = config.getint('DEFAULT', 'mpdport')
+
+# Connect to the MPD server using the values from the config file
+client = mpd.MPDClient()
+client.connect(mpdhost, mpdport)
+
+# Escape single quotes in strings
+def escape_quotes(string):
+    return string.replace("'", "'\\''") if string else ""
+
+# Get current song and next song details from MPD
+status = client.status()
+currentsong = client.currentsong()
+
+# Extract variables similar to your existing bash variables
+state = status.get("state", "")
+
 
 client = mpd.MPDClient()
 client.connect("ssh.iconoclasthero.com", 6600)

@@ -31,7 +31,8 @@ pause(){ read -rp "$*" < /dev/tty; }
 
 notify(){
 #  if pgrep -x "notify-osd" > /dev/null; then
-    get-current-json
+#   get-current-json
+    source <(mpd-current.py)
     notify-send -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>"
 #  fi
 }
@@ -71,7 +72,8 @@ output+=( "$(title queued)" ) ||  { echo "Check mpd connection!"; exit 1; }
 
 
 unset paused
-get-current-json
+#get-current-json
+source <(mpd-current.py)
 
 #output+=( "$(printf '\n%s-------- ------------- CURRENT -----------   %s' "${bold}" "${tput0}")" )
 output+=( "$(echo; hr2 CURRENT)" )
