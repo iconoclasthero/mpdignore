@@ -8,8 +8,22 @@ editscript(){
 
 pause(){ read -rp "$*" < /dev/tty; }
 
-[[ "$1" == @(edit|e|-e) ]] && editscript
+mpcnotify=false
+
+
+notify(){
+  notify-send -a "mpctitle toggle" -i audio-x-generic "MPD $state" "<b>$title</b> by <b>$artist</b>"
+}
+
+[[ "$1" = @(edit|e|-e) ]] && editscript
+[[ "$1" = notify ]] && mpcnotify=true && shift
 
 . mpdignore.functions
 mpcp -q toggle &
+if "$mpcnotify"; then
+  source <(mpd-current.py)
+  notify
+  exit "$?"
+fi
 mpctitle #toggle "$@"
+

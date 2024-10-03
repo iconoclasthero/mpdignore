@@ -1,23 +1,31 @@
 #!/usr/bin/env python3
-
+import subprocess
 import mpd
-import os
-import configparser
 
+# Command to grep the values directly from the config file
+def get_config_value(key):
+    try:
+        result = subprocess.run(
+            f"grep -Po '(?<=^{key}=).*' ~/.config/mpd-local.conf",
+            shell=True,
+            check=True,
+            stdout=subprocess.PIPE,
+            universal_newlines=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
 
-config_file = os.path.expanduser('~/.config/mpd-local.conf')
+# Get the mpdhost and mpdport using grep
+mpdhost = get_config_value('mpdhost')
+mpdport = get_config_value('mpdport')
 
-# Read the configuration file
-config = configparser.ConfigParser()
-config.read(config_file)
+#print(f'MPD Host: {mpdhost}')
+#print(f'MPD Port: {mpdport}')
 
-# Get the mpdhost and mpdport from the config file
-mpdhost = config.get('DEFAULT', 'mpdhost')
-mpdport = config.getint('DEFAULT', 'mpdport')
-
-# Connect to the MPD server using the values from the config file
+# Example: Connect to MPD using the extracted values
 client = mpd.MPDClient()
-client.connect(mpdhost, mpdport)
+client.connect(mpdhost, int(mpdport))
 
 # Escape single quotes in strings
 def escape_quotes(string):
@@ -31,8 +39,8 @@ currentsong = client.currentsong()
 state = status.get("state", "")
 
 
-client = mpd.MPDClient()
-client.connect("ssh.iconoclasthero.com", 6600)
+#client = mpd.MPDClient()
+#client.connect("ssh.iconoclasthero.com", 6600)
 
 # Escape single quotes in strings
 def escape_quotes(string):
@@ -68,7 +76,15 @@ mb_albumid = currentsong.get("musicbrainz_albumid", "")
 mb_trackid = currentsong.get("musicbrainz_trackid", "")
 mb_reltrackid = currentsong.get("musicbrainz_releasetrackid", "")
 comment = escape_quotes(currentsong.get("comment", ""))
-performer = escape_quotes(currentsong.get("performer", ""))
+#performer = escape_quotes(currentsong.get("performer", ""))
+# Get performer and ensure it's a string
+performer_raw = currentsong.get("performer", "")
+performer = ""
+if isinstance(performer_raw, list):
+    performer = ", ".join([escape_quotes(p) for p in performer_raw])  # Join the list elements into a single string
+else:
+    performer = escape_quotes(performer_raw)
+
 date = escape_quotes(currentsong.get("date", ""))  # Escape since it's a text field
 
 # Get the next song's details

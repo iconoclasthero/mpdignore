@@ -1,0 +1,1 @@
+/home/bvargo/bin/gits/mpdignore/status12.py

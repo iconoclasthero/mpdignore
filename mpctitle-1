@@ -29,6 +29,14 @@ c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
 
 pause(){ read -rp "$*" < /dev/tty; }
 
+notify(){
+#  if pgrep -x "notify-osd" > /dev/null; then
+#   get-current-json
+    source <(mpd-current.py)
+    notify-send -a "mpctitle" -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>"
+#  fi
+}
+
 #hr2() {
 #  local width="$(tput cols)"
 #  local status="$1"
@@ -48,20 +56,24 @@ elif [[ "$1" = @(seek) ]]; then
   shift 2
   mpctitle "$@"
   exit "$?"
-elif [[ "$1" = @(next) ]]; then
+elif [[ "$1" = 'next' ]]; then
   shift
-  next "$@"
+  /home/bvargo/bin/next "$@"
+  exit "$?"
+elif [[ "$1" = notify ]]; then
+  notify
   exit "$?"
 fi
+
+#get-current-json
+source <(mpd-current.py)
 
 #output=( "$(printf '\n%s-------- ------------- QUEUED ------------   %s' "$(tput setaf 7)" "${tput0}")" )
 output=( "$(echo; hr2 QUEUED)" )
 output+=( "$(title queued)" ) ||  { echo "Check mpd connection!"; exit 1; }
 #if ! output+=( "$(title queued)" ); then echo "Check mpd connection" && exit 1; fi
 
-
 unset paused
-get-current-json
 
 #output+=( "$(printf '\n%s-------- ------------- CURRENT -----------   %s' "${bold}" "${tput0}")" )
 output+=( "$(echo; hr2 CURRENT)" )

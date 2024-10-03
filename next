@@ -39,14 +39,14 @@ skip(){
 logsong "skipped"&
 
 #get-current-json
-source <(/home/bvargo/bin/gits/mpdignore/status11.py)
+source <(mpd-current.py)
 
 hr2 "SKIPPED"
 title skipped
 
-if pgrep -x "notify-osd" > /dev/null; then
-  notify-send -i audio-x-generic "Song Skipped!" "${skipped[1]}"
-fi
+#if pgrep -x "notify-osd" > /dev/null; then
+  notify-send -a "mpctitle next" -i audio-x-generic "Song Skipped!" "<b>$title</b> by <b>$artist</b>"
+#fi
 
 #notify-send -i audio-x-generic "Next song:" "$queued by $qartist"
 

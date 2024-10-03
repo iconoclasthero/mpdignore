@@ -1,5 +1,13 @@
 #!/bin/bash
 
+defaultpulse=127.0.0.1           # defaultpulse should be defined in the
+. ~/.config/mpd-local.conf       # mpd-local.conf file so it will be overridden there...
+# default-127.0.0.1              # unless redefined below.
+
+gigabyte=192.168.1.2
+optiplex=192.168.12.222
+compaq=192.168.12.22
+
 scriptname=$(realpath "$0")
 
 function editscript(){
@@ -34,13 +42,13 @@ elif [[ "$1" == "help" ]] || [[ "$1" == "-h" ]]; then
   exit 0
 fi
 
-ip="127.0.0.1"
 sink=""
 
 while [[ "$#" -gt 0 ]]; do
   case $1 in
-    --compaq) ip="192.168.12.22"; shift ;;
-    --gig|--gigabyte) ip="192.168.1.2"; shift ;;
+    --compaq) ip="$compaq"; shift ;;
+    --optiplex|--opti) ip="$optiplex"; shift;;
+    --gig|--gigabyte) ip="$gigabyte"; shift ;;
     --mute|mute) cmd="--toggle-mute"; shift ;;
     --sink) sink="$2"; shift 2 ;;
     --mixer) cmd='mixer'; shift ;;
@@ -59,6 +67,8 @@ while [[ "$#" -gt 0 ]]; do
       ;;
   esac
 done
+
+[[ ! "$ip" ]] && ip="$defaultpulse"
 
 #checktcpmodule
 
