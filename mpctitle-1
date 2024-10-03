@@ -48,9 +48,9 @@ elif [[ "$1" = @(seek) ]]; then
   shift 2
   mpctitle "$@"
   exit "$?"
-elif [[ "$1" = @(next) ]]; then
+elif [[ "$1" = 'next' ]]; then
   shift
-  next "$@"
+  /home/bvargo/bin/next "$@"
   exit "$?"
 fi
 
