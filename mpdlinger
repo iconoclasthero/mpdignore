@@ -1,0 +1,127 @@
+#!/bin/bash
+
+trap cleanup SIGINT
+cleanup(){  echo -e "\nExiting..."; pkill lolcat; exit 0; }
+
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+[[ "$1" == @(edit|e|-e) ]] && editscript
+
+pause(){ read -rp "$*" < /dev/tty; }
+
+. ~/.config/mpd-local.conf
+
+#fonts are in /usr/share/figlet
+font1=future
+font2=pagga
+font2="$font1"
+#filter=metal
+
+mpcex=( mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
+
+#[[ "$1" = '-n' ]] && shift && limit="$1" && shift
+
+limit=4
+unset current
+count=1
+
+while [[ "$#" -gt 0 ]]; do
+  arg="$1"
+
+  if [[ "$arg" =~ ^-s[0-9]+$ ]]; then
+    count="${arg#-s}"
+    shift
+
+  # Handle -s with space and number (-s 2)
+  elif [[ "$arg" == "-s" ]]; then
+    if [[ "$2" =~ ^[0-9]+$ ]]; then
+      count="$2"
+      shift 2
+    else
+      echo "Error: -s requires a number argument."
+      exit 1
+    fi
+
+  elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+    limit="$arg"
+    shift
+
+  else
+    echo "Unknown option: $arg"
+    exit 1
+  fi
+done
+
+
+lolargs=(lolcat)
+lolargs+=(-tap 2)
+lolargs+=(-F 0.075)
+lolargs+=(-d 1 )
+lolargs+=(-s 15)
+
+. <(mpd-current.py)
+
+! [[ "$current" ]] && current="$song_id"
+#! [[ "$current" ]] && . <(mpd-current.py) && current="$song_id"
+
+# check to make sure random is off when $0 starts:
+
+if [[ "$random" = '✅' ]] && (( count < limit )); then
+  echo "warn: $count < $limit; turning random off"
+  mpcex+=( -q random off )
+  ${mpcex[@]}
+elif [[ "$random" = '❌' ]] && (( count >= limit )); then
+  echo "warn: $count >= $limit; turning random on"
+  mpcex+=( -q random on )
+  ${mpcex[@]}
+fi
+
+#if [[ "$random" = '✅' ]]; then
+#  echo "entered $random check"
+#  if (( count < limit )); then
+#    echo "$count < $limit; turning random off"
+#    mpcex+=( -q random off )
+#    "${mpcex[@]}"
+#  elif (( count >= limit )); then
+#    echo "$count >= $limit; turning random on"
+#    mpcex+=( -q random on )
+#    "${mpcex[@]}"
+#  fi
+#fi
+#
+
+clear -x
+printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle)"|"${lolargs[@]}" &
+
+#printf %s\\n%s\:\\n%s\/%s\\n "$artist" "$album" "$count" "$limit"|toilet -tf "$font1"|"${lolargs[@]}"
+#mpctitle|"${lolargs[@]}"
+# oneline this with: printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle)"
+
+
+
+while output=( $(\mpc idle playlist player) ); do
+  if [[ "${output[@]}" = playlist\ player ]]; then
+    . <(mpd-current.py)
+
+    if (( current != song_id )); then
+      current="$song_id"
+      ((count++))
+    fi
+    if (( count >= "$limit" )); then
+      wait
+      clear -x
+      printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle random on)"|"${lolargs[@]}" &
+#      printf %s\\n%s\:\\n%s\/%s\\n "$artist" "$album" "$count" "$limit"|toilet -tf "$font1"|"${lolargs[@]}"
+#      mpctitle random on|"${lolargs[@]}"
+      count=0
+    else
+      wait
+      clear -x
+      printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle random off)"|"${lolargs[@]}" &
+#      printf %s\\n%s\:\\n%s\/%s\\n "$artist" "$album" "$count" "$limit"|toilet -tf "$font1"|"${lolargs[@]}"
+#      mpctitle random off|"${lolargs[@]}"
+    fi
+  fi
+done

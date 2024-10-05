@@ -30,11 +30,12 @@ c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
 pause(){ read -rp "$*" < /dev/tty; }
 
 notify(){
-#  if pgrep -x "notify-osd" > /dev/null; then
-#   get-current-json
     source <(mpd-current.py)
-    notify-send -a "mpctitle" -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>"
-#  fi
+    output=( $(notify-send -a "mpctitle" -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>" 2&>1) )
+    nserr="$?"
+if [[ "$nserr" -ne 0 ]] && ! echo "$output" | grep -q "GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.Notifications was not provided by any .service files"; then
+      echo "Error: $output"
+    fi
 }
 
 #hr2() {
@@ -46,7 +47,13 @@ notify(){
 #  printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
 #}
 
-if [[ "$1" = @(rand@(|om)|toggle|pause|play|consume|repeat|single) ]]; then
+if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play) ]]; then
+  if [[ "$2" = @(on|off) ]]; then
+    \mpc -q -h "$mpdpass@$mpdhost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
+     shift 2
+     mpctitle "${@:+$@}"
+     exit "$?"
+  fi
  \mpc -q -h "$mpdpass@$mpdhost" "$1" ||  { echo "Check mpd connection"; exit 1; }
   shift
   mpctitle "$@"
@@ -128,7 +135,11 @@ output+=( "$(printf '         volume: %s%%%s %s %srandom: %s%s%s consume: %s%s %
   "${single:+single: $single}" \
   "$tput0" )" )
 
-[[ "$@" ]] && output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpdhost" "$@")" )
+if [[ "$@" && "$@" != "" ]]; then
+  output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpdhost" "$@")" )
+else
+  output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpdhost")" )
+fi
 
 printf %s\\n "${output[@]}"
 

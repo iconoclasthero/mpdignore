@@ -68,6 +68,7 @@ currentsong = client.currentsong()
 state = status.get("state", "")
 song_position = status.get("song", "")
 song_length = status.get("playlistlength", "")
+song_id = currentsong.get("id", "")
 elapsed = status.get("elapsed", "")
 total_time = status.get("duration", "")
 percent_time = (float(elapsed) / float(total_time) * 100) if elapsed and total_time else ""
@@ -132,6 +133,7 @@ nextsong = client.playlistid(nextsongid)[0] if nextsongid else {}
 
 # Extract the next song details and create new variables for them
 next_filepath = escape_quotes(nextsong.get("file", ""))
+next_id = nextsong.get("id", "")
 next_title = escape_quotes(nextsong.get("title", ""))
 next_artist = escape_quotes(nextsong.get("artist", ""))
 next_album_artist = escape_quotes(nextsong.get("albumartist", ""))
@@ -158,6 +160,7 @@ else:
 
 # Output bash variables directly
 output = f"""
+song_id='{song_id}'
 state='{escape_quotes(state)}'
 song_position='{song_position}'
 song_length='{song_length}'
@@ -187,6 +190,7 @@ performer='{performer}'
 date='{date}'
 
 # Next song variables
+next_id='{next_id}'
 next_filepath='{next_filepath}'
 next_title='{next_title}'
 next_artist='{next_artist}'
