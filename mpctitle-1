@@ -33,7 +33,7 @@ notify(){
 #  if pgrep -x "notify-osd" > /dev/null; then
 #   get-current-json
     source <(mpd-current.py)
-    notify-send -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>"
+    notify-send -a "mpctitle" -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>"
 #  fi
 }
 
@@ -96,13 +96,14 @@ output+=( "$( printf '\n         %s%s%s%s%s - %s%s%s%s%s\n' \
 
 #\mpc status "\[%state%\] ##%songpos%/%length%  %currenttime%/%totaltime% (%percenttime%)\nvolume:%volume%   repeat: %repeat%   random: %random%   single: %single%   consume: %consume%"
 
-output+=( "$(printf '         %s%s[%s%s%s%s%s] #%s%s%s/%s  %s/%s (%s%%)\n' \
+output+=( "$(printf '         %s%s[%s%s%s%s%s%s] #%s%s%s/%s  %s/%s (%s%%)\n' \
   "${paused:+$italics}" \
   "$bold" \
   "$tput0" \
   "${paused:+$italics}" \
   "$state" \
   "$tput0" \
+  "${paused:+$italics}" \
   "$bold" \
   "$tput0" \
   "${paused:+$italics}" \
