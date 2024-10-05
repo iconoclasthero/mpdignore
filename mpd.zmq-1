@@ -23,7 +23,7 @@ autosshpid="/tmp/autossh_${tunport}.pid"
   sinkname='JBL Xtreme 2'
 
 
-pause(){ read -rp "$@" < /dev/tty; }
+pause(){ echo "$@" ; read -rp "contents" < /dev/tty; }
 
 hr(){
   local width="$(tput cols)"
@@ -205,6 +205,21 @@ connectBT(){
 }
 
 
+remote-zmq(){
+  local remote="$1"; shift
+  sshargs=( 'ssh' )
+  sshargs+=( '-t' )
+  sshargs+=( '--' )
+  sshargs+=( "$remote" )
+  sshargs+=( 'mpd.zmq' )
+  sshargs+=( "$@" )
+# ssh -t "$remote" mpd.zmq "$@"
+# ssh $(printf %s\  "${sshargs[@]}")
+  "${sshargs[@]}"
+  exit "$?"
+}
+
+[[ "$1" = --ip ]] && remote="$2" && shift 2 && remote-zmq "$remote" "$@"
 [[ "$1" = --reset ]] && shift && resetzmq
 [[ "$1" = @(--verbose|-v) ]] && verbose=true && shift
 [[ "$1" = @(--quit|--exit|quit|exit) ]] && { stopmpdzmq; exit; }
@@ -277,7 +292,7 @@ if "$verbose"; then
  \sleep 1s
   printf '\n%s%sMPD enable fmpeg/zmq output:%s\n' "$bold" "$yellow" "$tput0"
   hr
-  printf %s\\n "$(echo "$enableout"|grep --color=always ffmpeg\/\ zmq)"
+  printf %s\\n "$(echo "$enableout"|grep --color=always ffmpeg\/zmq)"
  \sleep 1s
   printf '\n%s%sPlay mpd: %s' "$bold" "$yellow" "$tput0"
   printf %s\\n\\n "$playout"
