@@ -1,7 +1,10 @@
 #!/bin/bash
 
 trap cleanup SIGINT
-cleanup(){  echo -e "\nExiting..."; pkill lolcat; exit 0; }
+cleanup(){  echo -e "\nExiting..."; pkill lolcat; rm /tmp/mpdlinger 2>/dev/null; mpcex+=( random on ); ${mpcex[@]} | grep --color=always -B2 'random\:\ on'; exit 0; }
+
+trap 'echo usr1; [[ $newcount ]] && count=$newcount && echo "Count updated to: $count"' USR1
+trap 'newcount=$(< /tmp/mpdlinger) && count=$newcount && echo "Count updated to: $count"' USR1
 
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
@@ -23,42 +26,88 @@ mpcex=( mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
 
 #[[ "$1" = '-n' ]] && shift && limit="$1" && shift
 
+[[ "$STY" ]] && unset COLORTERM
 limit=4
 unset current
 count=1
 
+
 while [[ "$#" -gt 0 ]]; do
-  arg="$1"
-
-  if [[ "$arg" =~ ^-s[0-9]+$ ]]; then
-    count="${arg#-s}"
-    shift
-
-  # Handle -s with space and number (-s 2)
-  elif [[ "$arg" == "-s" ]]; then
-    if [[ "$2" =~ ^[0-9]+$ ]]; then
-      count="$2"
-      shift 2
-    else
-      echo "Error: -s requires a number argument."
-      exit 1
+  if [[ "$1" =~ ^-s[0-9]+$ || "$1" == "-s" ]]; then
+    pids=( $(ps aux | grep '[m]pdlinger' |grep -Ev nano\|mpdlinger\ e| awk '{print $2}') )
+#pout=( "$(ps aux | grep '[m]pdlinger' |grep -Ev nano\|mpdlinger\ e)" )
+#echo "${pout[@]}"
+#    if [[ ${#pids[@]} -eq 2 ]]; then
+#unset targetpid
+      (( "${#pids[@]}" > 2 )) && targetpid="${pids[0]}"
+#    fi
+#pause "${#pids[@]} ${targetpid}"
+    if [[ "$1" =~ ^-s([0-9]+)$ ]]; then
+      count="${BASH_REMATCH[1]}"
+      shift
+      if [[ "$targetpid" ]]; then
+        echo "$count" > /tmp/mpdlinger
+        export newcount="$count"
+        kill -USR1 "$targetpid"
+        exit 0
+      fi
+    elif [[ "$1" == "-s" ]]; then
+      shift
+      if [[ "$1" =~ ^[0-9]+$ ]]; then
+        count="$1"
+        shift
+        if [[ "$targetpid" ]]; then
+          echo "$count" > /tmp/mpdlinger
+          export newcount="$count"
+          kill -USR1 "$targetpid"  #can't delete entirely...
+          exit 0
+        fi
+      else
+        echo "Error: -s requires a number argument."
+        exit 1
+      fi
     fi
-
   elif [[ "$arg" =~ ^[0-9]+$ ]]; then
     limit="$arg"
     shift
-
   else
-    echo "Unknown option: $arg"
-    exit 1
+    echo "Unknown option: $1"
   fi
 done
 
+#while [[ "$#" -gt 0 ]]; do
+#  arg="$1"
+#
+#  if [[ "$arg" =~ ^-s[0-9]+$ ]]; then
+#    count="${arg#-s}"
+#    shift
+#
+#  # Handle -s with space and number (-s 2)
+#  elif [[ "$arg" == "-s" ]]; then
+#    if [[ "$2" =~ ^[0-9]+$ ]]; then
+#      count="$2"
+#      shift 2
+#    else
+#      echo "Error: -s requires a number argument."
+#      exit 1
+#    fi
+#
+#  elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+#    limit="$arg"
+#    shift
+#
+#  else
+#    echo "Unknown option: $arg"
+#    exit 1
+#  fi
+#done
+
 
 lolargs=(lolcat)
-lolargs+=(-tap 2)
+#lolargs+=(-ap 2) for use on screen... can we tell if we're in screen and unset "$COLORTERM"?  see lolcat git issues
+[[ "$STY" ]] && lolargs+=(-ap 2) || lolargs+=(-tap 2)
 lolargs+=(-F 0.075)
-lolargs+=(-d 1 )
+lolargs+=(-d 08)
 lolargs+=(-s 15)
 
 . <(mpd-current.py)
