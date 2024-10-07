@@ -103,7 +103,12 @@ logsong() {
 
 mpcp() {
     [[ ! -n "$mpdpass" ]] && getmpdpass
-    command mpc -P "$mpdpass" -h "$mpdhost" "$@"
+#    \mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost} }""${@}"
+#local mpcex=( \mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
+ \mpc ${mpdhost:+-h ${mpdpass:+"${mpdpass}@"}"${mpdhost}"} "$@"
+#mpcex+=( "${@}" )
+ #              \mpc -P "$mpdpass" -h "$mpdhost" "$@"
+# ${mpcpex} "$@"
 }
 
 
@@ -212,7 +217,10 @@ title(){
     if (( ${#file[@]} > 2)); then
       printf '%s Queued : %s%s%s/\n' "$white" "$c_path" "${file[0]}" "$white"
       if (( ${#file[@]} - 3 > 0 )); then
-        printf '        %s: %s%s%s/\n' "$white" "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
+          for element in "${file[@]:1:${#file[@]}-3}"; do
+            printf '        : %s%s%s%s%s/\n' "$c_path_cur" "$element" "$tput0" "$white" "$bold"
+          done
+#        printf '        %s: %s%s%s/\n' "$white" "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
       fi
       printf '        %s: %s%s%s/\n' "$white" "$c_aa_que" "${file[-2]}" "$tput0"
       printf '        %s: %s%s%s\n' "$white" "$c_title_que" "${file[-1]%.*}" "$tput0"

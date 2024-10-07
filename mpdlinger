@@ -3,8 +3,9 @@
 trap cleanup SIGINT
 cleanup(){  echo -e "\nExiting..."; pkill lolcat; rm /tmp/mpdlinger 2>/dev/null; mpcex+=( random on ); ${mpcex[@]} | grep --color=always -B2 'random\:\ on'; exit 0; }
 
-trap 'echo usr1; [[ $newcount ]] && count=$newcount && echo "Count updated to: $count"' USR1
+#trap 'echo usr1; [[ $newcount ]] && count=$newcount && echo "Count updated to: $count"' USR1
 trap 'newcount=$(< /tmp/mpdlinger) && count=$newcount && echo "Count updated to: $count"' USR1
+trap 'exec mpdlinger' USR2
 
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
@@ -14,7 +15,16 @@ editscript(){
 
 pause(){ read -rp "$*" < /dev/tty; }
 
-. ~/.config/mpd-local.conf
+nextblock(){
+  local pid=( $(ps aux|grep '[m]pdlinger'|grep -Ev nano\|mpdlinger\ e|awk '{print $2}') )
+  mpcp -q random on
+  kill -USR2 "$pid"
+  mpcp -q next
+  mpcp -q random off
+  exit
+}
+
+. mpdignore.functions
 
 #fonts are in /usr/share/figlet
 font1=future
@@ -22,9 +32,8 @@ font2=pagga
 font2="$font1"
 #filter=metal
 
-mpcex=( mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
-
 #[[ "$1" = '-n' ]] && shift && limit="$1" && shift
+mpcex=( mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
 
 [[ "$STY" ]] && unset COLORTERM
 limit=4
@@ -67,8 +76,11 @@ while [[ "$#" -gt 0 ]]; do
         exit 1
       fi
     fi
-  elif [[ "$arg" =~ ^[0-9]+$ ]]; then
-    limit="$arg"
+  elif [[ "$1" = next ]]; then
+    nextblock
+    exit
+  elif [[ "$1" =~ ^[0-9]+$ ]]; then
+    limit="$1"
     shift
   else
     echo "Unknown option: $1"
@@ -126,6 +138,8 @@ elif [[ "$random" = '❌' ]] && (( count >= limit )); then
   mpcex+=( -q random on )
   ${mpcex[@]}
 fi
+
+mpcex=( mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
 
 #if [[ "$random" = '✅' ]]; then
 #  echo "entered $random check"

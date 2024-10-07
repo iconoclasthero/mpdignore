@@ -22,6 +22,5 @@ fi
 read -r -p "Do you wish to skip the current song? [y/N] " response
 
 if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-  next &
+  exec next
 fi
-
