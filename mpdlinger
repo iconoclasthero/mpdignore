@@ -1,56 +1,297 @@
 #!/bin/bash
 
-trap cleanup SIGINT
-cleanup(){  echo -e "\nExiting..."; pkill lolcat; rm /tmp/mpdlinger 2>/dev/null; mpcex+=( random on ); ${mpcex[@]} | grep --color=always -B2 'random\:\ on'; exit 0; }
+#//
+trap sigint SIGINT
+#cleanup(){  echo -e "\nExiting..."; pkill lolcat; rm /tmp/mpdlinger 2>/dev/null; mpcp random on | grep --color=always -B2 'random\:\ on'; exit 130; }
 
+sigint(){
+# pkill lolcat
+# Kill only child processes in the same process group
+  pgid=$(ps -o pgid= -p $$ | tr -d ' ')
+  pkill -g "$pgid" lolcat
+  printf %s\\n . . .
+
+  option=$(gum choose "Next block" "Skip" "Playlist" "Change limit" "Quit")
+  case $option in
+    "Next block")
+      mpcp -q random on
+#     mpcp -q next
+      next >/dev/null
+      mpcp -q random off
+      exec mpdlinger
+      ;;
+    "Skip")
+      echo "Skipping song..."
+      if (( count < 4 )); then
+        next >/dev/null
+        startcount=$(( count +1 ))
+      else
+        mpcp -q random on
+        next >/dev/null
+        mpcp -q random off
+        startcount=1
+      fi
+      exec mpdlinger -s"$startcount"
+      ;;
+    "Playlist")
+      suboption=$(gum choose "Current position" "Search")
+        case "$suboption" in
+          "Current position")
+            playlist
+            exec mpdlinger
+            ;;
+          "Search")
+            echo
+            term="$(gum input --placeholder="Search term...")"
+            echo
+            subsubopt=$(gum choose "Current playlist" "Entire library")
+            case "$subsubopt" in
+              "Current playlist")
+                playlist "$term"
+                exec mpdlinger
+                ;;
+              "Entire library")
+                playlist -A "$term"
+                exec mpdlinger
+                ;;
+              esac
+            ;;
+         esac
+       ;;
+    "Change limit")
+      read -p "Enter new limit: " limit
+      echo "Limit changed to $limit"
+      exec mpdlinger -s"$count" "$limit"
+      ;;
+    "Quit")
+      echo "Exiting..."
+      rm /tmp/mpdlinger 2>/dev/null
+      mpcp random on |grep --color=always -B2 'random\:\ on'; exit 130
+      exit 0
+      ;;
+    "")
+      exec mpdlinger -s"$count" "$limit"
+      ;;
+    *)
+      echo "Invalid option."
+      ;;
+  esac
+}
+
+
+sigint() {
+  # Kill only child processes in the same process group
+  pgid=$(ps -o pgid= -p $$ | tr -d ' ')
+  pkill -g "$pgid" lolcat
+  printf %s\\n . . .
+
+  main_menu
+}
+
+main_menu() {
+  while true; do
+    option=$(gum choose \
+      --header="Multi-level Menu" \
+      --height=10 \
+      --item.foreground="33" \
+       --cursor.foreground=214 \
+      "Next block" \
+      "Skip" \
+      "Playlist" \
+      "Change limit" \
+      "Quit")
+
+    case $option in
+      "Next block")
+        mpcp -q random on
+        next >/dev/null
+        mpcp -q random off
+        exec mpdlinger
+        ;;
+      "Skip")
+        skip_song
+        ;;
+      "Playlist")
+        playlist_menu
+        ;;
+      "Change limit")
+        change_limit
+        ;;
+      "Quit")
+        cleanup_exit
+        ;;
+      "")
+        exec mpdlinger -s"$count" "$limit"
+        ;;
+      *)
+        echo "Invalid option."
+        ;;
+    esac
+  done
+}
+
+skip_song() {
+  echo "Skipping song..."
+  if (( count < 4 )); then
+    next >/dev/null
+    startcount=$(( count + 1 ))
+  else
+    mpcp -q random on
+    next >/dev/null
+    mpcp -q random off
+    startcount=1
+  fi
+  exec mpdlinger -s"$startcount"
+}
+
+playlist_menu() {
+  while true; do
+    suboption=$(gum choose \
+      --header="Playlist Menu" \
+      --height=8 \
+      --item.foreground="33" \
+      --cursor.foreground=214 \
+      "Current position" \
+      "Search" \
+      "Back")
+
+    case "$suboption" in
+      "Current position")
+        playlist
+        exec mpdlinger
+        ;;
+      "Search")
+        search_playlist
+        ;;
+      ""|"Back")
+        return  # Go back to the main menu
+        ;;
+      *)
+        echo "Invalid option."
+        ;;
+    esac
+  done
+}
+
+search_playlist() {
+  term="$(gum input --placeholder=" Search term..." --prompt "Search playlist: " --cursor.foreground=214 --header.foreground=33 --prompt.foreground=33)"
+  subsubopt=$(gum choose \
+    --header="Search Options" \
+    --height=6 \
+    --item.foreground="33" \
+    --cursor.foreground=214 \
+    "Current playlist" \
+    "Entire library" \
+    "Back")
+
+  case "$subsubopt" in
+    "Current playlist")
+      playlist "$term"
+      exec mpdlinger
+      ;;
+    "Entire library")
+      playlist -A "$term"
+      exec mpdlinger
+      ;;
+    ""|"Back")
+      return  # Go back to the previous menu
+      ;;
+    *)
+      echo "Invalid option."
+      ;;
+  esac
+}
+
+change_limit() {
+  read -p "Enter new limit: " limit
+  echo "Limit changed to $limit"
+  exec mpdlinger -s"$count" "$limit"
+}
+
+cleanup_exit() {
+  echo "Exiting..."
+  rm /tmp/mpdlinger 2>/dev/null
+  mpcp random on | grep --color=always -B2 'random\:\ on'
+  exit 130
+}
+
+#//
+
+#// USR signal traps
 #trap 'echo usr1; [[ $newcount ]] && count=$newcount && echo "Count updated to: $count"' USR1
 trap 'newcount=$(< /tmp/mpdlinger) && count=$newcount && echo "Count updated to: $count"' USR1
 trap 'exec mpdlinger' USR2
+#//
 
+#//  editscript
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
      [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
      printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
 [[ "$1" == @(edit|e|-e) ]] && editscript
+#//
 
+. mpdignore.functions
+
+
+#//
 pause(){ read -rp "$*" < /dev/tty; }
+#//
 
+#//
 nextblock(){
-  local pid=( $(ps aux|grep '[m]pdlinger'|grep -Ev nano\|mpdlinger\ e|awk '{print $2}') )
+#  local pid=( $(ps aux|grep '[m]pdlinger'|grep -Ev nano\|mpdlinger\ e|awk '{print $2}') )
+  getpids
   mpcp -q random on
-  kill -USR2 "$pid"
+#  kill -USR2 "$pid"
+  kill -USR2 "${pids[0]}"
   mpcp -q next
   mpcp -q random off
   exit
 }
+#//
 
-. mpdignore.functions
 
+#//
+getpids(){
+#  pids=( $(ps aux | grep '[m]pdlinger' |grep -Ev nano\|mpdlinger\ e | awk '{print $2}') )
+  pids=( pgrep mpdlinger )
+  pgid=$(ps -o pgid= -p $$ | tr -d ' ')
+  otherpids=$(pgrep mpdlinger| \grep -v -E "^$$|^$(pgrep -P $$)|mpdlinger e") #`|mpdlinger e` is probably unnecessary
+}
+#//
+
+#//
 #fonts are in /usr/share/figlet
 font1=future
 font2=pagga
 font2="$font1"
 #filter=metal
 
-#[[ "$1" = '-n' ]] && shift && limit="$1" && shift
-mpcex=( mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
-
 [[ "$STY" ]] && unset COLORTERM
+lolargs=(lolcat)
+[[ "$STY" ]] && lolargs+=(-ap 2) || lolargs+=(-tap 2)
+lolargs+=(-F 0.075)
+lolargs+=(-d 08)
+lolargs+=(-s 15)
+
 limit=4
 unset current
 count=1
+getpids
+#//
+
+
+#// is another copy running?
+  (( "${#pids[@]}" > 2 )) &&
+  ! [[ "$*" =~ \-s\ ?[[:digit:]]+ || "$*" =~ (^|[[:space:]])'next'([[:space:]]|$) ]] &&
+  { echo "Another instance of mpdlinger is running, please investigate"; exit 1; }
+#//
 
 
 while [[ "$#" -gt 0 ]]; do
   if [[ "$1" =~ ^-s[0-9]+$ || "$1" == "-s" ]]; then
-    pids=( $(ps aux | grep '[m]pdlinger' |grep -Ev nano\|mpdlinger\ e| awk '{print $2}') )
-#pout=( "$(ps aux | grep '[m]pdlinger' |grep -Ev nano\|mpdlinger\ e)" )
-#echo "${pout[@]}"
-#    if [[ ${#pids[@]} -eq 2 ]]; then
-#unset targetpid
-      (( "${#pids[@]}" > 2 )) && targetpid="${pids[0]}"
-#    fi
-#pause "${#pids[@]} ${targetpid}"
+    (( "${#pids[@]}" > 2 )) && targetpid="${pids[0]}"
     if [[ "$1" =~ ^-s([0-9]+)$ ]]; then
       count="${BASH_REMATCH[1]}"
       shift
@@ -87,79 +328,31 @@ while [[ "$#" -gt 0 ]]; do
   fi
 done
 
-#while [[ "$#" -gt 0 ]]; do
-#  arg="$1"
-#
-#  if [[ "$arg" =~ ^-s[0-9]+$ ]]; then
-#    count="${arg#-s}"
-#    shift
-#
-#  # Handle -s with space and number (-s 2)
-#  elif [[ "$arg" == "-s" ]]; then
-#    if [[ "$2" =~ ^[0-9]+$ ]]; then
-#      count="$2"
-#      shift 2
-#    else
-#      echo "Error: -s requires a number argument."
-#      exit 1
-#    fi
-#
-#  elif [[ "$arg" =~ ^[0-9]+$ ]]; then
-#    limit="$arg"
-#    shift
-#
-#  else
-#    echo "Unknown option: $arg"
-#    exit 1
-#  fi
-#done
-
-
-lolargs=(lolcat)
-#lolargs+=(-ap 2) for use on screen... can we tell if we're in screen and unset "$COLORTERM"?  see lolcat git issues
-[[ "$STY" ]] && lolargs+=(-ap 2) || lolargs+=(-tap 2)
-lolargs+=(-F 0.075)
-lolargs+=(-d 08)
-lolargs+=(-s 15)
-
 . <(mpd-current.py)
 
 ! [[ "$current" ]] && current="$song_id"
+
 #! [[ "$current" ]] && . <(mpd-current.py) && current="$song_id"
 
 # check to make sure random is off when $0 starts:
 
 if [[ "$random" = '✅' ]] && (( count < limit )); then
   echo "warn: $count < $limit; turning random off"
-  mpcex+=( -q random off )
-  ${mpcex[@]}
+  mpcp -q random off
 elif [[ "$random" = '❌' ]] && (( count >= limit )); then
   echo "warn: $count >= $limit; turning random on"
-  mpcex+=( -q random on )
-  ${mpcex[@]}
+  mpcp -q random on
 fi
 
-mpcex=( mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
-
-#if [[ "$random" = '✅' ]]; then
-#  echo "entered $random check"
-#  if (( count < limit )); then
-#    echo "$count < $limit; turning random off"
-#    mpcex+=( -q random off )
-#    "${mpcex[@]}"
-#  elif (( count >= limit )); then
-#    echo "$count >= $limit; turning random on"
-#    mpcex+=( -q random on )
-#    "${mpcex[@]}"
-#  fi
-#fi
-#
 
 clear -x
-printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle)"|"${lolargs[@]}" &
+printf '%s \n%s \n%s \n \n%s\n ' \
+       "$(toilet -tf "$font1" "$artist / $title")" \
+       "$(toilet -tf "$font1" "$album:")" \
+       "$(toilet -tf "$font1" "$count/$limit")" \
+       "$(mpctitle)" |
+   "${lolargs[@]}" &
 
-#printf %s\\n%s\:\\n%s\/%s\\n "$artist" "$album" "$count" "$limit"|toilet -tf "$font1"|"${lolargs[@]}"
-#mpctitle|"${lolargs[@]}"
 # oneline this with: printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle)"
 
 
@@ -172,19 +365,19 @@ while output=( $(\mpc idle playlist player) ); do
       current="$song_id"
       ((count++))
     fi
+    wait
+    clear -x
+    randomst=$(( count >= limit ? 1 : 0 ))
+    (( randomst )) && randomst='on' || randomst='off'
+#    if "$randomst"; then randomst='on'; else randomst='off'; fi
+    printf '%s \n%s \n%s \n \n%s\n ' \
+           "$(toilet -tf "$font1" "$artist / $title")" \
+           "$(toilet -tf "$font1" "$album:")" \
+           "$(toilet -tf "$font1" "$count/$limit")" \
+           "$(mpctitle random $randomst)" |
+      "${lolargs[@]}" &
     if (( count >= "$limit" )); then
-      wait
-      clear -x
-      printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle random on)"|"${lolargs[@]}" &
-#      printf %s\\n%s\:\\n%s\/%s\\n "$artist" "$album" "$count" "$limit"|toilet -tf "$font1"|"${lolargs[@]}"
-#      mpctitle random on|"${lolargs[@]}"
       count=0
-    else
-      wait
-      clear -x
-      printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle random off)"|"${lolargs[@]}" &
-#      printf %s\\n%s\:\\n%s\/%s\\n "$artist" "$album" "$count" "$limit"|toilet -tf "$font1"|"${lolargs[@]}"
-#      mpctitle random off|"${lolargs[@]}"
     fi
   fi
 done

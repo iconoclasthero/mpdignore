@@ -263,11 +263,14 @@ remotefn
 echo
 
 cline=150
+
 if [[ "$1" = -n ]]; then
- cline="$2"
+  cline="$2"
 fi
 
 if [[ "$1" = -a ]] || [[ "$1" = -A ]]; then
+  # -a|A is to list all the songs and then filter.  what it does after, i'm not sure right this sec.
+  # one thing it seems to do is add all the hits to the playlist...which seems to be an issue.
   argmax=1995090 #works
   argmax=1995121 #fails
   argmax=1995120

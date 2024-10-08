@@ -37,7 +37,7 @@ skip(){
 
 notify(){
   source <(mpd-current.py)
-output="$(notify-send -a "mpctitle next" -i audio-x-generic "Song Skipped!" "<b>$title</b> by <b>$artist</b>" 2>&1 )"
+  output="$(notify-send -a "mpctitle next" -i audio-x-generic "Song Skipped!" "<b>$title</b> by <b>$artist</b>" 2>&1 )"
   nserr="$?"
   if [[ "$nserr" -ne 0 ]] && ! echo "$output" | grep -q "GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.Notifications was not provided by any .service files"; then
       echo "Error: $output"
@@ -53,7 +53,7 @@ source <(mpd-current.py)
 hr2 "SKIPPED"
 title skipped
 notify
-
 mpcp -q next &
 /usr/local/bin/mpctitle "$@"
+
 #/home/bvargo/bin/gits/mpdignore/mpctitle-2 "$@"

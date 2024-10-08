@@ -30,12 +30,13 @@ c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
 pause(){ read -rp "$*" < /dev/tty; }
 
 notify(){
-    source <(mpd-current.py)
-    output=( $(notify-send -a "mpctitle" -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>" 2&>1) )
-    nserr="$?"
-if [[ "$nserr" -ne 0 ]] && ! echo "$output" | grep -q "GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.Notifications was not provided by any .service files"; then
-      echo "Error: $output"
-    fi
+  source <(mpd-current.py)
+  output=( $(notify-send -a "mpctitle" -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>" 2&>1) )
+  nserr="$?"
+  if (( nserr != 0 )) &&
+     ! echo "$output" | grep -q "GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.Notifications was not provided by any .service files"; then
+     echo "Error: $output"
+  fi
 }
 
 #hr2() {
