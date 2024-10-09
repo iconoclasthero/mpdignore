@@ -158,7 +158,7 @@ stopmpdzmq(){
      ffplaypid=(ls /tmp/ffplayzmq-*)
      ffplaypid="${ffplaypid[-1]}"
    else
-     printf '%s%sThe ffplay and the mpd.zmq screen is closed.\n%s' "$bold" "$yellow" "$tput0"
+     printf '%s%sThe ffplay and the mpd.zmq screen are closed.\n%s' "$bold" "$yellow" "$tput0"
      hr
      stopzmqscreen=true
    fi
