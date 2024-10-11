@@ -49,4 +49,22 @@ The rest of the shit in this repo is just stuff I don't really have a better pla
 | updateskip.sh            |DO NOT USE until fixed, u-x removed:  this is supposed to update a hard-coded password into skip.sh from `$mpdconf`
 
 
+A lot of the new functions that don't have any mention above need a a config file somewhere it can be found.  I was hoping to use "$XDG_CONFIG_HOME" but that's not defined anywhere I can use it so i've been using ~/.config/mpd-local.conf and linking it to /etc/default/mpd-local.conf so it's at least always available.
+
+$ cat ~/.config/mpd-local.conf
+bold="$(tput bold)"
+tput="$(tput sgr0)"
+musicdir=< e.g., /library/music >
+mpdpass=< cleartext password >
+mpdconf=< e.g., /etc/mpd.conf >
+mpdlog=< e.g., /var/log/mpd/mpd.log >
+mpdhost=< e.g., localhost >
+mpdport=<e.g., 6600 >
+sshport=< e.g., 22 >
+mpdpldir=< e.g., '/library/music/mpd playlists' >
+
+export MPD_HOST="$mpdhost"     # unless otherwise specified
+export MPD_PORT="$mpdport"     # unless otherwise specified
+export MPD_SOCK=               # e.g., "/var/run/mpd/socket"
+export MPDSOCK="$MPD_SOCK"     # unless otherwise specified
 
