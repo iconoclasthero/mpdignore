@@ -100,7 +100,8 @@ single = "✅" if status.get("single") == "1" else ""
 random = "✅" if status.get("random") == "1" else "❌"
 consume = "✅" if status.get("consume") == "1" else "❌"
 
-disc = escape_quotes(currentsong.get("disc", ""))
+#disc = escape_quotes(currentsong.get("disc", ""))
+disc = (currentsong.get("disc", ""))
 genre = escape_quotes(currentsong.get("genre", ""))
 track = escape_quotes(currentsong.get("track", ""))
 mb_artistid = currentsong.get("musicbrainz_artistid", "")
@@ -138,7 +139,8 @@ next_title = escape_quotes(nextsong.get("title", ""))
 next_artist = escape_quotes(nextsong.get("artist", ""))
 next_album_artist = escape_quotes(nextsong.get("albumartist", ""))
 next_album = escape_quotes(nextsong.get("album", ""))
-next_disc = escape_quotes(nextsong.get("disc", ""))
+#next_disc = escape_quotes(nextsong.get("disc", ""))
+next_disc = (nextsong.get("disc", ""))
 next_genre = escape_quotes(nextsong.get("genre", ""))
 next_track = escape_quotes(nextsong.get("track", ""))
 next_mb_artistid = nextsong.get("musicbrainz_artistid", "")

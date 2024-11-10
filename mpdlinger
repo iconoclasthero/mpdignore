@@ -1,104 +1,67 @@
 #!/bin/bash
-
+echo "$0 has started"
 #//
 trap sigint SIGINT
 #cleanup(){  echo -e "\nExiting..."; pkill lolcat; rm /tmp/mpdlinger 2>/dev/null; mpcp random on | grep --color=always -B2 'random\:\ on'; exit 130; }
 
-sigint(){
-# pkill lolcat
-# Kill only child processes in the same process group
-  pgid=$(ps -o pgid= -p $$ | tr -d ' ')
-  pkill -g "$pgid" lolcat
-  printf %s\\n . . .
+#//
+pauseloop(){
+  pauseout(){
+    . <(mpd-current.py)
+    printf '%s\n%s \n%s \n%s \n \n%s\n ' \
+           "$(toilet -tf "$font1" "$1")" \
+           "$(toilet -tf "$font1" "$artist / $title")" \
+           "$(toilet -tf "$font1" "$album:")" \
+           "$(toilet -tf "$font1" "$count/$limit")" \
+           "$(mpctitle)" |
+      "${lolargs[@]}"&
+  }
 
-  option=$(gum choose "Next block" "Skip" "Playlist" "Change limit" "Quit")
-  case $option in
-    "Next block")
-      mpcp -q random on
-#     mpcp -q next
-      next >/dev/null
-      mpcp -q random off
-      exec mpdlinger
-      ;;
-    "Skip")
-      echo "Skipping song..."
-      if (( count < 4 )); then
-        next >/dev/null
-        startcount=$(( count +1 ))
-      else
-        mpcp -q random on
-        next >/dev/null
-        mpcp -q random off
-        startcount=1
+  if [[ "$1" = --out ]]; then
+    clear -x
+    mpcp -q random off
+    pauseout 'mpdlinger will pause changing artists...'
+  elif [[ "$1" = --in ]]; then
+    toilet -tf "$font1" "Resuming rock blocks! $limit in a row!"|"${lolargs[@]}"
+    sleep 2
+    paused=false
+    exec mpdlinger -s"$count" --off "$limit"
+  else
+    while output=( $(\mpc idle playlist player) ) && "$paused"; do
+      if [[ "${output[@]}" = playlist\ player ]]; then
+        clear -x
+        ((count++))
+        pauseout 'Paused...'
       fi
-      exec mpdlinger -s"$startcount"
-      ;;
-    "Playlist")
-      suboption=$(gum choose "Current position" "Search")
-        case "$suboption" in
-          "Current position")
-            playlist
-            exec mpdlinger
-            ;;
-          "Search")
-            echo
-            term="$(gum input --placeholder="Search term...")"
-            echo
-            subsubopt=$(gum choose "Current playlist" "Entire library")
-            case "$subsubopt" in
-              "Current playlist")
-                playlist "$term"
-                exec mpdlinger
-                ;;
-              "Entire library")
-                playlist -A "$term"
-                exec mpdlinger
-                ;;
-              esac
-            ;;
-         esac
-       ;;
-    "Change limit")
-      read -p "Enter new limit: " limit
-      echo "Limit changed to $limit"
-      exec mpdlinger -s"$count" "$limit"
-      ;;
-    "Quit")
-      echo "Exiting..."
-      rm /tmp/mpdlinger 2>/dev/null
-      mpcp random on |grep --color=always -B2 'random\:\ on'; exit 130
-      exit 0
-      ;;
-    "")
-      exec mpdlinger -s"$count" "$limit"
-      ;;
-    *)
-      echo "Invalid option."
-      ;;
-  esac
+    done
+  fi
 }
 
-
-sigint() {
+sigint(){
   # Kill only child processes in the same process group
   pgid=$(ps -o pgid= -p $$ | tr -d ' ')
   pkill -g "$pgid" lolcat
-  printf %s\\n . . .
-
-  main_menu
+#  printf \\b\\b%s\\n . . .
+  printf '\r\033[K'
+  if "$paused"; then
+    pauseloop --in
+  else
+    main_menu
+  fi
 }
 
-main_menu() {
+main_menu(){
   while true; do
     option=$(gum choose \
       --header="Multi-level Menu" \
-      --height=10 \
+//      --height=10 \
       --item.foreground="33" \
        --cursor.foreground=214 \
       "Next block" \
       "Skip" \
       "Playlist" \
       "Change limit" \
+      "Pause" \
       "Quit")
 
     case $option in
@@ -117,6 +80,10 @@ main_menu() {
       "Change limit")
         change_limit
         ;;
+      "Pause")
+        pauseloop --out
+        exec mpdlinger -p -s"$count" "$limit"
+        ;;
       "Quit")
         cleanup_exit
         ;;
@@ -130,7 +97,7 @@ main_menu() {
   done
 }
 
-skip_song() {
+skip_song(){
   echo "Skipping song..."
   if (( count < 4 )); then
     next >/dev/null
@@ -275,6 +242,9 @@ lolargs+=(-F 0.075)
 lolargs+=(-d 08)
 lolargs+=(-s 15)
 
+
+unset initrand
+paused=false
 limit=4
 unset current
 count=1
@@ -290,7 +260,13 @@ getpids
 
 
 while [[ "$#" -gt 0 ]]; do
-  if [[ "$1" =~ ^-s[0-9]+$ || "$1" == "-s" ]]; then
+  if [[ "$1" = -p ]]; then
+    paused=true
+    shift
+  elif [[ "$1" =~ (--off|--on) ]]; then
+    initrand="${1#--}"
+    shift
+  elif [[ "$1" =~ ^-s[0-9]+$ || "$1" == "-s" ]]; then
     (( "${#pids[@]}" > 2 )) && targetpid="${pids[0]}"
     if [[ "$1" =~ ^-s([0-9]+)$ ]]; then
       count="${BASH_REMATCH[1]}"
@@ -334,13 +310,19 @@ done
 
 #! [[ "$current" ]] && . <(mpd-current.py) && current="$song_id"
 
-# check to make sure random is off when $0 starts:
+# handle the -p / paused entry state:
+if "$paused"; then
+#  echo "pauseloop"|"${lolargs[@]}"
+  pauseloop
+fi
 
-if [[ "$random" = '✅' ]] && (( count < limit )); then
-  echo "warn: $count < $limit; turning random off"
+
+# check to make sure random is off when $0 starts:
+if [[ "$initrand" = off ]] || { [[ "$random" = '✅' ]] && (( count < limit )); }; then
+  echo "warn: turning random off"
   mpcp -q random off
-elif [[ "$random" = '❌' ]] && (( count >= limit )); then
-  echo "warn: $count >= $limit; turning random on"
+elif [[ "$initrand" = on ]] || { [[ "$random" = '❌' ]] && (( count >= limit )); }; then
+  echo "warn: turning random on"
   mpcp -q random on
 fi
 
@@ -359,6 +341,13 @@ printf '%s \n%s \n%s \n \n%s\n ' \
 
 while output=( $(\mpc idle playlist player) ); do
   if [[ "${output[@]}" = playlist\ player ]]; then
+
+    if [[ "$paused" = "true" ]]; then
+      echo "mpdlinger paused. Waiting to be resumed..."
+      sleep 1
+      continue
+    fi
+
     . <(mpd-current.py)
 
     if (( current != song_id )); then

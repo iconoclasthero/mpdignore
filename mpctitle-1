@@ -71,6 +71,10 @@ elif [[ "$1" = 'next' ]]; then
 elif [[ "$1" = notify ]]; then
   notify
   exit "$?"
+elif [[ "$1" = enabled ]]; then
+  hr2 "$1"
+  mpcp outputs|grep --color=always enabled
+  shift
 fi
 
 #get-current-json
