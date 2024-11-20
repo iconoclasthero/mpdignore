@@ -230,7 +230,7 @@ remote-zmq(){
 }
 
 [[ "$1" = --ip ]] && remote="$2" && shift 2 && remote-zmq "$remote" "$@"
-[[ "$1" = --reset ]] && shift && resetzmq
+[[ "$1" = --@(reset|restart) ]] && shift && resetzmq
 [[ "$1" = @(--verbose|-v) ]] && verbose=true && shift
 [[ "$1" = @(--quit|--exit|q@(|uit)|exit) ]] && { stopmpdzmq; exit; }
 [[ "$1" = pause ]] && { pkill -19 ffplay; exit; }  # -SIGSTOP
