@@ -25,12 +25,11 @@ mpc stats >> "$stats"
 printf "\n\n" >> "$stats"
 
 #flac files
-for i in flac mp3 opus ogg mp4
-  do
+for i in flac mp3 opus ogg mp4; do
     findext="$i"
     #printf ".flac files found in library:\t%s\t%s\n" "$(fd [.]flac$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]flac$ |\du -bch --files0-from=- | awk 'END {print $1}')" >> "$stats"
     printf '.%s files found in library:\t%s\t%s\n' "$findext" "$(find "$musicdir" -iname "*.$findext" -type f|wc -l)" "$(find "$musicdir" -iname "*.$findext" -print0 -type f|\du -bch --files0-from=- | awk 'END {print $1}')" >> "$stats"
-  done
+done
 #printf " .mp3 files found in library: \t" >>"$stats"
 #printf "%s\t%s\n" "$(fd [.]mp3$ /library/music/ --type=file |wc -l)" "$(fd -0 --type=file  [.]mp3$ |\du -bch --files0-from=- | awk 'END {print $1}')" >>"$stats"
 #printf ".opus files found in library: \t" >>"$stats"

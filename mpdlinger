@@ -54,9 +54,9 @@ main_menu(){
   while true; do
     option=$(gum choose \
       --header="Multi-level Menu" \
-//      --height=10 \
+      --height=10 \
       --item.foreground="33" \
-       --cursor.foreground=214 \
+      --cursor.foreground=214 \
       "Next block" \
       "Skip" \
       "Playlist" \
@@ -211,7 +211,7 @@ nextblock(){
   getpids
   mpcp -q random on
 #  kill -USR2 "$pid"
-  kill -USR2 "${pids[0]}"
+  kill -USR2 "${pids[0]}" # not sure what this is doing, it's kicking an error, probably becuase there's no pid anymore since i used exec for what needed killing?
   mpcp -q next
   mpcp -q random off
   exit

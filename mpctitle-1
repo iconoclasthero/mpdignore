@@ -75,6 +75,10 @@ elif [[ "$1" = enabled ]]; then
   hr2 "$1"
   mpcp outputs|grep --color=always enabled
   shift
+elif [[ "$1" = update ]]; then
+ \mpc -q -h "$mpdpass@$mpdhost" "$@" ||  { echo "Check mpd connection"; exit 1; }
+  mpctitle
+  exit
 fi
 
 #get-current-json
