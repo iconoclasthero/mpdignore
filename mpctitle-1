@@ -54,6 +54,11 @@ if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play) ]]; then
      shift 2
      mpctitle "${@:+$@}"
      exit "$?"
+  else
+    \mpc -q -h "$mpdpass@$mpdhost" "$1" || { echo "Check mpd connection"; exit 1; }
+     shift
+     mpctitle "${@:+$@}"
+     exit "$?"
   fi
  \mpc -q -h "$mpdpass@$mpdhost" "$1" ||  { echo "Check mpd connection"; exit 1; }
   shift
@@ -66,7 +71,7 @@ elif [[ "$1" = @(seek) ]]; then
   exit "$?"
 elif [[ "$1" = 'next' ]]; then
   shift
-  /home/bvargo/bin/next "$@"
+  next "$@"
   exit "$?"
 elif [[ "$1" = notify ]]; then
   notify

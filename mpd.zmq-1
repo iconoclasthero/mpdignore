@@ -107,9 +107,19 @@ fi
 }
 
 startffplay(){
-rm /tmp/ffplayzmq-????-??-??T??\:??-04\:00.pid
+readarray -t rmpidout < <(rm /tmp/ffplayzmq-????-??-??T??\:??-0{4,5}\:00.pid 2>&1)
+
+for line in "${rmpidout[@]}"; do
+  if [[ "$line" != "rm: cannot remove '/tmp/ffplayzmq-"????\-??\-??\T??\:??\-\0?":00.pid': No such file or directory" ]]; then
+    echo "$line"
+#  else
+#    printf suppressed\ error\:\ %s\\n "${rmpidout[@]}"
+  fi
+done
+
+
 screen -dmS mpd.zmq sh -c \
-  'ffplay -nodisp zmq:tcp://localhost:5555 -loglevel debug & echo $! > "$0"; wait' \
+  'ffplay -autoexit -nodisp zmq:tcp://localhost:5555 -loglevel debug & echo $! > "$0"; wait' \
   "${ffplaypid}"
 }
 
@@ -220,10 +230,11 @@ remote-zmq(){
 }
 
 [[ "$1" = --ip ]] && remote="$2" && shift 2 && remote-zmq "$remote" "$@"
-[[ "$1" = --reset ]] && shift && resetzmq
+[[ "$1" = --@(reset|restart) ]] && shift && resetzmq
 [[ "$1" = @(--verbose|-v) ]] && verbose=true && shift
-[[ "$1" = @(--quit|--exit|quit|exit) ]] && { stopmpdzmq; exit; }
-
+[[ "$1" = @(--quit|--exit|q@(|uit)|exit) ]] && { stopmpdzmq; exit; }
+[[ "$1" = pause ]] && { pkill -19 ffplay; exit; }  # -SIGSTOP
+[[ "$1" = play ]] && { pkill -18 ffplay; exit; }   # -SIGCONT
 
 tmpdir=$(mktemp -d)
 btctlfifo=$(mktemp -u "$tmpdir/fifo_XXXX")
