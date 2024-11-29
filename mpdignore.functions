@@ -95,9 +95,10 @@ fi
 
 logsong() {
    i=$(date "+%b %d %H:%M : player: $1 ")
-   j=$(mpcp current -f %file%)
+   [[ "$filepath" ]] && j="$filepath" || j=$(mpcp current -f %file%)
    local logged=$(printf '%s\"%s\"\n' "$i" "$j")
-   ssh -p "$sshport" "$mpdhost" "echo "$logged" >> "$mpdlog"" 2>/dev/null
+#   ssh -p "$sshport" "$mpdhost" "echo "${logged@Q}" >> "$mpdlog"" 2>/dev/null
+   ssh -p "$sshport" "$mpdhost" "printf '%s\\n' ${logged@Q} >> $mpdlog"
 #   ssh -p "$sshport" "$mpdhost" "echo "$logged" | tee -a "$mpdlog""
 }
 

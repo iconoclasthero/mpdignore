@@ -8,6 +8,7 @@ editscript(){
 [[ "$1" == @(edit|e|-e) ]] && editscript
 
 . mpdignore.functions
+[[ ! "$mpdpldir" ]] && . '~/.config/mpd-local.conf'
 
 c_path_cur=$(tput sitm; tput setaf 7) # pale whiute path
 c_path_que=$(tput sitm; tput setaf 7) # pale white
@@ -80,6 +81,23 @@ elif [[ "$1" = enabled ]]; then
   hr2 "$1"
   mpcp outputs|grep --color=always enabled
   shift
+elif [[ "$1" = save ]]; then
+  if ! saveout=$(\mpc save "$2" 2>&1); then
+    #echo "$saveout"
+    if [[ "$saveout" = MPD\ error:\ Playlist\ already\ exists ]]; then
+      printf %s\\n "$saveout"
+      unset saveout
+      confirm "Would you like to remove $mpdpldir/$2.m3u?"
+      [[ -f "$mpdpldir/$2.m3u" ]] && { rm "$mpdpldir/$2.m3u" || sudo rm "$mpdpldir/$2.m3u"; } &&
+        saveout="$(\mpc "$1" "$2" 2>&1)" ||
+        { printf '%s\nUnable to remove playlist, MPD still reports error. exit 1' "$saveout" && exit 1; }
+    else
+      { printf '%s\nUnable to remove playlist, MPD still reports error. exit 1' "$saveout" && exit 1; }
+    fi
+  fi
+  mpctitle
+  ls "$mpdpldir"|grep ".*$2.*" -C 20 --color=always
+  exit
 elif [[ "$1" = update ]]; then
  \mpc -q -h "$mpdpass@$mpdhost" "$@" ||  { echo "Check mpd connection"; exit 1; }
   mpctitle

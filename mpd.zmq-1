@@ -84,7 +84,7 @@ resetzmq(){
 
 startautossh(){
 if ! ps aux | grep "[a]utossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}" > /dev/null; then
-  autossh -fvN -M0 -L"${tunport}":localhost:"${tunport}" -R"${retport}":localhost:22 "${mpdhost}" -p"${sshport}"
+  "autossh -fvN -M0 -L${tunport}:localhost:${tunport} -R${retport}:localhost:22 ${mpdhost} -p${sshport}"
   \sleep 1
   autossh_pid=$(pgrep -f "autossh/autossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}")
   echo "$autossh_pid" > "${autosshpid}"  #this might be the right pid?

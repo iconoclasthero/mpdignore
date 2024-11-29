@@ -44,11 +44,13 @@ notify(){
     fi
 }
 
-# mpctitleout="$(/usr/local/bin/mpctitle "$@" &)"
-logsong "skipped"&
+[[ "$1" = --set@(|-on) ]] && set -x && shift
 
 #get-current-json
 source <(mpd-current.py)
+
+# mpctitleout="$(/usr/local/bin/mpctitle "$@" &)"
+logsong "skipped"&
 
 hr2 "SKIPPED"
 title skipped
