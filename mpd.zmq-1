@@ -25,6 +25,25 @@ autosshpid="/tmp/autossh_${tunport}.pid"
 
 pause(){ echo "$@" ; read -rp "contents" < /dev/tty; }
 
+showhelp(){
+cat <<EOF
+Usage: $0 [OPTIONS]
+
+A script for controlling various media and remote actions.
+
+Options:
+  -e, e, edit            Edit the script and exit.
+  --ip <remote_ip>       Specify the remote IP for ZMQ communications.
+  --reset, --restart     Reset or restart the ZMQ service.
+  -v, --verbose          Enable verbose output.
+  --quit, --exit,        Stop the media player and tunnel; optionally...
+  q[uit], exit              ...pause mpd and disconnect BT speaker.
+  pause                  Pause the media playback.
+  play                   Resume the media playback.
+  -h, --help, help       Display this help information.
+EOF
+}
+
 hr(){
   local width="$(tput cols)"
 #  local width=${1:-${COLUMNS:-80}}  # Default to 80 if COLUMNS is unset
@@ -229,6 +248,7 @@ remote-zmq(){
   exit "$?"
 }
 
+[[ "$1" = @(--help|-h|help) ]] && { showhelp; exit; }
 [[ "$1" = --ip ]] && remote="$2" && shift 2 && remote-zmq "$remote" "$@"
 [[ "$1" = --@(reset|restart) ]] && shift && resetzmq
 [[ "$1" = @(--verbose|-v) ]] && verbose=true && shift
