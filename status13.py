@@ -66,8 +66,13 @@ currentsong = client.currentsong()
 
 # Extract variables similar to your existing bash variables
 state = status.get("state", "")
-song_position = status.get("song", "")
+# Get song_position, convert to integer, increment by 1
+###song_position = status.get("song", "")
+song_position = str(int(status.get("song", "0")) + 1)
 song_length = status.get("playlistlength", "")
+# Ensure the current song position is not greater than the playlist length
+if song_length.isdigit() and int(song_position) > int(song_length):
+    song_position = song_length  # Cap position to playlist length
 song_id = currentsong.get("id", "")
 elapsed = status.get("elapsed", "")
 total_time = status.get("duration", "")
@@ -159,8 +164,19 @@ if isinstance(next_performer_raw, list):
 else:
     next_performer = escape_quotes(next_performer_raw)
 
+try:
+    # Calculate percent_time only if elapsed and total_time are numeric
+    if elapsed and total_time:
+        percent_time = (float(elapsed) / float(total_time) * 100)
+        percent_time_formatted = f"{percent_time:.2f}"
+    else:
+        percent_time_formatted = ""  # Empty string if calculation isn't possible
+except (ValueError, ZeroDivisionError):
+    percent_time_formatted = ""  # Fallback in case of any error
 
 # Output bash variables directly
+# replaced the following below:
+# percent_time='{percent_time:.2f}'
 output = f"""
 song_id='{song_id}'
 state='{escape_quotes(state)}'
@@ -168,7 +184,7 @@ song_position='{song_position}'
 song_length='{song_length}'
 elapsed='{elapsed}'
 total_time='{total_time}'
-percent_time='{percent_time:.2f}'
+percent_time='{percent_time_formatted}'
 filepath='{filepath}'
 title='{title}'
 artist='{artist}'

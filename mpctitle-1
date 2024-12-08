@@ -49,7 +49,7 @@ notify(){
 #  printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
 #}
 
-if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play) ]]; then
+if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
   if [[ "$2" = @(on|off) ]]; then
     \mpc -q -h "$mpdpass@$mpdhost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
      shift 2

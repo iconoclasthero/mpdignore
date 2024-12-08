@@ -1,8 +1,10 @@
 #!/bin/bash
 shopt -s extglob
-mpdconf=/etc/mpd.conf
+mpdconf="/etc/mpd.conf"
 
-. "$XDG_CONFIG_HOME"/mpd-local.conf || . "$HOME/.config/mpd-local.conf"
+#read -rp "TERM=$TERM" discard
+
+. "$XDG_CONFIG_HOME"/mpd-local.conf 2>/dev/null || . "$HOME/.config/mpd-local.conf"
 . mpdignore.functions
 
 #mpctitleout="$(mpctitle&)"  #maybe start getting the data first in bg?
@@ -12,9 +14,15 @@ printf 'Ignoring current song: %s\n' "$(mpc -f %file%)"
 if [[ "$mpdhost" = @(localhost|127.0.0.1) ]]; then
   mpc current -f %file% >> "$mpdpldir"/.mpdignore.m3u
 else
-  [[ "$mpdpldir" =~ \  ]] && mpdpldir="${mpdpldir// /\\ }"
+  [[ "$mpdpldir" =~ \  ]] && mpdpldir="${mpdpldir// /\\ }"  #is this functional?  use awy $1=$1?
   ignored=$(mpc current -f %file%)
+
+# This ignorecmd=... statement seems to be far, far more than is necessary: the above only puts the file name in the .mpdignore.m3u playlist and not also load the functions and log the song so...  maybe just the printf is sufficient?
+
+#  ignorecmd=$(. mpdignore.functions; logsong "ignored"; printf 'echo "%s"|tee -a %s' "$ignored" "$mpdpldir/.mpdignore.m3u")
+
   ignorecmd=$(printf 'echo "%s"|tee -a %s' "$ignored" "$mpdpldir/.mpdignore.m3u")
+
 # ssh -p"$sshport" "$mpdhost" sh -c 'printf '%s\n' "$0"|tee -a "$1"/.mpdignore.m3u' "$ignored" "$mpdpldir"
   ssh -p"$sshport" "$mpdhost" "$ignorecmd"
 fi

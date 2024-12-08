@@ -1,7 +1,5 @@
-#mpdignore.path
 [Install]
 WantedBy=paths.target
 
 [Path] 
-PathChanged=/library/music/mpd playlists/.mpdignore.m3u
-#PathChanged=/library/music/mpd\ playlists/.mpdignore.m3u
+PathChanged=/library/music/mpdplaylists/.mpdignore.m3u

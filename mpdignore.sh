@@ -19,45 +19,9 @@ editscript "$1"
 
 . mpdignore.functions
 
-####################################################
-#This block is now defined in mpdignore.functions
-#if [[ -f "$mpdconf" ]]			# defines the location of your mpd music directory; this is defined in the mpd.conf file found at /etc/mpd.conf by default
-# then
-#   musicdir=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep music_directory)
-#   musicdir="${musicdir%*\"}"
-#   musicdir="${musicdir#*\"}"
-#   musicdir="${musicdir%/}"
-# else
-#   musicdir="/library/music"		# manually code the location if /etc/mpd.conf doesn't exist.
-#fi
-
 [[ ! "$musicdir" ]] && getmpdmusicdir
 
-####################################################
-#This block is now defined in mpdignore.functions
-#if [[ -f "$mpdconf" ]]			# defines the location of your mpd playlist directory; this is defined in the mpd.conf file found at /etc/mpd.conf by default
-# then
-#   pldir=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep playlist_directory)
-#   pldir="${pldir%*\"}"
-#   pldir="${pldir#*\"}"
-#   pldir="${pldir%/}"
-# else
-#   pldir="/var/lib/mpd/playlists"	# manually code the location if /etc/mpd.conf doesn't exist.
-#fi
-
 [[ ! "$mpdpldir" ]] && getmpdpldir
-
-####################################################
-#This block is now defined in mpdignore.functions
-#if [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this is defined in the mpd.conf file found at /etc/mpd.conf by default
-# then
-#   mpdlog=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep log_file)
-#   mpdlog="${mpdlog%*\"}"
-#   mpdlog="${mpdlog#*\"}"
-#   mpdlog="${mpdlog%/}"
-# else
-#   mpdlog="/var/log/mpd/mpd.log"	# manually code the location if /etc/mpd.conf doesn't exist.
-#fi
 
 [[ ! "$mpdlog" ]] && getmpdlog
 

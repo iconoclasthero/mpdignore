@@ -1,9 +1,19 @@
 #!/bin/bash
 
+if [[ -z "$TERM" ]]; then
+  TERM='xterm-256color'
+elif [[ "$TERM"=screen* ]]; then
+  TERM='screen.xterm-256color'
+fi
+
+# TERM=screen.xterm-256color  #default screen TERM value when calling from cli
+
 editscript(){
-  local scriptname script path swp; scriptname=$(realpath "$0" 2>/dev/null); script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
-     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptname") && exit
-     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit ;}
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+
+pause(){ read -rp "$*"; }
 
 
 #usermpdpw=  #manually define mpd password here
@@ -22,14 +32,14 @@ editscript(){
     mpdgroup="media"                     # defines the group mpd service runs as; default = media
   ignoredm3u="mpdignored.m3u"            # defines the playlist of songs ignored by mpdignore; default = mpdignored.m3u
 
-        bold="$(tput bold)"
-       tput0="$(tput sgr0)"
-       white="$(tput setaf 7)"
-         red="$(tput setaf 1)"
-     italics="$(tput sitm)"
-        ritm="$(tput ritm)"
-      yellow="$(tput setaf 214)"
-        blue="$(tput setaf 33)"
+        bold="$(tput -T $TERM bold)"
+       tput0="$(tput -T $TERM sgr0)"
+       white="$(tput -T $TERM setaf 7)"
+         red="$(tput -T $TERM setaf 1)"
+     italics="$(tput -T $TERM sitm)"
+        ritm="$(tput -T $TERM ritm)"
+      yellow="$(tput -T $TERM setaf 214)"
+        blue="$(tput -T $TERM setaf 33)"
 
 mpdc(){
     ! [[ "$MPD_SOCK" ]] && MPD_SOCK="/var/run/mpd/socket"
@@ -136,22 +146,22 @@ mediaduration(){
 
 
 title(){
-  c_path_cur=$(tput sitm; tput setaf 15) # white path
-  c_path_que=$(tput sitm; tput setaf 7) # pale white
+  c_path_cur=$(tput -T "$TERM" sitm; tput setaf 15) # white path
+  c_path_que=$(tput -T "$TERM" sitm; tput setaf 7) # pale white
 
-  #c_aa=$(tput sitm; tput setaf 4) # Blue for artist and album
-  c_aa_cur=$(tput sitm; tput setaf 33) # Blue for artist and album
-  c_aa_que=$(tput sitm; tput setaf 12) # Blue for artist and album
+  #c_aa=$(tput -T "$TERM" sitm; tput setaf 4) # Blue for artist and album
+  c_aa_cur=$(tput -T "$TERM" sitm; tput setaf 33) # Blue for artist and album
+  c_aa_que=$(tput -T "$TERM" sitm; tput setaf 12) # Blue for artist and album
 
-  #c_title_cur=$(tput sitm; tput setaf 11) # Magenta for the song file name
-  #c_title_cur=$(tput sitm; tput setaf 178) # Magenta for the song file name
-  c_title_cur=$(tput sitm; tput setaf 214) # Yellow for the song name
-  c_title_que=$(tput sitm; tput setaf 3) # Yellow for the song file name
+  #c_title_cur=$(tput -T "$TERM" sitm; tput setaf 11) # Magenta for the song file name
+  #c_title_cur=$(tput -T "$TERM" sitm; tput setaf 178) # Magenta for the song file name
+  c_title_cur=$(tput -T "$TERM" sitm; tput setaf 214) # Yellow for the song name
+  c_title_que=$(tput -T "$TERM" sitm; tput setaf 3) # Yellow for the song file name
 
-#  white=$(tput setaf 7)
-#  tput0=$(tput sgr0)
-#  bold=$(tput bold)
-#  st=$(tput smxx)
+#  white=$(tput -T "$TERM" setaf 7)
+#  tput0=$(tput -T "$TERM" sgr0)
+#  bold=$(tput -T "$TERM" bold)
+#  st=$(tput -T "$TERM" smxx)
 
   query="$1"
   [[ "$query" = skipped ]] && query=current
@@ -189,6 +199,9 @@ title(){
 
         printf '        : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
         printf '        : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
+      elif [[ ! "${file[-2]}" || ! "${file[-1]}" ]] 2>/dev/null; then
+        printf '%s   File %s:%s\n' "$bold" "$c_aa_que" "$tput0"
+        printf '        %s: %s%s\n' "$bold" "$c_title_que" "$tput0"
       else
         printf '   File : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
         printf '        : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
@@ -225,6 +238,11 @@ title(){
       fi
       printf '        %s: %s%s%s/\n' "$white" "$c_aa_que" "${file[-2]}" "$tput0"
       printf '        %s: %s%s%s\n' "$white" "$c_title_que" "${file[-1]%.*}" "$tput0"
+    elif [[ ! "${file[-2]}" || ! "${file[-1]}" ]] 2>/dev/null; then
+      printf '%s Queued %s:%s\n' "$white" "$c_aa_que" "$tput0"
+      printf '        %s: %s%s\n' "$white" "$c_title_que" "$tput0"
+#     printf '%s Queued %s: %s%s%s/\n' "$white" "$c_aa_que" "${file[-2]}" "$tput0"
+#     printf '        %s: %s%s%s\n' "$white" "$c_title_que" "${file[-1]%.*}" "$tput0"
     else
       printf '%s Queued %s: %s%s%s/\n' "$white" "$c_aa_que" "${file[-2]}" "$tput0"
       printf '        %s: %s%s%s\n' "$white" "$c_title_que" "${file[-1]%.*}" "$tput0"
@@ -268,10 +286,10 @@ title(){
 
 
 get-current-json(){
-  local green="$(tput setaf 10)"
-  local bold="$(tput bold)"
-  local tput0="$(tput sgr0)"
-  local red="$(tput setaf 9)"
+  local green="$(tput -T $TERM setaf 10)"
+  local bold="$(tput -T $TERM bold)"
+  local tput0="$(tput -T $TERM sgr0)"
+  local red="$(tput -T $TERM setaf 9)"
   current_json=$(/usr/local/bin/mpd-current-json -h "$mpdhost" -p "$mpdport")
           state=$(echo "$current_json" | jq -r '.status.state')
   song_position=$(echo "$current_json" | jq -r '.status.song_position')
@@ -298,7 +316,7 @@ get-current-json(){
      mb_trackid=$(echo "$current_json" | jq -r '.tags.musicbrainz_trackid')
   mb_reltrackid=$(echo "$current_json" | jq -r '.tags.musicbrainz_releasetrackid')
 #    [[ "$repeat"  = true ]] && repeat="✅"  || repeat="❌"
-     [[ "$repeat"  = true ]] && repeat="${bold}${green}⟳${tput0}"  || repeat="$(tput setaf 7)⟳${tput0}"
+     [[ "$repeat"  = true ]] && repeat="${bold}${green}⟳${tput0}"  || repeat="$(tput -T $TERM setaf 7)⟳${tput0}"
      [[ "$consume" = true ]] && consume="${bold}✅${tput0}" || consume="${bold}❌${tput0}"
      [[ "$random"  = true ]] && random="${bold}✅${tput0}" || random="${bold}❌${tput0}"
      [[ "$single"  = true ]] && single="✅" || unset single
@@ -358,7 +376,7 @@ sec2sex() {
 }
 
 hr2() {
-  local width="$(tput cols)"
+  local width="$(tput -T $TERM cols)"
   local status="$1"
   local left_padding="${2:-22}"
   local left_dashes=$(printf -- '%.0s—' $(seq 1 "$left_padding"))
@@ -369,7 +387,7 @@ hr2() {
 
 
 hr2() {
-  local width="$(tput cols)"
+  local width="$(tput -T $TERM cols)"
   local status=""
   local left_padding=22
 
