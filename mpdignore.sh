@@ -38,9 +38,26 @@ while read -r line; do
 
 ### mpd does not recognize file names with square brackets in .mpdignore files and the
 ### individual square bracket characters must be escaped such that they will be recognized
-  if [[ "$song" =~ \[ ]] || [[ "$song" =~ \] ]]; then
-    song=$(sed -e 's/\\\]/\]/g' -e 's/\\\[/\[/g' -e 's/\[/\\\[/g' -e 's/\]/\\\]/g' <<< "$song" )
-  fi
+
+#  if [[ "$song" =~ \[ ]] || [[ "$song" =~ \] ]]; then
+#    song=$(sed -e 's/\\\]/\]/g' -e 's/\\\[/\[/g' -e 's/\[/\\\[/g' -e 's/\]/\\\]/g' <<< "$song" )
+#  fi
+
+
+### Found out that it also fails to recognize file names with '\' in them!
+
+
+#  if [[ "$song" =~ \[ ]] || [[ "$song" =~ \] ]] || [[ "$song" =~ \\ ]]; then
+#    song=$(sed -e 's/\\\]/\]/g' -e 's/\\\[/\[/g' -e 's/\[/\\\[/g' -e 's/\]/\\\]/g' \
+#            -e 's/\\([^\\]/\\\\\1/g' <<< "$song")
+#  fi
+
+if [[ "$song" =~ \[ ]] || [[ "$song" =~ \] ]] || [[ "$song" =~ \\ ]]; then
+    # Escape square brackets and backslashes
+    song=$(echo "$song" | sed -e 's/\[/\\[/g' -e 's/\]/\\]/g' -e 's/\\\([^\\]\)/\\\\\1/g')
+fi
+
+
 
   printf "%s\n# added on %s\n" "$song" "$(date)" >> "$ignoredir"/.mpdignore
   printf '%s has been added to .mpdignore in %s\n' "$song" "$ignoredir"
