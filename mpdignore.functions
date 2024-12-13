@@ -146,6 +146,10 @@ mediaduration(){
 
 
 title(){
+#  echo "filepath=$filepath"
+#  echo "next_filepath=$next_filepath"
+#  echo "lastfilepath=$lastfilepath"
+#  echo "lastpath=$lastpath"
   c_path_cur=$(tput -T "$TERM" sitm; tput setaf 15) # white path
   c_path_que=$(tput -T "$TERM" sitm; tput setaf 7) # pale white
 
@@ -158,22 +162,12 @@ title(){
   c_title_cur=$(tput -T "$TERM" sitm; tput setaf 214) # Yellow for the song name
   c_title_que=$(tput -T "$TERM" sitm; tput setaf 3) # Yellow for the song file name
 
-#  white=$(tput -T "$TERM" setaf 7)
-#  tput0=$(tput -T "$TERM" sgr0)
-#  bold=$(tput -T "$TERM" bold)
-#  st=$(tput -T "$TERM" smxx)
-
   query="$1"
   [[ "$query" = skipped ]] && query=current
 
-#  readarray -d \~ -t tags < <(mpcp "$query" -f "%artist%~%album%~%title%~%file%")
-#  artist="${tags[0]}"
-#  album="${tags[1]}"
-#  title="${tags[2]}"
-#  filepath="${tags[3]}"
-
   if [[ "$1" = current ]]; then
-    printf '%s Artist : %s%s%s\n%s  Title : %s%s%s\n%s  Album : %s%s%s\n' \
+    printf '%s%s Artist : %s%s%s\n%s  Title : %s%s%s\n%s  Album : %s%s%s\n' \
+           "$white" \
            "$bold" \
            "$c_aa_cur" \
            "$artist" \
@@ -208,11 +202,6 @@ title(){
       fi
 
   elif [[ "$1" = queued ]]; then
-#    readarray -d \~ -t tags < <(mpcp "$query" -f "%artist%~%album%~%title%~%file%")
-#    artist="${tags[0]}"
-#    album="${tags[1]}"
-#    title="${tags[2]}"
-#    filepath="${tags[3]}"
     printf '%s Artist : %s%s%s%s\n  Title : %s%s%s%s\n  Album : %s%s%s\n' \
            "$white" \
            "$c_aa_que" \
@@ -227,7 +216,6 @@ title(){
            "$next_album" \
            "$tput0"
     readarray -d \/ -t file <<< "$next_filepath"
-#    readarray -d \/ -t file <<< "$next_filepath"
     if (( ${#file[@]} > 2)); then
       printf '%s Queued : %s%s%s/\n' "$white" "$c_path" "${file[0]}" "$white"
       if (( ${#file[@]} - 3 > 0 )); then
@@ -279,7 +267,55 @@ title(){
       printf '%s%sSkipped %s: %s%s%s/\n' "${st:+$st}" "$white" "$tput0" "$c_aa_que" "${file[-2]}" "$tput0"
       printf '%s        %s%s: %s%s%s\n' "${st:+$st}" "$white" "$tput0" "$c_title_que" "${file[-1]%.*}" "$tput0"
     fi
+  elif [[ "$1" = last ]]; then
+    printf '%s%s Artist %s: %s%s%s\n%s%s  Title %s: %s%s%s\n%s%s  Album %s: %s%s%s\n' \
+           "${st:+$st}" \
+           "$white" \
+           "$tput0" \
+           "$c_aa_que" \
+           "$lastartist" \
+           "$tput0" \
+           "${st:+$st}" \
+           "$white" \
+           "$tput0" \
+           "$c_title_que" \
+           "$lasttitle" \
+           "$tput0" \
+           "${st:+$st}" \
+           "$white" \
+           "$tput0" \
+           "$c_aa_que" \
+           "$lastalbum" \
+           "$tput0"
+    readarray -d \/ -t file <<< "$lastpath"
+    if (( ${#file[@]} > 2)); then
+      printf '%s%s   Last %s%s: %s%s%s/\n' \
+             "${st:+$st}" \
+             "$white" \
+             "$tput0" \
+             "$white" \
+             "$c_path" \
+             "${file[0]}" \
+             "$tput0"
 
+      if (( ${#file[@]} - 3 > 0 )); then
+        printf '%s        %s%s: %s%s%s/\n' "${st:+$st}" "$tput0" "$white" "$c_path"
+"${file[@]:1:${#file[@]}-3}" "$tput0"
+      fi
+      printf '%s        %s%s: %s%s%s/\n' "${st:+$st}" "$white" "$tput0" "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '%s        %s%s: %s%s%s\n' \
+             "${st:+$st}" \
+             "$white" \
+             "$tput0" \
+             "$c_title_que" \
+             "${file[-1]%.*}" \
+             "$tput0"
+
+    else
+      printf '%s%sSkipped %s: %s%s%s/\n' "${st:+$st}" "$white" "$tput0" "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '%s        %s%s: %s%s%s\n' "${st:+$st}" "$white" "$tput0" "$c_title_que" "${file[-1]%.*}"
+"$tput0"
+    fi
   fi
 
 }
@@ -310,7 +346,7 @@ get-current-json(){
          single=$(echo "$current_json" | jq -r '.status.single')
          random=$(echo "$current_json" | jq -r '.status.random')
         consume=$(echo "$current_json" | jq -r '.status.consume')
-  next_filepath=$(echo "$current_json" | jq -r '.next_filename')
+   next_filepath=$(echo "$current_json" | jq -r '.next_filename')
     mb_artistid=$(echo "$current_json" | jq -r '.tags.musicbrainz_artistid')
      mb_albumid=$(echo "$current_json" | jq -r '.tags.musicbrainz_albumid')
      mb_trackid=$(echo "$current_json" | jq -r '.tags.musicbrainz_trackid')
