@@ -66,6 +66,8 @@ getlast(){
 }
 
 
+if [[ "$1" = --fromnext ]]; then shift; fromnext=true; fi
+
 if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
   if [[ "$2" = @(on|off) ]]; then
     \mpc -q -h "$mpdpass@$mpdhost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
@@ -121,9 +123,13 @@ elif [[ "$1" = update ]]; then
   exit
 fi
 
-getlast
-output=( "$(echo "$c_aa_que"; hr2 LAST)" )
-output+=( "$(title last)" ) #|| { echo "Check $mpdlog"; exit 1; }
+"${fromnext:=false}"
+
+if ! "$fromnext"; then
+  getlast
+  output=( "$(echo "$c_aa_que"; hr2 LAST)" )
+  output+=( "$(title last)" ) || { echo "Check $mpdlog"; exit 1; }
+fi
 
 source <(mpd-current.py)
 
@@ -187,7 +193,9 @@ output+=( "$(printf '         volume: %s%%%s %s %srandom: %s%s%s consume: %s%s %
 if [[ "$@" && "$@" != "" ]]; then
   output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpdhost" "$@")" )
 else
-  output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpdhost")" )
+  [[ "$1" ]] && output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpdhost")" ) ||
+  output+=( "$(tput setaf 1; echo; hr2 "${0##*\/}"; \mpc -q -h "$mpdpass@$mpdhost"; echo "$white")" )
+
 fi
 
 printf %s\\n "${output[@]}"
