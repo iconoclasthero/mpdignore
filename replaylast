@@ -3,6 +3,8 @@
 
 . ~/.config/mpd-local.conf
 
+on='✅'
+
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
      [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
@@ -22,7 +24,7 @@ printf \\n\\nlastsong\:\ %s\\n\\n "$lastsong"
 #to get from mpc
 #song_position="$(\mpc -q -h "$mpdpass@$mpdhost" current -f %position%)"
 
-if [[ "$consume" = ✅ ]]; then
+if [[ "$consume" = "$on" ]]; then
  \mpc -q -h "$mpdpass@$mpdhost" random off
  \mpc -q -h "$mpdpass@$mpdhost" insert "$lastsong"
  \mpc -q -h "$mpdpass@$mpdhost" move $(( song_position+1 )) "$song_position"
@@ -32,4 +34,4 @@ else
 fi
 
 #reset random to initial state:
-if [[ "$random" = ✅ ]]; then \mpc -q -h "$mpdpass@$mpdhost" random on; fi
+if [[ "$random" = "$on" ]]; then \mpc -q -h "$mpdpass@$mpdhost" random on; fi
