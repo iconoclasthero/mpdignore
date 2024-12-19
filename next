@@ -46,16 +46,21 @@ notify(){
 
 [[ "$1" = --set@(|-on) ]] && set -x && shift
 
-#get-current-json
-source <(mpd-current.py)
+[[ "$1" =~ ^x[[:digit:]]{1,2}$ ]] && shift && count="${1#x}" || count=1
 
-# mpctitleout="$(/usr/local/bin/mpctitle "$@" &)"
-logsong "skipped"&
+for ((i=0; i<count; i++)); do
+  #get-current-json
+  source <(mpd-current.py)
 
-hr2 "SKIPPED"
-title skipped
-notify
-mpcp -q next &
+  # mpctitleout="$(/usr/local/bin/mpctitle "$@" &)"
+  logsong "skipped"&
+
+  hr2 "SKIPPED"
+  title skipped
+  notify
+  mpcp -q next &
+done
+
 /usr/local/bin/mpctitle --fromnext "$@"
 
 #/home/bvargo/bin/gits/mpdignore/mpctitle-2 "$@"
