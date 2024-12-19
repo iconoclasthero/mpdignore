@@ -31,7 +31,7 @@ def get_config_value(key):
         return None
 
 # Get the mpdhost and mpdport using grep
-mpdhost = get_config_value('mpdhost')
+mpdhost = get_config_value('mpdhostfqdn')
 mpdport = get_config_value('mpdport')
 
 #print(f'MPD Host: {mpdhost}')
@@ -108,7 +108,7 @@ state = status.get("state", "")
 
 
 #client = mpd.MPDClient()
-#client.connect("ssh.iconoclasthero.com", 6600)
+#client.connect( [—redacted—] )
 
 # Escape single quotes in strings
 def escape_quotes(string):

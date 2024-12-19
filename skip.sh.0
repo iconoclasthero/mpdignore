@@ -23,7 +23,7 @@
 #   mpdlog="/var/log/mpd/mpd.log"  # manually code the location if /etc/mpd.conf doesn't exist.
 #fi
 
-. /home/bvargo/bin/mpdignore.functions
+. mpdignore.functions
 #. /usr/local/bin/mpdignore.functions
 #. /usr/local/bin/mpdignore.functions
 getmpdlog

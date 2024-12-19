@@ -545,10 +545,11 @@ exit 0
 
 
 #!/bin/bash
-MPDPASS="$(cat ~/.config/mpdpass)"
-servername="gigabyte"
-server="192.168.1.2"
-mpdport="6600"
+. /$HOME/.config/mpd-local.conf
+MPDPASS="$mpdpass"  # "$(cat ~/.config/mpdpass)"
+#servername=        # [—redacted—]
+server="$mpdhost"   # "192.168.1.2"
+#mpdport=           # [—redacted—]
 scriptname=$(realpath "$0")
 red=$(tput setaf 1)
 green=$(tput setaf 2)

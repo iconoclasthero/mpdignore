@@ -1,8 +1,10 @@
 #!/bin/bash
-MPDPASS="$(cat ~/.config/mpdpass)"
-servername="gigabyte"
+. /$HOME/.config/mpd-local.conf
+MPDPASS="$mpdpass"
+#servername=""
 server="192.168.1.2"
-mpdport="6600"
+server="${server:-$mpdhost}" #defined in mpd-local.conf
+#mpdport="6600"
 scriptname=$(realpath "$0")
 red=$(tput setaf 1)
 green=$(tput setaf 2)

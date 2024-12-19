@@ -1,42 +1,31 @@
 #!/bin/bash
+# nb: the swp file that editscript relies on is provided by nano
 
-mpdlocal=false
-localip='192.168.1.2'
-mpdpass='seven314'
-[[ ! "$gigabyte" ]] && gigabyte=music.iconoclasthero.com
+. /$HOME/.config/mpd-local.conf
 
-scriptname=$(realpath "$0")
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
 
-#function editscript(){ if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then (/usr/bin/nano "$scriptname"); exit; fi ; }
-function editscript(){
-  local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
-     if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
-     else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit;
-  fi; }
+pause(){ read -rp "$*" < /dev/tty; }
 
-function pause(){ read -p "$*" ; }
+[[ "$1" == @(edit|e|-e) ]] && editscript
 
-if [[ "$1" == "edit" ]] || [[ "$1" == "e" ]] || [[ "$1" == "nano" ]]
- then
-   editscript "$1"
-elif [[ "$1" == "help" ]] || [[ "$1" == "-h" ]];
- then
- echo
-fi
+#this should no longer be necessary since ~/.config/mpd-local.conf has all this information and
+#addresses ia the "$mpdhost" whether it uses a url or localhost.
+#ssid="$(iwgetid -r)"
+#
+#localssids=(
+# -redacted-
+# -redacted-
+#)
+#
+##printf %s\\n "${localssids[@]}"
+#
+#mpdlocal=false
+#[[ "${localssids[@]}" == *"$ssid"* ]] && mpdlocal=true
 
-ssid="$(iwgetid -r)"
-
-localssids=(
-'Cloud of Titties'
-'sysknil'
-)
-
-#printf %s\\n "${localssids[@]}"
-
-[[ "${localssids[@]}" == *"$ssid"* ]] && mpdlocal=true
-
-"$mpdlocal" && gigabyte="$localip"
-
-mpc -h "$mpdpass@$gigabyte" "$@"
+mpc -h "$mpdpass@$mpdhost" "$@"
 
 

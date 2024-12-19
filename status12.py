@@ -40,7 +40,7 @@ state = status.get("state", "")
 
 
 #client = mpd.MPDClient()
-#client.connect("ssh.iconoclasthero.com", 6600)
+#client.connect(--redacted--)
 
 # Escape single quotes in strings
 def escape_quotes(string):
