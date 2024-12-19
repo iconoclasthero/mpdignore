@@ -46,7 +46,7 @@ notify(){
 
 [[ "$1" = --set@(|-on) ]] && set -x && shift
 
-[[ "$1" =~ ^x[[:digit:]]{1,2}$ ]] && shift && count="${1#x}" || count=1
+[[ "$1" =~ ^x[[:digit:]]{1,2}$ ]] && count="${1#x}" && shift || count=1
 
 for ((i=0; i<count; i++)); do
   #get-current-json
