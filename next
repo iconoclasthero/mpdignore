@@ -63,4 +63,3 @@ done
 
 /usr/local/bin/mpctitle --fromnext "$@"
 
-#/home/bvargo/bin/gits/mpdignore/mpctitle-2 "$@"

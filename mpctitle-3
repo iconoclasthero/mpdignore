@@ -10,7 +10,7 @@ editscript(){
 . mpdignore.functions
 . $HOME/.config/mpd-local.conf
 
-[[ ! "$mpdhost" ]] && mpdhost=gigabyte
+# [[ ! "$mpdhost" ]] && mpdhost=[—redacted—]
 
 c_path_cur=$(tput sitm; tput setaf 7) # pale whiute path
 c_path_que=$(tput sitm; tput setaf 7) # pale white

@@ -12,9 +12,6 @@ editscript(){
     . /home/"$USER"/.config/mpd-local.conf ||
     . /etc/default/mpd-local.conf
 
-#MPDPASS="$(cat ~/.config/mpdpass)"
-#servername="gigabyte"
-#mpdport="6600"
 red=$(tput setaf 1)
 green=$(tput setaf 2)
 yellow=$(tput setaf 3)
