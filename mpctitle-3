@@ -68,6 +68,8 @@ getlast(){
 }
 
 
+### Main Code: mpctitle
+
 if [[ "$1" = --fromnext ]]; then shift; fromnext=true; fi
 
 if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
@@ -103,14 +105,14 @@ elif [[ "$1" = enabled ]]; then
   mpcp outputs|grep --color=always enabled
   shift
 elif [[ "$1" = save ]]; then
-  if ! saveout=$(\mpc save "$2" 2>&1); then
+  if ! saveout=$(\mpc -q -h "$mpdpass@$mpdhost" save "$2" 2>&1); then
     #echo "$saveout"
     if [[ "$saveout" = MPD\ error:\ Playlist\ already\ exists ]]; then
       printf %s\\n "$saveout"
       unset saveout
       confirm "Would you like to remove $mpdpldir/$2.m3u?"
       [[ -f "$mpdpldir/$2.m3u" ]] && { rm "$mpdpldir/$2.m3u" || sudo rm "$mpdpldir/$2.m3u"; } &&
-        saveout="$(\mpc "$1" "$2" 2>&1)" ||
+        saveout="$(\mpc -q -h "$mpdpass@$mpdhost" "$1" "$2" 2>&1)" ||
         { printf '%s\nUnable to remove playlist, MPD still reports error. exit 1' "$saveout" && exit 1; }
     else
       { printf '%s\nUnable to remove playlist, MPD still reports error. exit 1' "$saveout" && exit 1; }
