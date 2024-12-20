@@ -1,0 +1,15 @@
+[Unit]
+# If you run mpd-mpris to connect to a local mpd server, uncomment 
+# the following lines to declare a dependency with the mpd service.
+# Requires=mpd.service
+Description=mpd-mpris: An implementation of the MPRIS protocol for MPD
+#After=mpd.service
+
+[Service]
+#ExecStart=/usr/local/sbin/mpd-mpris -no-instance
+EnvironmentFile=/etc/default/mpd-mpris
+ExecStart=/usr/local/sbin/mpd-mpris -host "${MPD_HOST}" -port "${MPD_PORT}" -no-instance -pwd "${MPD_PASS}"
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
