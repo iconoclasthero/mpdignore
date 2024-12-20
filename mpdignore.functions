@@ -299,8 +299,7 @@ title(){
              "$tput0"
 
       if (( ${#file[@]} - 3 > 0 )); then
-        printf '%s        %s%s: %s%s%s/\n' "${st:+$st}" "$tput0" "$white" "$c_path"
-"${file[@]:1:${#file[@]}-3}" "$tput0"
+        printf '%s        %s%s: %s%s%s/\n' "${st:+$st}" "$tput0" "$white" "$c_path" "${file[@]:1:${#file[@]}-3}" "$tput0"
       fi
       printf '%s        %s%s: %s%s%s/\n' "${st:+$st}" "$white" "$tput0" "$c_aa_que" "${file[-2]}" "$tput0"
       printf '%s        %s%s: %s%s%s\n' \
