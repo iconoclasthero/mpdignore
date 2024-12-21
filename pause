@@ -19,6 +19,7 @@ notify(){
 [[ "$1" = notify ]] && mpcnotify=true && shift
 
 . mpdignore.functions
+
 mpcp -q toggle &
 if "$mpcnotify"; then
   source <(mpd-current.py)

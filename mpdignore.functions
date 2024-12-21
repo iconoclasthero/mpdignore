@@ -113,13 +113,14 @@ logsong() {
 }
 
 mpcp() {
-    [[ ! -n "$mpdpass" ]] && getmpdpass
+#    [[ ! -n "$mpdpass" ]] && getmpdpass
+    [[ -z "$mpdpass" || -z "$mpchost" ]] && . "/$HOME/.config/mpd-local.conf"
+
 #    \mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost} }""${@}"
 #local mpcex=( \mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
- \mpc ${mpchost:+-h ${mpdpass:+"${mpdpass}@"}"${mpdhost}"} "$@"
-#mpcex+=( "${@}" )
- #              \mpc -P "$mpdpass" -h "$mpdhost" "$@"
-# ${mpcpex} "$@"
+
+ \mpc ${mpchost:+-h ${mpdpass:+"${mpdpass}@"}"${mpchost}"} "$@"
+
 }
 
 
