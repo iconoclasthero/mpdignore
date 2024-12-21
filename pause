@@ -25,5 +25,5 @@ if "$mpcnotify"; then
   notify
   exit "$?"
 fi
-mpctitle #toggle "$@"
+mpctitle "$@"
 

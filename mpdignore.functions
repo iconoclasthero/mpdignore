@@ -116,7 +116,7 @@ mpcp() {
     [[ ! -n "$mpdpass" ]] && getmpdpass
 #    \mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost} }""${@}"
 #local mpcex=( \mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
- \mpc ${mpdhost:+-h ${mpdpass:+"${mpdpass}@"}"${mpdhost}"} "$@"
+ \mpc ${mpchost:+-h ${mpdpass:+"${mpdpass}@"}"${mpdhost}"} "$@"
 #mpcex+=( "${@}" )
  #              \mpc -P "$mpdpass" -h "$mpdhost" "$@"
 # ${mpcpex} "$@"
