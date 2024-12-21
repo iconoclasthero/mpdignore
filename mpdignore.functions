@@ -312,8 +312,7 @@ title(){
 
     else
       printf '%s%sSkipped %s: %s%s%s/\n' "${st:+$st}" "$white" "$tput0" "$c_aa_que" "${file[-2]}" "$tput0"
-      printf '%s        %s%s: %s%s%s\n' "${st:+$st}" "$white" "$tput0" "$c_title_que" "${file[-1]%.*}"
-"$tput0"
+      printf '%s        %s%s: %s%s%s\n' "${st:+$st}" "$white" "$tput0" "$c_title_que" "${file[-1]%.*}" "$tput0"
     fi
   fi
 
