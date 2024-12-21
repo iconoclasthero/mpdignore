@@ -195,10 +195,10 @@ output+=( "$(printf '         volume: %s%%%s %s %srandom: %s%s%s consume: %s%s %
   "$tput0" )" )
 
 if [[ "$@" && "$@" != "" ]]; then
-  output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpdhost" "$@")" )
+  output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpchost" "$@")" )
 else
-  [[ "$1" ]] && output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpdhost")" ) ||
-  output+=( "$(tput setaf 1; echo; hr2 "${0##*\/}"; \mpc -q -h "$mpdpass@$mpdhost"; echo "$white")" )
+  [[ "$1" ]] && output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpchost")" ) ||
+  output+=( "$(tput setaf 1; echo; hr2 "${0##*\/}"; \mpc -q -h "$mpdpass@$mpchost"; echo "$white")" )
 
 fi
 

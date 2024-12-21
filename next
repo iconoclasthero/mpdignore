@@ -55,6 +55,7 @@ for ((i=0; i<count; i++)); do
   # mpctitleout="$(/usr/local/bin/mpctitle "$@" &)"
   logsong "skipped"&
 
+
   hr2 "SKIPPED"
   title skipped
   notify
