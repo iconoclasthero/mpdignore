@@ -74,22 +74,22 @@ if [[ "$1" = --fromnext ]]; then shift; fromnext=true; fi
 
 if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
   if [[ "$2" = @(on|off) ]]; then
-    \mpc -q -h "$mpdpass@$mpdhost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
+    \mpc -q -h "$mpdpass@$mpchost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
      shift 2
      mpctitle "${@:+$@}"
      exit "$?"
   else
-    \mpc -q -h "$mpdpass@$mpdhost" "$1" || { echo "Check mpd connection"; exit 1; }
+    \mpc -q -h "$mpdpass@$mpchost" "$1" || { echo "Check mpd connection"; exit 1; }
      shift
      mpctitle "${@:+$@}"
      exit "$?"
   fi
- \mpc -q -h "$mpdpass@$mpdhost" "$1" ||  { echo "Check mpd connection"; exit 1; }
+ \mpc -q -h "$mpdpass@$mpchost" "$1" ||  { echo "Check mpd connection"; exit 1; }
   shift
   mpctitle "$@"
   exit "$?"
 elif [[ "$1" = @(seek) ]]; then
-  \mpc -q -h "$mpdpass@$mpdhost" "$1" "$2"  ||  { echo "Check mpd connection"; exit 1; }
+  \mpc -q -h "$mpdpass@$mpchost" "$1" "$2"  ||  { echo "Check mpd connection"; exit 1; }
   shift 2
   mpctitle "$@"
   exit "$?"
@@ -105,14 +105,14 @@ elif [[ "$1" = enabled ]]; then
   mpcp outputs|grep --color=always enabled
   shift
 elif [[ "$1" = save ]]; then
-  if ! saveout=$(\mpc -q -h "$mpdpass@$mpdhost" save "$2" 2>&1); then
+  if ! saveout=$(\mpc -q -h "$mpdpass@$mpchost" save "$2" 2>&1); then
     #echo "$saveout"
     if [[ "$saveout" = MPD\ error:\ Playlist\ already\ exists ]]; then
       printf %s\\n "$saveout"
       unset saveout
       confirm "Would you like to remove $mpdpldir/$2.m3u?"
       [[ -f "$mpdpldir/$2.m3u" ]] && { rm "$mpdpldir/$2.m3u" || sudo rm "$mpdpldir/$2.m3u"; } &&
-        saveout="$(\mpc -q -h "$mpdpass@$mpdhost" "$1" "$2" 2>&1)" ||
+        saveout="$(\mpc -q -h "$mpdpass@$mpchost" "$1" "$2" 2>&1)" ||
         { printf '%s\nUnable to remove playlist, MPD still reports error. exit 1' "$saveout" && exit 1; }
     else
       { printf '%s\nUnable to remove playlist, MPD still reports error. exit 1' "$saveout" && exit 1; }
@@ -122,7 +122,7 @@ elif [[ "$1" = save ]]; then
   ls "$mpdpldir"|grep ".*$2.*" -C 20 --color=always
   exit
 elif [[ "$1" = update ]]; then
- \mpc -q -h "$mpdpass@$mpdhost" "$@" ||  { echo "Check mpd connection"; exit 1; }
+ \mpc -q -h "$mpdpass@$mpchost" "$@" ||  { echo "Check mpd connection"; exit 1; }
   mpctitle
   exit
 fi
