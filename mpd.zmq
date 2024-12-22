@@ -264,10 +264,14 @@ remote-zmq(){
 [[ "$1" = pause ]] && { pkill -19 ffplay; exit; }  # -SIGSTOP
 [[ "$1" = play ]] && { pkill -18 ffplay; exit; }   # -SIGCONT
 
+verbose=true
+
+echo "mkfifo..."
 tmpdir=$(mktemp -d)
 btctlfifo=$(mktemp -u "$tmpdir/fifo_XXXX")
 mkfifo "$btctlfifo"
 
+echo "check for bluetooth connection"
 connected=$(bluetoothctl info "$sinkMAC"|grep Connected|awk '{print $2}')
 
 if [[ "$connected" = no ]]; then
@@ -278,8 +282,10 @@ else
   btctlout="$(echo "$sinkname/$sinkMAC was already connected."; bluetoothctl list; bluetoothctl info "$sinkMAC")"
 fi
 
+echo "start autossh"
 startautossh&
 
+echo "$stopffplay"
 stopffplay
 
 if "$verbose"; then
