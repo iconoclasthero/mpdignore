@@ -43,6 +43,20 @@ getlast(){
        lastpath=$(grep -E  'player: (played|skipped)' /var/log/mpd/mpd.log|tail -1)
   [[ "$mpdhost" != "$localhost" ]] &&
        lastpath=$(ssh -p "$sshport" "$mpdhost" "grep -E 'player: (played|skipped)' /var/log/mpd/mpd.log | tail -1")
+       lastpath=$(ssh -p "$sshport" "$mpdhost" "grep -E 'player: (played|skipped)' /var/log/mpd/mpd.log | tail -1" 2>/tmp/lastpath.err)
+
+#catch and handle known irrelevant ssh errors that will get adddressed elsewhere
+       readarray -t lastpatherr < /tmp/lastpath.err && rm /tmp/lastpath.err
+       if [[ " ${lastpatherr[@]} " =~ "mux_client_request_session: session request failed: Session open refused by peer" ]]; then
+    lastpatherr=($(printf "%s\n" "${lastpatherr[@]}" | grep -vE 'mux_client_request_session: session request failed: Session open refused by peer'))
+       fi
+       if [[ " ${lastpatherr[@]} " =~ "ControlSocket.+already exists, disabling multiplexing" ]]; then
+    lastpatherr=($(printf "%s\n" "${lastpatherr[@]}" | grep -vE 'ControlSocket.+already esits, disabling multiplexing'))
+       fi
+
+# might want to do this at the end?
+[[ "${lastpatherr[0]}" ]] && printf ..\\n\\n "${lastpatherr[0]}"
+
   lastfile="${lastpath##*\/}"; lastfile="${lastfile%\"*}";
   lastpath="${lastpath%\"}"; lastpath="${lastpath#*\"}"
   lastfullpath="$musicdir/$lastpath"
