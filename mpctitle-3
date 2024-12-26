@@ -78,6 +78,11 @@ if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
      shift 2
      mpctitle "${@:+$@}"
      exit "$?"
+  elif [[ "$2" =~ ^[[:digit:]]+$ ]]; then
+    \mpc -q -h "$mpdpass@$mpchost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
+    shift 2
+    exec mpctitle "${@:+$@}"
+    exit "$?"
   else
     \mpc -q -h "$mpdpass@$mpchost" "$1" || { echo "Check mpd connection"; exit 1; }
      shift

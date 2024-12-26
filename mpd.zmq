@@ -87,7 +87,9 @@ startautossh(){
 if ! ps aux | grep "[a]utossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}" > /dev/null; then
 #  "autossh -fvN -M0 -L${tunport}:localhost:${tunport} -R${retport}:localhost:22 ${mpdhost} -p${sshport}"
 #  autossh -fvN -M0 -L"${tunport}:localhost:${tunport}" -R"${retport}:localhost:22 ${mpdhost}" -p"${sshport}"
-  autoarr=(autossh -fvN -M0 -L "${tunport}:localhost:${tunport}" -R "${retport}:localhost:22" "$mpdhost" -p "${sshport}")
+#  autoarr=(autossh -fvN -M0 -L "${tunport}:localhost:${tunport}" -R "${retport}:localhost:22" "$mpdhost" -p "${sshport}")
+# removing return port to let that be run by systemd.
+  autoarr=(autossh -fvN -M0 -L "${tunport}:localhost:${tunport}" "$mpdhost" -p "${sshport}")
   "${autoarr[@]}"
   \sleep 1
   autossh_pid=$(pgrep -f "autossh/autossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}")
