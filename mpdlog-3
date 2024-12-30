@@ -1,7 +1,7 @@
 #!/bin/bash
 # nb: the swp wfile that editscript relies on is provided by nano
 
-MPD_SOCK="/var/run/mpd/socket"
+MPDSOCK="/var/run/mpd/socket"
 shopt -s extglob
 songdir=\/library\/music\/$(dirname "$(\mpc current -f %file%)")
 cover=( "${songdir}/"@(c|C)over.@(png|jpg|gif) )
@@ -17,9 +17,9 @@ pause(){ read -rp "$*" < /dev/tty; }
 
 
 mpdc() {
-    ! "$MPD_SOCK" && MPD_SOCK="/var/run/mpd/socket"
-    local command=$1
-    echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPD_SOCK"
+    ! "$MPDSOCK" && MPDSOCK="/var/run/mpd/socket"
+    local command="$1"
+    echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPDSOCK"
 }
 
 ampm() {
@@ -126,6 +126,56 @@ echo "<script>
 </script>"
 }
 
+
+navbuttons() {
+      echo "<hr>"
+      echo "<div class='button-container'>"
+      echo "<div class='button-row'>"
+      echo "<form id='controlForm'>"
+      echo "<button type='button' onclick='sendAction(\"toggle_playback\")' class='btn btn-primary'>Pause</button>"
+      echo "<button type='button' onclick='sendAction(\"next_track\")' class='btn btn-primary'>Next</button>"
+      echo "<button type='button' onclick='sendAction(\"ignore\")' class='btn btn-warning'>Ignore</button>"
+      echo "</form>"
+      echo "</div>"
+      echo "<div class='button-row'>"
+      echo "<form id='controlForm'>"
+
+      if [[ "$long" != true ]]; then
+        echo "<button type='button' onclick='window.location.href=\"/long\"' class='btn btn-info'>Long</button>"
+      else
+        echo "<button type='button' onclick='window.location.href=\"/\"' class='btn btn-info'>Return</button>"
+      fi
+
+      if [[ "$raw" != true ]]; then
+        echo "<button type='button' onclick='window.location.href=\"/raw\"' class='btn btn-info'>Raw</button>"
+      else
+        echo "<button type='button' onclick='window.location.href=\"/\"' class='btn btn-info'>Return</button>"
+      fi
+
+      if [[ "$playing" != true ]]; then
+        echo "<button type='button' onclick='window.location.href=\"/playing\"' class='btn btn-info'>Playing</button>"
+      else
+        echo "<button type='button' onclick='window.location.href=\"/\"' class='btn btn-info'>Return</button>"
+      fi
+
+      echo "</form>"
+      echo "</div>"
+      echo "</div>"
+      echo "<script>
+        function sendAction(action) {
+          var xhr = new XMLHttpRequest();
+          xhr.open('GET', '?action=' + action, true);
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState == 4 && xhr.status == 200) {
+              location.reload();
+            }
+          };
+          xhr.send();
+        }
+      </script>"
+}
+
+
 process_form() {
   if [ "$REQUEST_METHOD" = "GET" ]; then
     query=$(echo "$QUERY_STRING" | tr '&' '\n' | grep -E '^(action=)' | cut -d= -f2)
@@ -143,6 +193,13 @@ process_form() {
         echo ""
         exit
         ;;
+      ignore)
+        ignorecmd=( mpc addplaylist .mpdignore "$(mpc current -f %file%)" )
+        "${ignorecmd[@]}" >> /tmp/cgi-debug.log 2>&1
+        echo "Content-type: text/html; charset=UTF-8"
+        echo ""
+        exit
+        ;;
     esac
   fi
 }
@@ -154,38 +211,58 @@ currently_playing() {
   musicnote='<svg height="200px" width="200px" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-2.18 -2.18 26.16 26.16" xml:space="preserve" fill="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"><rect x="-2.18" y="-2.18" width="26.16" height="26.16" rx="13.08" fill="#e00000" strokewidth="0"></rect></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <path style="fill:#000000;" d="M10.653,8.76l8.145-1.321v11.043c0,0.914-0.681,1.644-1.744,1.913 c-1.168,0.289-2.294-0.2-2.519-1.095c-0.224-0.897,0.541-1.858,1.708-2.15c0.527-0.13,1.047-0.103,1.481,0.05v-6.654l-5.969,1.092 l-0.028,8.276c-0.005,0.783-0.713,1.554-1.729,1.805c-1.153,0.289-2.363-0.26-2.492-1.081c-0.221-0.886,0.534-1.837,1.691-2.127 c0.52-0.13,1.029-0.104,1.456,0.046V8.76z M7.591,12.81L7.62,2.581c0,0,2.228-0.119,4.407,3.298c0,0,0.006-1.764-1.669-3.055 C7.087,0.54,7.096,0,7.096,0C6.472,0.073,6.408,0.547,6.408,0.547v10.771c-0.468-0.164-1.028-0.193-1.602-0.05 c-1.27,0.314-2.1,1.363-1.857,2.338c0.143,0.901,1.471,1.506,2.74,1.187c1.115-0.278,1.894-1.12,1.9-1.983H7.591z M13.515,6.2 c0.388-0.097,0.659-0.39,0.661-0.69h0.001l0.01-3.559c0,0,0.775-0.041,1.533,1.148c0,0,0.001-0.614-0.582-1.062 C14,1.242,14.004,1.054,14.004,1.054c-0.217,0.025-0.24,0.19-0.24,0.19v3.748c-0.162-0.058-0.356-0.068-0.556-0.019 c-0.443,0.109-0.73,0.475-0.646,0.814C12.612,6.101,13.074,6.311,13.515,6.2z M17.355,6.209c0.27-0.067,0.458-0.272,0.46-0.481 l0.007-2.479c0,0,0.54-0.029,1.068,0.799c0,0,0.001-0.428-0.404-0.74c-0.793-0.554-0.791-0.685-0.791-0.685 c-0.151,0.018-0.167,0.133-0.167,0.133v2.611c-0.113-0.04-0.249-0.047-0.388-0.012c-0.308,0.076-0.509,0.33-0.45,0.566 C16.724,6.14,17.046,6.287,17.355,6.209z"></path> </g> </g></svg>'
 
 
-  current_json=$(mpd-current-json)
-  state=$(echo "$current_json" | jq -r '.status.state')
-  song_position=$(echo "$current_json" | jq -r '.status.song_position')
-  song_length=$(echo "$current_json" | jq -r '.status.playlist_length')
-  elapsed=$(echo "$current_json" | jq -r '.status.elapsed')
-  total_time=$(echo "$current_json" | jq -r '.tags.duration')
-  percent_time=$(echo "$current_json" | jq -r '.status.elapsed_percent')
-  title=$(echo "$current_json" | jq -r '.tags.title')
-  artist=$(echo "$current_json" | jq -r '.tags.artist')
-  album=$(echo "$current_json" | jq -r '.tags.album')
-  year=$(echo "$current_json" | jq -r '.tags.date')
-  volume=$(echo "$current_json" | jq -r '.status.volume')
-  repeat=$(echo "$current_json" | jq -r '.status.repeat')
-  single=$(echo "$current_json" | jq -r '.status.single')
-  random=$(echo "$current_json" | jq -r '.status.random')
-  consume=$(echo "$current_json" | jq -r '.status.consume')
-  songpath=$(echo "$current_json" | jq -r '.tags.filename')
-  [[ "$repeat"  = true ]] && repeat="<span class='song'>⟳$nbsp</span>" || repeat='⟳'
-  [[ "$consume" = true ]] && consume="✅" || consume="❌"
-  [[ "$random"  = true ]] && random="✅" || random="❌"
-  [[ "$single"  = true ]] && single="✅" || unset single
+
+
+
+   current_json=$(mpd-current-json)
+#          state=$(echo "$current_json" | jq -r '.status.state'             )
+#  song_position=$(echo "$current_json" | jq -r '.status.song_position'     )
+#    song_length=$(echo "$current_json" | jq -r '.status.playlist_length'   )
+#        elapsed=$(echo "$current_json" | jq -r '.status.elapsed'           )
+#     total_time=$(echo "$current_json" | jq -r '.status.duration'          )
+#   percent_time=$(echo "$current_json" | jq -r '.status.elapsed_percent'   )
+#          title=$(echo "$current_json" | jq -r '.tags.title'               )
+#         artist=$(echo "$current_json" | jq -r '.tags.artist'              )
+#          album=$(echo "$current_json" | jq -r '.tags.album'               )
+#           year=$(echo "$current_json" | jq -r '.tags.date'                )
+#         volume=$(echo "$current_json" | jq -r '.status.volume'            )
+#         repeat=$(echo "$current_json" | jq -r '.status.repeat'            )
+#         single=$(echo "$current_json" | jq -r '.status.single'            )
+#         random=$(echo "$current_json" | jq -r '.status.random'            )
+#        consume=$(echo "$current_json" | jq -r '.status.consume'           )
+##      filepath=$(echo "$current_json" | jq -r '.filename'                 )
+#       songpath=$(echo "$current_json" | jq -r '.filename'                 )
+#      mbtrackid=$(echo "$current_json" | jq -r '.tags.musicbrainz_trackid' )
+#      mbalbumid=$(echo "$current_json" | jq -r '.tags.musicbrainz_albumid' )
+#     mbartistid=$(echo "$current_json" | jq -r '.tags.musicbrainz_artistid')
+#  [[ "$repeat"  = true ]] && repeat="<span class='song'>⟳$nbsp</span>" || repeat='⟳'
+#  [[ "$consume" = true ]] && consume="✅" || consume="❌"
+#  [[ "$random"  = true ]] && random="✅" || random="❌"
+#  [[ "$single"  = true ]] && single="✅" || unset single
+
+source <(./mpd-current.py)
+songpath="$filepath"
+state="$u_state"
+#[[ "$repeat" = ?[37m⟳?[0m? ]] && repeat='⟳'
+#[[ "$repeat" = ?[1m?[32m⟳?[0m ]] && repeat="<span class='song'>⟳$nbsp</span>"
+(( u_repeat > 0 )) && repeat="<span class='song'>⟳$nbsp</span>" || repeat='⟳'
+
+#echo "<pre>"
+#echo "$(./mpd-current.py)"
+#echo "</pre>"
+
 
   # Output the information
   echo "<strong class='timestamp'>$state #$song_position/$song_length<br>"
-  echo "elapsed $(sec2sex $elapsed)/$(sec2sex $total_time) ($percent_time%)</span><br>"
-  echo "<span class='song'><strong>$title</strong></span><br>"
-  echo "<span class='artist'><strong>$artist</strong></span><br>"
+  echo "elapsed $(sec2sex $elapsed)/$(sec2sex $total_time) (${percent_time%.*}%)</span><br>"
+#  echo "<span class='song'><strong>$title</strong></span><br>"
+  echo "<span class='song'><a class='hidden-link' href='https://musicbrainz.org/track/$mbtrackid'>$title</a></span><br>"
+  echo "<span class='artist'><strong><a href='https://musicbrainz.org/artist/$mbartistid'>$artist</a></strong></span><br>"
   year="${year%%-*}"
-  echo "<span class='album'><strong> ${album% (mp3)} ${year:+(${year})} </strong></span><br>"
+  echo "<span class='album'><strong><a href='https://musicbrainz.org/release/$mbalbumid'> ${album% (mp3)}</a> ${year:+(${year})} </strong></span><br>"
 
   # Output volume and playback status
-  echo "<span class='album'>volume: $volume&nbsp ${repeat:+$repeat}$nbsp</span><span class='album'> ${single:+single: $single}<br>${random:+random: $random}&nbsp&nbsp${consume:+consume: $consume}<br>  </span><hr>"
+  echo "<span class='album'>volume: $volume%&nbsp ${repeat:+$repeat}$nbsp</span><span class='album'> ${single:+single: $single}<br>${random:+random: $random}&nbsp&nbsp${consume:+consume: $consume}<br>  </span><hr>"
 
   album_art_base64=$(mpc readpicture "$songpath" | base64)
   album_art_stderr=$(mpc readpicture "$songpath" 2>&1 >/dev/null)
@@ -195,10 +272,11 @@ currently_playing() {
      echo "<img src='data:image/jpeg;base64,$album_art_base64' alt='Album Art' style='max-width: 30%; height: auto;' />"
   elif [[ "$album_art_stderr" =~ ^No\ data ]]; then
     echo "<div style='width: 25%; height: auto;'>$musicdna</div><br>";
-#    echo '<p>mpd returned "No data"</p>'
+    echo '<p>mpd returned "No data"</p>'
 #   echo "<img src=' https://www.svgrepo.com/show/54407/musical-notes-symbols.svg' alt='Note' stype='max-width: 30%; height: auto;' />"
 #    echo "<img src='https://cdn-icons-png.flaticon.com/512/217/217129.png' alt='Headphones w/Mic' style='max-width: 30%; height: auto;' />"
   else
+    echo "<div style='width: 25%; height: auto;'>$musicdna</div><br>";
     echo "<p>No album art available</p>"
   fi
 
@@ -256,6 +334,9 @@ echo ".timestamp { color: #007bff; }"
 echo ".song { color: #28a745; }"
 echo ".artist { color: #dc3545; }"
 echo ".album { color: #6c757d; }"
+#echo ".song a, .album a { color: inherit; text-decoration: underline; }"
+echo ".song a, .album a, .artist a { color: inherit; font-style: italic; }"
+#echo ".song a:hover, .album a:hover, .artist a:hover {text-decoration: underline; }"
 echo ".watermark { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('$cover'); opacity: 0.1; pointer-events: none; }"
 echo ".tab-stops { tab-size: 8; -moz-tab-size: 8; -o-tab-size: 8; }"
 #echo ".watermark {"
@@ -287,7 +368,7 @@ logsize=$(stat -c %s "${mpdlogfile[@]}")
     i=$(echo "$i" |sed 's/ : player//')
     [[ "$i" = @(*\:\ skipped\ *|*\:\ ignored\ *) ]] && skipored=true
     echo "<span class='pre-alternate'>${skipored:+<s>}$i${skipored:+</s>}</span>"
-  done < <(cat "${mpdlogfile[@]}" | tail -n "${tail1}" | grep player | tail -n "${tail2}" | tac)
+  done < <(cat "${mpdlogfile[@]}" | tail -n "${tail1}" | grep player\:\ |grep -v stored_playlist | tail -n "${tail2}" | tac)
   echo "</pre>"
 
   navbuttons
@@ -465,7 +546,7 @@ while read -r i; do
 
 done < <( cat "${mpdlogfile[@]}" |
           tail -n "${tail1}" |
-          grep player |
+          grep player\:\ |
           tail -n "${tail2}" |
           tac )
 

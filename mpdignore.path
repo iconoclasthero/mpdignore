@@ -3,3 +3,4 @@ WantedBy=paths.target
 
 [Path] 
 PathChanged=/library/music/mpdplaylists/.mpdignore.m3u
+PathModified=/library/music/mpdplaylists/.mpdignore.m3u

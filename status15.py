@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import subprocess
+import os
 import mpd
-
 
 # ANSI color codes
 class Colors:
@@ -17,10 +17,10 @@ class Colors:
     white   = "\033[37m"
 
 # Command to grep the values directly from the config file
-def get_config_value(key):
+def get_config_value(key, filepath):
     try:
         result = subprocess.run(
-            f"grep -Po '(?<=^{key}=).*' ~/.config/mpd-local.conf",
+            f"grep -Po '(?<=^{key}=).*' {filepath}",
             shell=True,
             check=True,
             stdout=subprocess.PIPE,
@@ -30,16 +30,76 @@ def get_config_value(key):
     except subprocess.CalledProcessError:
         return None
 
-# Get the mpdhost and mpdport using grep
-mpdhost = get_config_value('mpdhostfqdn')
-mpdport = get_config_value('mpdport')
+# List of possible config file locations
+config_locations = [
+    os.path.expanduser("~/.config/mpd-local.conf"),
+    os.path.expanduser("./mpd-local.conf"),
+    "/etc/mpd-local.conf"
+]
 
+# Iterate through config locations to find valid values
+mpdhost, mpdport = None, None
+for config_file in config_locations:
+    if os.path.isfile(config_file):
+        mpdhost = get_config_value('mpdhostfqdn', config_file)
+        mpdport = get_config_value('mpdport', config_file)
+        if mpdhost and mpdport:
+            break
+
+# Fallback to environment variables
+if not mpdhost:
+    mpdhost = os.getenv("MPD_HOST", "localhost")
+if not mpdport:
+    mpdport = os.getenv("MPD_PORT", "6600")
 #print(f'MPD Host: {mpdhost}')
 #print(f'MPD Port: {mpdport}')
 
 # Example: Connect to MPD using the extracted values
 client = mpd.MPDClient()
 client.connect(mpdhost, int(mpdport))
+
+##!/usr/bin/env python3
+#import subprocess
+#import mpd
+#
+#
+## ANSI color codes
+#class Colors:
+#    tput0   = "\033[0m"
+#    bold    = "\033[1m"
+#    boldoff = "\033[22m"
+#    itl     = "\033[3m"
+#    itloff  = "\033[23m"
+#    green   = "\033[32m"
+#    red     = "\033[31m"
+#    yellow  = "\033[33m"
+#    gray    = "\033[37m"
+#    white   = "\033[37m"
+#
+## Command to grep the values directly from the config file
+#def get_config_value(key):
+#    try:
+#        result = subprocess.run(
+#            f"grep -Po '(?<=^{key}=).*' ~/.config/mpd-local.conf",
+#            shell=True,
+#            check=True,
+#            stdout=subprocess.PIPE,
+#            universal_newlines=True
+#        )
+#        return result.stdout.strip()
+#    except subprocess.CalledProcessError:
+#        return None
+#
+## Get the mpdhost and mpdport using grep
+#mpdhost = get_config_value('mpdhostfqdn')
+#mpdport = get_config_value('mpdport')
+#
+##print(f'MPD Host: {mpdhost}')
+##print(f'MPD Port: {mpdport}')
+#
+## Example: Connect to MPD using the extracted values
+#client = mpd.MPDClient()
+#client.connect(mpdhost, int(mpdport))
 
 # Escape single quotes in strings
 #def escape_quotes(string):
@@ -99,14 +159,6 @@ def escape_quotes(value):
         return ""
 
 
-# Get current song and next song details from MPD
-status = client.status()
-currentsong = client.currentsong()
-
-# Extract variables similar to your existing bash variables
-state = status.get("state", "")
-
-
 #client = mpd.MPDClient()
 #client.connect( [—redacted—] )
 
@@ -120,6 +172,10 @@ currentsong = client.currentsong()
 
 # Extract variables similar to your existing bash variables
 state = status.get("state", "")
+
+# The state variable gets formatting later on; u_state is unformatted
+u_state = state
+
 # Get song_position, convert to integer, increment by 1
 ###song_position = status.get("song", "")
 song_position = str(int(status.get("song", "0")) + 1)
@@ -151,6 +207,7 @@ volume = status.get("volume", "")
 #else:
 #    repeat = f"{Colors.white}⟳{Colors.tput0}"
 
+u_repeat = status.get("repeat", "")
 repeat = f"{Colors.bold}{Colors.green}⟳{Colors.tput0}" if status.get("repeat") == "1" else f"{Colors.white}⟳{Colors.tput0}"
 
 single = "✅" if status.get("single") == "1" else ""
@@ -236,6 +293,7 @@ except (ValueError, ZeroDivisionError):
 output = f"""
 song_id='{song_id}'
 state='{escape_quotes(state)}'
+u_state='{u_state}'
 song_position='{song_position}'
 song_length='{song_length}'
 elapsed='{elapsed}'
@@ -249,6 +307,7 @@ album='{album}'
 year='{year}'
 volume='{volume}'
 repeat='{repeat}'
+u_repeat='{u_repeat}'
 single='{single}'
 random='{random}'
 consume='{consume}'
