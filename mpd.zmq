@@ -52,7 +52,6 @@ hr(){
   printf -- '%.0s—' $(seq 1 "$width"); echo; }
 
 resetzmq(){
-# printf '\n%sBluetooth:%s\n%s\n\n' "$btctlout"
   btctlout="$(bluetoothctl disconnect "$sinkMAC"|grep -v "Attempting to disconnect from $sinkMAC")"
   printf '\n%s%sAttempting to disconnect %s%s/%s%s:%s\n%s\n' \
     "$yellow" \
@@ -230,13 +229,24 @@ stopmpdzmq(){
 
 connectBT(){
   local btctlout=("$(bluetoothctl list)")
+#debug output
+#  echo "btctlout+=(\"$(bluetoothctl connect \"$sinkMAC\" 2>&1)\") &&"
   btctlout+=("$(bluetoothctl connect "$sinkMAC" 2>&1)") &&
-    connected=yes
+    connected=yes || connected=no
+#debug output
+#  echo "btctlout+=(\"$(bluetoothctl info "$sinkMAC")\")"
   btctlout+=("$(bluetoothctl info "$sinkMAC")")
-#  declare -p btctlout > "$btctlfifo"
+#debug output
+#  printf %s\\n%s\\n\\n "$connected" "$(declare -p btctlout)"
+tail -f "$btctlfifo" > /dev/null &
+readerpid=$!
   { echo "$connected"
     declare -p btctlout
   } > "$btctlfifo"
+
+#debug output
+ printf '\n\n\connectBT; exit %s' "$?"
+ kill "$readerpid"
 }
 
 
@@ -277,11 +287,15 @@ echo "check for bluetooth connection"
 connected=$(bluetoothctl info "$sinkMAC"|grep Connected|awk '{print $2}')
 
 if [[ "$connected" = no ]]; then
+  echo "entered if portion... are you stuck?  look at what's going on in connectBT&"
   connectBT&
   IFS= read -r connected < "$btctlfifo"  # this should grab just one line (no while)
   . "$btctlfifo" # rest of FIFO
 else
-  btctlout="$(echo "$sinkname/$sinkMAC was already connected."; bluetoothctl list; bluetoothctl info "$sinkMAC")"
+  echo "entered else portion... are you stuck?"
+#  btctlout="$(echo "$sinkname/$sinkMAC was already connected."; bluetoothctl list; bluetoothctl info "$sinkMAC")"
+  btctlout=( "$sinkname/$sinkMAC was already connected." "$(bluetoothctl list)" "$(bluetoothctl info $sinkMAC)" )
+  printf %s\\n "${btctlout[@]}"
 fi
 
 echo "start autossh"
