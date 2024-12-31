@@ -82,9 +82,23 @@ getlast(){
 }
 
 
+mpcq(){
+ if "$qq"; then
+  \mpc -q -h "$mpdpass@$mpchost" "$@"
+ else
+  \mpc -h "$mpdpass@$mpchost" "$@"
+ fi
+}
+
 ### Main Code: mpctitle
 
 if [[ "$1" = --fromnext ]]; then shift; fromnext=true; fi
+
+if [[ "$1" = -q ]]; then q=true; shift; else q=false; fi
+if [[ "$1" = -qq ]]; then qq=true; shift; else qq=false; fi
+
+if "$q" || "$qq"; then mpcq "$@"; exit "$?"; fi
+
 
 if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
   if [[ "$2" = @(on|off) ]]; then
