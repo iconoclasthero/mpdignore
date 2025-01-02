@@ -22,6 +22,7 @@ autosshpid="/tmp/autossh_${tunport}.pid"
    sinkMAC='00:42:79:D9:B6:AF'
   sinkname='JBL Xtreme 2'
 
+[[ "$mpdhost" = "$(hostname)" ]] && exit 1
 
 pause(){ echo "$@" ; read -rp "contents" < /dev/tty; }
 
