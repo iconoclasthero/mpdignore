@@ -239,8 +239,10 @@ connectBT(){
   btctlout+=("$(bluetoothctl info "$sinkMAC")")
 #debug output
 #  printf %s\\n%s\\n\\n "$connected" "$(declare -p btctlout)"
-tail -f "$btctlfifo" > /dev/null &
-readerpid=$!
+# this had to be added because the echo > fifo is blocking and the command will not complete until there's a reader, but that's not going to happen"
+
+  tail -f "$btctlfifo" > /dev/null &
+  readerpid=$!
   { echo "$connected"
     declare -p btctlout
   } > "$btctlfifo"
