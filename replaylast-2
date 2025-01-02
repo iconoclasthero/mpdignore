@@ -1,0 +1,39 @@
+#!/bin/bash
+# nb: the swp file that editscript relies on is provided by nano
+
+. ~/.config/mpd-local.conf
+now=false
+
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+
+pause(){ read -rp "$*" < /dev/tty; }
+
+[[ "$1" == @(edit|e|-e) ]] && editscript
+[[ "$1" = "--now" ]] && now=true && shift
+
+. <(mpd-current.py)
+
+lastsong="$(grep -E 'player: (played|skipped)' /var/log/mpd/mpd.log|tail -1)"
+lastsong="${lastsong%\"*}"; lastsong="${lastsong#*\"}"
+
+printf \\n\\nlastsong\:\ %s\\n\\n "$lastsong"
+
+
+
+if [[ "$consume" = ✅ ]]; then
+# if [[ "$random" = ✅ ]]; then \mpc -q -h "$mpdpass@$mpdhost" random off"; fi
+  if [[ "$random" = ✅ ]]; then
+    \mpc -q -h "$mpdpass@$mpdhost" insert "$lastsong"
+    "$now" && mpctitle next
+  elif [[ "$random" != ✅ ]]; then
+    \mpc -q -h "$mpdpass@$mpdhost" insert "$lastsong"
+    \mpc -q -h "$mpdpass@$mpdhost" move $(( song_position+2 )) $(( song_position+1 ))
+    \mpc -q -h "$mpdpass@$mpdhost" prev
+  fi
+fi
+
+#reset random to initial state:
+#if [[ "$random" = ✅ ]]; then \mpc -q -h "$mpdpass@$mpdhost" random on; fi

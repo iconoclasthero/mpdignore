@@ -1,0 +1,289 @@
+#!/bin/bash
+
+#usermpdpw=  #manually define mpd password here
+#usermpdmd=  #maunally define mpd music directory here
+#usermpdpd=  #manually define mpd playlist directory here
+#usermpdlf=  #manually define mpd logfile path here
+
+[[ "$XDG_CONFIG_HOME" ]] &&
+    . "$XDG_CONFIG_HOME/mpd-local.conf" ||
+    . /home/"$USER"/.config/mpd-local.conf ||
+    . /etc/default/mpd-local.conf
+
+watchfile=".mpdignore.m3u"              # defines the watched playlist; default = .mpdignore.m3u
+mpdconf="/etc/mpd.conf"                 # defines mpd.conf location; default = /etc/mpd.conf
+mpduser="mpd"                           # defines the user mpd service runs as; default = mpd
+mpdgroup="media"                        # defines the group mpd service runs as; default = media
+ignoredm3u="mpdignored.m3u"             # defines the playlist of songs ignored by mpdignore; default = mpdignored.m3u
+
+editscript(){
+  local scriptname script path swp; scriptname=$(realpath "$0" 2>/dev/null); script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptname") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit ;}
+
+mpdc() {
+    ! [[ "$MPDSOCK" ]] && MPDSOCK="/var/run/mpd/socket"
+    local command="$@"
+    echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPDSOCK"
+}
+
+
+getmpdconf(){
+mpdconf="$(grep MPDCONF /etc/default/mpd)"
+mpdconf="${mpdconf#*=}"
+}
+
+getmpdpass(){
+if [[ -f "$mpdconf" ]]			# defines the location of your mpd logfile path; this is defined in the mpd.conf file found at /etc/mpd.conf by default
+ then
+   mpdpass="$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep password | grep control | head -n 1)"
+   mpdpass="${mpdpass%*\"}"
+   mpdpass="${mpdpass#*\"}"
+   mpdpass="${mpdpass%\@*}"
+ else
+#   read -p "What is the mpd controll password?" mpdpass
+   mpdpass="$usermpdpw"		# manually code the location if /etc/mpd.conf doesn't exist.
+fi
+}
+
+getmpdmusicdir(){
+if [[ -f "$mpdconf" ]]                  # defines the location of your mpd music directory; this is defi>
+ then
+   musicdir=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep music_directory)
+   musicdir="${musicdir%*\"}"
+   musicdir="${musicdir#*\"}"
+   musicdir="${musicdir%/}"
+ else
+   musicdir="$usermpdmd"            # manually code the location if /etc/mpd.conf doesn't exist.
+fi
+}
+
+getmpdpldir(){
+if [[ -f "$mpdconf" ]] # defines the location of mpd playlist directory; this is defined in the mpd.conf>
+ then
+   pldir=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep playlist_directory)
+   pldir="${pldir%*\"}"
+   pldir="${pldir#*\"}"
+   pldir="${pldir%/}"
+ else
+   pldir="$usermpdpd"  # manually code the location if /etc/mpd.conf doesn't exist.
+fi
+}
+
+
+getmpdlog() {
+if [[ -f "$mpdconf" ]]                  # defines the location of your mpd logfile path; this is defined>
+ then
+   mpdlog=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep log_file)
+   mpdlog="${mpdlog%*\"}"
+   mpdlog="${mpdlog#*\"}"
+   mpdlog="${mpdlog%/}"
+ else
+   mpdlog="$usermpdlf"        # manually code the location if /etc/mpd.conf doesn't exist.
+fi
+}
+
+logsong() {
+   i=$(date "+%b %d %H:%M : player: $1 ")
+   j=$(mpcp current -f %file%)
+   local logged=$(printf '%s\"%s\"\n' "$i" "$j")
+   ssh -p "$sshport" "$mpdhost" "echo "$logged" >> "$mpdlog""
+}
+
+mpcp() {
+    [[ ! -n "$mpdpass" ]] && getmpdpass
+    command mpc -P "$mpdpass" -h "$mpdhost" "$@"
+}
+
+
+mediaduration(){
+  printf "\nDuration of .mp3 files : "
+  find -type f -iname "*.mp3" -print0 | xargs -0 mplayer -vo dummy -ao dummy -identify 2>/dev/null | perl -nle '/ID_LENGTH=([0-9\.]+)/ && ($t +=$1) && printf "%02d:%02d:%02d\n",$t/3600,$t/60%60,$t%60' | tail -n 1
+  printf "\nDuration of .m4a files : "
+  find -type f -iname "*.m4a" -print0 | xargs -0 mplayer -vo dummy -ao dummy -identify 2>/dev/null | perl -nle '/ID_LENGTH=([0-9\.]+)/ && ($t +=$1) && printf "%02d:%02d:%02d\n",$t/3600,$t/60%60,$t%60' | tail -n 1
+  printf "\nDuration of .m4b files : "
+  find -type f -iname "*.m4b" -print0 | xargs -0 mplayer -vo dummy -ao dummy -identify 2>/dev/null | perl -nle '/ID_LENGTH=([0-9\.]+)/ && ($t +=$1) && printf "%02d:%02d:%02d\n",$t/3600,$t/60%60,$t%60' | tail -n 1
+  printf "\nDuration of .flac files: "
+  find -type f -iname "*.flac" -print0 | xargs -0 mplayer -vo dummy -ao dummy -identify 2>/dev/null | perl -nle '/ID_LENGTH=([0-9\.]+)/ && ($t +=$1) && printf "%02d:%02d:%02d\n",$t/3600,$t/60%60,$t%60' | tail -n 1
+  printf "\nDuration of .mp4 files : "
+  find -type f -iname "*.mp4" -print0 | xargs -0 mplayer -vo dummy -ao dummy -identify 2>/dev/null | perl -nle '/ID_LENGTH=([0-9\.]+)/ && ($t +=$1) && printf "%02d:%02d:%02d\n",$t/3600,$t/60%60,$t%60' | tail -n 1
+  printf "\nDuration of .ogg files : "
+  find -type f -iname "*.ogg" -print0 | xargs -0 mplayer -vo dummy -ao dummy -identify 2>/dev/null | perl -nle '/ID_LENGTH=([0-9\.]+)/ && ($t +=$1) && printf "%02d:%02d:%02d\n",$t/3600,$t/60%60,$t%60' | tail -n 1
+  printf "\nUncomment for .ape files"
+#  printf "\nDuration of .ape files: "
+#  find -type f -iname "*.ape" -print0 | xargs -0 mplayer -vo dummy -ao dummy -identify 2>/dev/null | perl -nle '/ID_LENGTH=([0-9\.]+)/ && ($t +=$1) && printf "%02d:%02d:%02d\n",$t/3600,$t/60%60,$t%60' | tail -n 1
+  printf "\nDuration of .opus files: "
+  find -type f -iname "*.opus" -print0 | xargs -0 mplayer -vo dummy -ao dummy -identify 2>/dev/null | perl -nle '/ID_LENGTH=([0-9\.]+)/ && ($t +=$1) && printf "%02d:%02d:%02d\n",$t/3600,$t/60%60,$t%60' | tail -n 1
+}
+
+
+
+title(){
+  c_path_cur=$(tput sitm; tput setaf 7) # pale whiute path
+  c_path_que=$(tput sitm; tput setaf 7) # pale white
+
+  #c_aa=$(tput sitm; tput setaf 4) # Blue for artist and album
+  c_aa_cur=$(tput sitm; tput setaf 33) # Blue for artist and album
+  c_aa_que=$(tput sitm; tput setaf 12) # Blue for artist and album
+
+  #c_title_cur=$(tput sitm; tput setaf 11) # Magenta for the song file name
+  #c_title_cur=$(tput sitm; tput setaf 178) # Magenta for the song file name
+  c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
+  c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
+
+  white=$(tput setaf 7)
+  tput0=$(tput sgr0)
+  bold=$(tput bold)
+
+  query="$1"
+  [[ "$query" = skipped ]] && query=current
+
+#  readarray -d \~ -t tags < <(mpcp "$query" -f "%artist%~%album%~%title%~%file%")
+#  artist="${tags[0]}"
+#  album="${tags[1]}"
+#  title="${tags[2]}"
+#  filepath="${tags[3]}"
+
+  if [[ "$1" = current ]]; then
+    printf '\n%sArtist : %s%s%s\n%s Title : %s%s%s\n%s Album : %s%s%s\n' \
+           "$bold" \
+           "$c_aa_cur" \
+           "$artist" \
+           "$tput0" \
+           "$bold" \
+           "$c_title_cur" \
+           "$title" \
+           "$tput0" \
+           "$bold" \
+           "$c_aa_cur" \
+           "$album" \
+           "$tput0"
+    readarray -d \/ -t file <<< "$filepath"
+      if (( ${#file[@]} > 2)); then
+        printf '%s  File : %s%s%s%s%s/\n' "$bold" "$tput0" "$c_path" "${file[0]}" "$white" "$bold"
+        if (( ${#file[@]} - 3 > 0 )); then
+          printf '       : %s%s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white" "$bold"
+        fi
+
+        printf '       : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
+        printf '       : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
+      else
+        printf '  File : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
+        printf '       : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
+      fi
+
+  elif [[ "$1" = queued ]]; then
+    readarray -d \~ -t tags < <(mpcp "$query" -f "%artist%~%album%~%title%~%file%")
+    artist="${tags[0]}"
+    album="${tags[1]}"
+    title="${tags[2]}"
+    filepath="${tags[3]}"
+#    get-current-json
+#    echo "$random"
+    printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
+           "$c_aa_que" \
+           "$artist" \
+           "$tput0" \
+           "$c_title_que" \
+           "$title" \
+           "$tput0" \
+           "$c_aa_que" \
+           "$album" \
+           "$tput0"
+    readarray -d \/ -t file <<< "$filepath"
+#    readarray -d \/ -t file <<< "$next_filepath"
+    if (( ${#file[@]} > 2)); then
+      printf 'Queued : %s%s%s%s/\n' "$tput0" "$c_path" "${file[0]}" "$white"
+      if (( ${#file[@]} - 3 > 0 )); then
+        printf '       : %s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
+      fi
+      printf '       : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    else
+      printf '  File : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    fi
+
+  elif [[ "$1" = skipped ]]; then
+    printf '\nArtist : %s%s%s\n Title : %s%s%s\n Album : %s%s%s\n' \
+           "$c_aa_que" \
+           "$artist" \
+           "$tput0" \
+           "$c_title_que" \
+           "$title" \
+           "$tput0" \
+           "$c_aa_que" \
+           "$album" \
+           "$tput0"
+    readarray -d \/ -t file <<< "$filepath"
+    if (( ${#file[@]} > 2)); then
+      printf 'Queued : %s%s%s%s/\n' "$tput0" "$c_path" "${file[0]}" "$white"
+      if (( ${#file[@]} - 3 > 0 )); then
+        printf '       : %s%s%s/\n' "$c_path" "${file[@]:1:${#file[@]}-3}" "$white"
+      fi
+      printf '       : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    else
+      printf '  File : %s%s%s/\n' "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '       : %s%s%s\n' "$c_title_que" "${file[-1]%.*}" "$tput0"
+    fi
+
+  fi
+
+}
+
+
+get-current-json(){
+  local green="$(tput setaf 10)"
+  local bold="$(tput bold)"
+  local tput0="$(tput sgr0)"
+  local red="$(tput setaf 9)"
+  current_json=$(mpd-current-json -h "$mpdhost" -p "$mpdport")
+  state=$(echo "$current_json" | jq -r '.status.state')
+  song_position=$(echo "$current_json" | jq -r '.playlist.position')
+  song_length=$(echo "$current_json" | jq -r '.status.playlist_length')
+  elapsed=$(echo "$current_json" | jq -r '.status.elapsed')
+  total_time=$(echo "$current_json" | jq -r '.tags.duration')
+  percent_time=$(echo "$current_json" | jq -r '.status.elapsed_percent')
+#  filepath=$(echo "$current_json"| jq -r '.tags.filename')
+  filepath=$(echo "$current_json"|jq -r '.filename')
+  title=$(echo "$current_json" | jq -r '.tags.title')
+  artist=$(echo "$current_json" | jq -r '.tags.artist')
+  album=$(echo "$current_json" | jq -r '.tags.album')
+  year=$(echo "$current_json" | jq -r '.tags.date')
+  volume=$(echo "$current_json" | jq -r '.status.volume')
+  repeat=$(echo "$current_json" | jq -r '.status.repeat')
+  single=$(echo "$current_json" | jq -r '.status.single')
+  random=$(echo "$current_json" | jq -r '.status.random')
+  consume=$(echo "$current_json" | jq -r '.status.consume')
+  songpath=$(echo "$current_json" | jq -r '.tags.filename')
+  next_filepath=$(echo "$current_json" |jq -r '.next_filename')
+#  [[ "$repeat"  = true ]] && repeat="✅"  || repeat="❌"
+  [[ "$repeat"  = true ]] && repeat="${bold}${green}⟳${tput0}"  || repeat="$(tput setaf 7)⟳${tput0}"
+  [[ "$consume" = true ]] && consume="✅" || consume="❌"
+  [[ "$random"  = true ]] && random="✅" || random="❌"
+  [[ "$single"  = true ]] && single="✅" || unset single
+  [[ "$state"   = playing ]] && state="${green}${bold}$state${tput0}" || [[ "$state" = paused ]] && state="${red}${state}${tput0}"
+}
+
+sec2sex() {
+  local h m s
+  local input="${1%.*}"
+  local dec="${1#*.}"; dec="${dec:0:1}"
+  [[ "$dec" > 4 ]] && ((input++))
+
+  h=$(( input / 3600 ))
+  m=$(( (input % 3600) / 60 ))
+  s=$(( input % 60 ))
+
+  if (( h > 0 )); then
+    printf "%02d:%02d:%02d" "$h" "$m" "$s"
+  else
+    printf "%d:%02d" "$m" "$s"
+  fi
+}
+
+
+
+[[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript
+
