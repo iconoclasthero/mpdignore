@@ -1,0 +1,16 @@
+#absown.service
+[Unit]
+Description=Changes the permissions of new files placed into /library/music/??-new.music directories (i.e., those managed by mpd) such that permissions and ownership will be set correctly based on existing "own" script
+Requires=
+
+[Service]
+Type=oneshot
+# Set ExecStart to location of mpdigore.sh script, e.g., /usr/local/sbin/mpdignore.sh
+ExecStart=/usr/local/sbin/ownmusic.sh -l
+User=bvargo
+Group=media
+
+[Install]
+Also=ownmusic.path
+
+

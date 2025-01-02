@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Function to get artist name from MusicBrainz API
+get_artist_name() {
+    mbid=$1
+
+    # Base URL for MusicBrainz API
+    base_url="https://musicbrainz.org/ws/2/"
+
+    # Endpoint for querying artist details
+    endpoint="artist?inc=aliases&fmt=json"
+
+    # Construct the full URL for the artist
+    url="${base_url}${endpoint}&query=mbid:${mbid}"
+
+#    # Measure time before making the request
+#    start_time=$(date +%s%N)
+
+    # Make the HTTP GET request to the MusicBrainz API
+    response=$(curl -s "$url")
+
+    # Check if the request was successful
+    if [[ $? -eq 0 ]]; then
+        # Extract the artist name from the response
+        artist_name=$(echo "$response" | jq -r '.artists[0].name')
+        
+#        # Measure time after receiving the response
+#        end_time=$(date +%s%N)
+#
+#        # Calculate execution time in milliseconds
+#        execution_time=$(( ($end_time - $start_time) / 1000000 ))
+
+        echo "Artist Name: $artist_name"
+#        echo "Execution Time: ${execution_time}ms"
+    else
+        echo "Failed to fetch artist name."
+    fi
+}
+
+# Main script
+if [[ $# -eq 0 ]]; then
+    echo "Usage: $0 <MusicBrainz Artist ID>"
+    exit 1
+fi
+
+artist_id=$1
+get_artist_name "$artist_id"
