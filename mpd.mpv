@@ -1,0 +1,97 @@
+#!/bin/bash
+# Define arrays for delays and durations
+delays=(1 5 10 30 300)     # Delays in seconds
+durations=(10 60 60 300)   # Durations in seconds
+
+scriptname=$(realpath "$0")
+
+#function editscript(){ if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then (/usr/bin/nano "$scriptname"); exit; fi ; }
+function editscript(){
+  local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
+     if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
+     else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit;
+  fi; }
+
+function pause(){ read -p "$*" ; }
+
+if [[ "$1" == "edit" ]] || [[ "$1" == "e" ]] || [[ "$1" == "nano" ]]
+ then
+   editscript "$1"
+elif [[ "$1" == "help" ]] || [[ "$1" == "-h" ]];
+ then
+ printf Call\ \`%s\ \(e\|edit\|nano\)\`\ to\ edit\ the\ script.\\n "$0"
+ exit 0
+fi
+
+# Function to start mpv with the stream
+startmpv() {
+#    mpv rtsp://music.iconoclasthero.com:8554/mystream
+    mpv rtsp://music.iconoclasthero.com:8554/mpd/mpd.opus
+}
+
+# Function to sleep for a specified delay and duration
+sleep_with_delay() {
+    local delay="$1"
+    local duration="$2"
+
+    end_time=$((SECONDS + duration))
+    while (( SECONDS < end_time )); do
+        echo "Waiting for $delay seconds before retrying..."
+        sleep "$delay"
+startmpv
+    done
+}
+
+# Get the number of delays and durations
+num_delays="${#delays[@]}"
+num_durations="${#durations[@]}"
+
+# Flag to indicate if script should terminate after the final duration
+terminate_after_final_interval=false
+
+# Determine if the script should terminate after the final duration
+if (( num_delays == num_durations )); then
+    terminate_after_final_interval=true
+fi
+
+# Loop indefinitely
+while true; do
+    # Start the media player
+    startmpv
+    # Get the exit status of mpv
+    exit_status="$?"
+    exit_status=1
+    # Print exit status (optional)
+    echo "Exit status: $exit_status"
+
+    # Check for specific exit statuses to break the loop
+    if (( exit_status == 130 || exit_status == 4 )); then
+        echo "Terminating script due to exit status $exit_status."
+        exit "$exit_status"
+    fi
+
+    if (( exit_status != 0 )); then
+        # Loop through delays and durations
+        for i in "${!delays[@]}"; do
+            # Use the delay and duration from arrays
+            if (( i < num_durations )); then
+                sleep_with_delay "${delays[$i]}" "${durations[$i]}"
+#    startmpv
+            else
+                # Use the last duration indefinitely if there are more delays than durations
+                sleep_with_delay "${delays[$i]}" "${durations[-1]}"
+#    startmpv
+            fi
+        done
+
+        # If the script should terminate after the final interval
+        if [[ $terminate_after_final_interval == true ]]; then
+            echo "Terminating script after final interval."
+            exit 0
+        fi
+    else
+        # If mpv exited normally, reset to the first delay
+        sleep "${delays[0]}"
+    fi
+done
+
