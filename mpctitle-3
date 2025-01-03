@@ -1,4 +1,6 @@
 #!/bin/bash
+[[ "$TERM"=dumb || -z "$TERM" ]] && TERM="xterm-256color"
+export TERM
 
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
