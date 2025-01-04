@@ -101,8 +101,11 @@ if [[ "$1" = -qq ]]; then qq=true; shift; else qq=false; fi
 
 if "$q" || "$qq"; then mpcq "$@"; exit "$?"; fi
 
-
-if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
+if [[ "$1" = '-t' ]]; then
+  shift
+  finalout="$@"
+  shift "$#"
+elif [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
   if [[ "$2" = @(on|off) ]]; then
     \mpc -q -h "$mpdpass@$mpchost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
      shift 2
@@ -119,10 +122,6 @@ if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
      mpctitle "${@:+$@}"
      exit "$?"
   fi
- \mpc -q -h "$mpdpass@$mpchost" "$1" ||  { echo "Check mpd connection"; exit 1; }
-  shift
-  mpctitle "$@"
-  exit "$?"
 elif [[ "$1" = @(seek) ]]; then
   \mpc -q -h "$mpdpass@$mpchost" "$1" "$2"  ||  { echo "Check mpd connection"; exit 1; }
   shift 2
@@ -157,8 +156,8 @@ elif [[ "$1" = save ]]; then
   ls "$mpdpldir"|grep ".*$2.*" -C 20 --color=always
   exit
 elif [[ "$1" = update ]]; then
- \mpc -q -h "$mpdpass@$mpchost" "$@" ||  { echo "Check mpd connection"; exit 1; }
-  mpctitle
+ mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@")" ||  { echo "Check mpd connection"; exit 1; }
+  mpctitle -t "$mpcout"
   exit
 fi
 
@@ -236,7 +235,7 @@ else
   output+=( "$(tput setaf 1; echo; hr2 "${0##*\/}"; \mpc -q -h "$mpdpass@$mpchost"; echo "$white")" )
 
 fi
-
+[[ "$finalout" ]] && output+=( "${finalout[@]}" )
 printf %s\\n "${output[@]}"
 
 
