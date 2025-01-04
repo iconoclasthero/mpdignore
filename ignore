@@ -4,15 +4,16 @@ mpdconf="/etc/mpd.conf"
 
 #read -rp "TERM=$TERM" discard
 
-. "$XDG_CONFIG_HOME"/mpd-local.conf 2>/dev/null || . "$HOME/.config/mpd-local.conf"
+. "$XDG_CONFIG_HOME"/mpd-local.conf 2>/dev/null || . "$HOME/.config/mpd-local.conf" 2>/dev/null || /etc/default/mpd-local.conf
 . mpdignore.functions
 
+while [[ "$@" ]]; do
   if [[ "$1" = -y ]]; then
     skip=true; shift
   elif [[ "$1" = -q ]]; then
     quiet=true; shift
   fi
-
+done
 
 #mpctitleout="$(mpctitle&)"  #maybe start getting the data first in bg?
 
