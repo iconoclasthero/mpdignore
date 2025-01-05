@@ -215,7 +215,7 @@ output+=( "$(printf '         %s%s[%s%s%s%s%s%s] #%s%s%s/%s  %s/%s (%s%%)\n' \
 
 #printf "volume: %s%%   repeat: %s   random: %s   consume: %s   %s\n\n" \
 
-output+=( "$(printf '         volume: %s%%%s %s %srandom: %s%s%s consume: %s%s %s%s\n\n' \
+output+=( "$(printf '         volume: %s%%%s %s %s random: %s%s%s consume: %s%s %s%s\n\n' \
   "$volume" \
   "$tput0" \
   "$repeat" \
