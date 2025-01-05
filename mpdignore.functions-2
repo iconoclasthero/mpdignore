@@ -6,6 +6,7 @@ elif [[ "$TERM"=screen* ]]; then
   TERM='screen.xterm-256color'
 fi
 
+export TERM
 # TERM=screen.xterm-256color  #default screen TERM value when calling from cli
 
 editscript(){
