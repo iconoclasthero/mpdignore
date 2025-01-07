@@ -139,7 +139,7 @@ elif [[ "$1" = enabled ]]; then
   mpcp outputs|grep --color=always enabled
   shift
 elif [[ "$1" =~ vol(|ume) ]]; then
-  volout="$(\mpc vol "$2")
+  volout="$(\mpc vol "$2")"
   ec="$?"
   if ! (( "$ec" )); then
     volout="$(echo "$volout"|awk '/volume:/ {print $2}')"
@@ -250,5 +250,3 @@ else
 fi
 [[ "$finalout" ]] && output+=( "${finalout[@]}" )
 printf %s\\n "${output[@]}"
-
-
