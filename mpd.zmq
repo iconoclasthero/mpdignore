@@ -1,6 +1,6 @@
 #!/bin/bash
 #export LC_CTYPE="UTF-8"
-
+export TERM
 editscript(){
   local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
      [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
@@ -10,17 +10,19 @@ editscript(){
 
 . mpdignore.functions
 
-#     bold="$(tput bold)"
-#    tput0="$(tput sgr0)"
-#   yellow="$(tput setaf 214)"
-#     blue="$(tput setaf 33)"
+     bold="$(tput bold)"
+     tput0="$(tput sgr0)"
+   yellow="$(tput setaf 214)"
+     blue="$(tput setaf 33)"
+   boldred="$(tput bold setaf 9)"
    verbose=false
    tunport="$mpdzmqtunport"
    retport="$mpdzmqretport"
 autosshpid="/tmp/autossh_${tunport}.pid"
  ffplaypid="/tmp/ffplayzmq-$(date -Im).pid"
-   sinkMAC='00:42:79:D9:B6:AF'
-  sinkname='JBL Xtreme 2'
+   sinkMAC1='00:42:79:D9:B6:AF'
+  sinkname2='JBL Xtreme 2'
+   sinkMAC2='00:1F:47:9F:8C:57'
 
 [[ "$mpdhost" = "$(hostname)" ]] && exit 1
 
@@ -53,13 +55,13 @@ hr(){
   printf -- '%.0s—' $(seq 1 "$width"); echo; }
 
 resetzmq(){
-  btctlout="$(bluetoothctl disconnect "$sinkMAC"|grep -v "Attempting to disconnect from $sinkMAC")"
+  btctlout="$(bluetoothctl disconnect "$sinkMAC1"|grep -v "Attempting to disconnect from $sinkMAC1")"
   printf '\n%s%sAttempting to disconnect %s%s/%s%s:%s\n%s\n' \
     "$yellow" \
     "$bold" \
     "$blue" \
-    "$sinkname" \
-    "$sinkMAC" \
+    "$sinkname1" \
+    "$sinkMAC1" \
     "$yellow" \
     "$tput0" \
     "$btctlout"
@@ -74,7 +76,7 @@ resetzmq(){
     for i in autossh ffplay bin/mpd.zmq; do
       "$j" "$i"|grep -v -- '--reset'
     done
-    [[ "$before"=before ]] && before=after
+    [[ "$before" = before ]] && before=after
     hr
     echo
   done
@@ -84,16 +86,22 @@ resetzmq(){
 
 
 startautossh(){
-if ! ps aux | grep "[a]utossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}" > /dev/null; then
-#  "autossh -fvN -M0 -L${tunport}:localhost:${tunport} -R${retport}:localhost:22 ${mpdhost} -p${sshport}"
-#  autossh -fvN -M0 -L"${tunport}:localhost:${tunport}" -R"${retport}:localhost:22 ${mpdhost}" -p"${sshport}"
-#  autoarr=(autossh -fvN -M0 -L "${tunport}:localhost:${tunport}" -R "${retport}:localhost:22" "$mpdhost" -p "${sshport}")
-# removing return port to let that be run by systemd.
+#if ! ps aux | grep "[a]utossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}" > /dev/null; then   #moving from ps aux to ss:
+#if ! ssout=( ss -tlnp | grep -E "LISTEN.+:${tunport}.*users:\(\(\"(ssh|autossh)\",pid=[[:digit:]]+,fd=[[:digit:]]\)\)" ); then
+if ! ssout=( "$(ss -tlnp | grep --color=always -E "LISTEN.+:${tunport}.*users:\(\(\"(ssh|autossh)\",pid=[[:digit:]]+,fd=[[:digit:]]\)\)")" ); then
+# more permissive:  if ! ss -tlnp | grep -E "LISTEN.+:${tunport}.*users:\(.*(ssh|autossh)"; then
+  #pause "going to start a new connection!!!!!!!!!!!!!!! ok?  hit enter to continue"
   autoarr=(autossh -fvN -M0 -L "${tunport}:localhost:${tunport}" "$mpdhost" -p "${sshport}")
-  "${autoarr[@]}"
+  "${autoarr[@]}"; ec="$?"
+  if ! (( ec )); then { printf '%s[ERROR]%s unab1le to open the tunnel\nexit 1' "${boldred}" "$tput0"; exit 1; }; fi
   \sleep 1
   autossh_pid=$(pgrep -f "autossh/autossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}")
   echo "$autossh_pid" > "${autosshpid}"  #this might be the right pid?
+elif "${verbose:-false}"; then
+  printf -- 'tunnel status:\n  ss -tlnp\n%s\n\n' "${ssout[@]}"
+  screen -ls
+  psaux 5555
+  psaux ffplay
 fi
 
 #
@@ -149,8 +157,11 @@ screen -dmS mpd.zmq sh -c \
 }
 
 stopffplay(){
-screen -S mpd.zmq -X quit &>/dev/null
-screen -wipe &>/dev/null
+ printf 'Looking for open mpd.zmq screens!'
+ while screen -ls | grep -E '[[:digit:]]+\.mpd\.zmq'; do
+  screen -S mpd.zmq -X quit &>/dev/null
+  screen -wipe &>/dev/null
+ done
 }
 
 
@@ -173,7 +184,7 @@ stopmpdzmq(){
  local nine ffplaypid
  while ! "$stopautossh" || ! "$stopzmqscreen" ; do
    stopffplay
-   local autossh_pid="$(cat $autosshpid)"
+   local autossh_pid="$(cat "$autosshpid")"
    killcmd="${nine:+$nine} $autossh_pid"
    kill "$killcmd" #2>/dev/null
    echo
@@ -215,10 +226,10 @@ stopmpdzmq(){
 
  echo
 
- if confirm "${yellow}${bold}Disconnect bluetooth speaker $sinkname? $tput0"; then
+ if confirm "${yellow}${bold}Disconnect bluetooth speaker $sinkname1? $tput0"; then
    echo
-   btctlout="$(bluetoothctl disconnect "$sinkMAC")"
-   printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC"\|Successful\ disconnected
+   btctlout="$(bluetoothctl disconnect "$sinkMAC1")"
+   printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC1"\|Successful\ disconnected
    echo
  fi
  hr
@@ -231,12 +242,12 @@ stopmpdzmq(){
 connectBT(){
   local btctlout=("$(bluetoothctl list)")
 #debug output
-#  echo "btctlout+=(\"$(bluetoothctl connect \"$sinkMAC\" 2>&1)\") &&"
-  btctlout+=("$(bluetoothctl connect "$sinkMAC" 2>&1)") &&
+#  echo "btctlout+=(\"$(bluetoothctl connect \"$sinkMAC1\" 2>&1)\") &&"
+  btctlout+=("$(bluetoothctl connect "$sinkMAC1" 2>&1)") &&
     connected=yes || connected=no
 #debug output
-#  echo "btctlout+=(\"$(bluetoothctl info "$sinkMAC")\")"
-  btctlout+=("$(bluetoothctl info "$sinkMAC")")
+#  echo "btctlout+=(\"$(bluetoothctl info "$sinkMAC1")\")"
+  btctlout+=("$(bluetoothctl info "$sinkMAC1")")
 #debug output
 #  printf %s\\n%s\\n\\n "$connected" "$(declare -p btctlout)"
 # this had to be added because the echo > fifo is blocking and the command will not complete until there's a reader, but that's not going to happen"
@@ -270,6 +281,11 @@ remote-zmq(){
   exit "$?"
 }
 
+############################################################################################################
+# mpd.zmq main block
+############################################################################################################
+
+
 [[ "$1" = @(--help|-h|help) ]] && { showhelp; exit; }
 #[[ "$1" = --port ]] && port="$2" && shift 2 && remote-zmq "$remote" "$@"
 [[ "$1" = --ip ]] && remote="$2" && shift 2 && remote-zmq "$remote" "$@"
@@ -287,8 +303,15 @@ btctlfifo=$(mktemp -u "$tmpdir/fifo_XXXX")
 mkfifo "$btctlfifo"
 
 echo "check for bluetooth connection"
-connected=$(bluetoothctl info "$sinkMAC"|grep Connected|awk '{print $2}')
-
+connected=$(bluetoothctl info "$sinkMAC1"|grep Connected|awk '{print $2}')
+if [[ "$connected" = no ]]; then
+  connected=$(bluetoothctl info "$sinkMAC2"|grep Connected|awk '{print $2}')
+  sinkMAC="$sinkMAC2"
+  sinkname="$sinkname2"
+else
+  sinkMAC="$sinkMAC1"
+  sinkname="$sinkname1"
+fi
 if [[ "$connected" = no ]]; then
   echo "entered if portion... are you stuck?  look at what's going on in connectBT&"
   connectBT&
@@ -297,27 +320,32 @@ if [[ "$connected" = no ]]; then
 else
   echo "entered else portion... are you stuck?"
 #  btctlout="$(echo "$sinkname/$sinkMAC was already connected."; bluetoothctl list; bluetoothctl info "$sinkMAC")"
-  btctlout=( "$sinkname/$sinkMAC was already connected." "$(bluetoothctl list)" "$(bluetoothctl info $sinkMAC)" )
+  btctlout=( "$sinkname1/$sinkMAC was already connected." "$(bluetoothctl list)" "$(bluetoothctl info $sinkMAC)" )
   printf %s\\n "${btctlout[@]}"
 fi
 
-echo "start autossh"
-startautossh&
+printf '%scheck/start autossh%s\n\n' "$bold" "$tput0"
+startautosshout=( "$(startautossh&)" )
 
-echo "$stopffplay"
+#pause "$(printf '%srestarting ffplay screen%s\n\n' "$bold" "$tput0")"
+#pause "${bold}restarting ffplay screen$tput0"
 stopffplay
 
 if "$verbose"; then
   screenout=$(screen -ls)
   printf '\n%s%sNo mpd.zmq screens should be open:%s \n%s%s' "$yellow" "$bold" "$tput0" "$(hr)" "$screenout"
 fi
+#fg >/dev/null
 
-startffplay&
+startffplayout=( "$(startffplay&)" )
 
 zmqoutput="$(mpcp outputs|\grep ffmpeg\/zmq|awk '{print $2}')"
 enableout=$(mpcp enable "$zmqoutput")
 playout=$(mpctitle play)
 pulsemixer --unmute
+
+wait #for the output of startautossh() & startffplay() and then display it.
+if "${verbose:-false}"; then printf '%s\n\n%s' "${startautosshout[@]}" "${startffplayout}"; fi
 
 # Start a new detached screen session named "mpd.zmq" running ffplay
 # screen -dmS mpd.zmq ffplay -nodisp zmq:tcp://localhost:5555 -loglevel debug
@@ -332,7 +360,7 @@ if "$verbose"; then
   hr
   mpdhost1="[${mpdhost:0:1}]${mpdhost:1}"
   ps aux|grep --color=never "[${tunport:0:1}]${tunport:1}"|grep --color=always -E autossh\|ffplay\|"$mpdhost" ||
-    ps aux|grep --color=always [a]utossh
+  ps aux|grep --color=always [a]utossh
 
  \sleep 1.25s
   printf '\n%s%sProcess pid info:%s\n' "$bold" "$yellow" "$tput0"
@@ -352,7 +380,11 @@ if "$verbose"; then
     "$yellow" \
     "$tput0"
   hr
+####
   printf %s\\n "${btctlout[@]}"|grep --color=always -Ei 'Controller|Attempting|Connection|not\ available|"$sincMAC"|Device|Name:|Paired:|Connected:'
+
+####
+
  \sleep 1s
   printf '\n%s%sMPD enable fmpeg/zmq output:%s\n' "$bold" "$yellow" "$tput0"
   hr
