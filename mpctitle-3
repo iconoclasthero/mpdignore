@@ -96,14 +96,14 @@ mpcq(){
 
 if [[ "$1" = --fromnext ]]; then shift; fromnext=true; fi
 
-if [[ "$1" = -q ]]; then q=true; shift; else q=false; fi
-if [[ "$1" = -qq ]]; then qq=true; shift; else qq=false; fi
+if [[ "$1" = -q ]]; then q=true; shift; else q=false; fi       #for \mpc -q to be called f/quiet
+if [[ "$1" = -qq ]]; then qq=true; shift; else qq=false; fi    #for \mpc -q AND mpctitle output quiet
 
 if "$q" || "$qq"; then mpcq "$@"; exit "$?"; fi
 
-if [[ "$1" = '-t' ]]; then
-  shift
-  finalout="$@"
+if [[ "$1" =~ '-t'|'-h' ]]; then
+  [[ "$1" = '-t' ]] && shift && finalout="$@"                  #this is printed after the mpctitle stuff
+  [[ "$1" = '-h' ]] && shift && hr2out="$@"                    #this is printed in the hr2 banner at the end
   shift "$#"
 elif [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
   if [[ "$2" = @(on|off) ]]; then
@@ -138,6 +138,19 @@ elif [[ "$1" = enabled ]]; then
   hr2 "$1"
   mpcp outputs|grep --color=always enabled
   shift
+elif [[ "$1" =~ vol(|ume) ]]; then
+  volout="$(\mpc vol "$2")
+  ec="$?"
+  if ! (( "$ec" )); then
+    volout="$(echo "$volout"|awk '/volume:/ {print $2}')"
+    shift 2
+    printf 'exec mpctitle -h "volume: %s" %s' "$volout" "$@"
+    exec mpctitle -h "volume: $volout" "$@"
+  else
+    shift 2
+    printf 'exec mpctitle -t "volume: %s" %s' "$volout" "$@"
+    exec mpctitle -t "volume: $volout" "$@"
+  fi
 elif [[ "$1" = save ]]; then
   if ! saveout=$(\mpc -q -h "$mpdpass@$mpchost" save "$2" 2>&1); then
     #echo "$saveout"
@@ -156,7 +169,7 @@ elif [[ "$1" = save ]]; then
   ls "$mpdpldir"|grep ".*$2.*" -C 20 --color=always
   exit
 elif [[ "$1" = update ]]; then
- mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@")" ||  { echo "Check mpd connection"; exit 1; }
+  mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@")" ||  { echo "Check mpd connection"; exit 1; }
   mpctitle -t "$mpcout"
   exit
 fi
@@ -231,7 +244,7 @@ output+=( "$(printf '         volume: %s%%%s %s %s random: %s%s%s consume: %s%s 
 if [[ "$@" && "$@" != "" ]]; then
   output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpchost" "$@")" )
 else
-  [[ "$1" ]] && output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpchost")" ) ||
+  [[ "$1" || "$hr2out" ]] && output+=( "$(echo; hr2 "${hr2out:-$1}"; \mpc -q -h "$mpdpass@$mpchost")" ) ||
   output+=( "$(tput setaf 1; echo; hr2 "${0##*\/}"; \mpc -q -h "$mpdpass@$mpchost"; echo "$white")" )
 
 fi
