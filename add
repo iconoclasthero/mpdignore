@@ -12,8 +12,20 @@ function pause(){ read -p "$*" ; }
 
 if [[ "$1" == @(edit|e|nano) ]]; then editscript; fi
 
-. <(mpd-current.py)
-printf Previos\ playlist\ lentgth:\ %s\\n "$song_length"
-mpc -P seven314 add "$@"
+mpccmd=( mpc -h "$mpdpass@$mpchost" )
+
+. "$HOME/.config/local.conf"
+. "$HOME/.config/mpd-local.conf"
+#. <(mpd-current.py)
+startlength="$("${mpccmd[@]}" status %length%)"
+printf 'Previos playlist lentgth: %s\nItem(s) added: %s\n' "$startlength" "${@:1:1}"
+[[ "${@:2:1}" ]] && printf '               %s\n' "${@:2}"
+addout="$("${mpccmd[@]}" add "$@")"; ec="$?"
 #printf Current\ playlist\ lentgth:\ %s\\n "$song_length"
-mpctitle
+if (( ec )); then
+  mpctitle -t "$addout"
+else
+  endlength="$("${mpccmd[@]}" status %length%)"
+  exec mpctitle -h "playlist: $startlength > $endlength"
+fi
+exit 0

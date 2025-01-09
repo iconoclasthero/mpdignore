@@ -123,9 +123,13 @@ elif [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; th
      exit "$?"
   fi
 elif [[ "$1" = @(seek) ]]; then
+  bftime="$(\mpc -h "$mpdpass@$mpchost" status %currenttime%/%totaltime%\ \(%percenttime%\))"
+  bftime="${bftime/ ( / (}"
   \mpc -q -h "$mpdpass@$mpchost" "$1" "$2"  ||  { echo "Check mpd connection"; exit 1; }
   shift 2
-  mpctitle "$@"
+  afttime="$(\mpc -h "$mpdpass@$mpchost" status %currenttime%/%totaltime%\ \(%percenttime%\))"
+  afttime="${afttime/ ( / (}"
+  mpctitle -h "seek: $bftime > $afttime$tput0" "$@"
   exit "$?"
 elif [[ "$1" = 'next' ]]; then
   shift
