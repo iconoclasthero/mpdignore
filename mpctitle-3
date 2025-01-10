@@ -26,6 +26,9 @@ c_aa_que=$(tput sitm; tput setaf 12) # Blue for artist and album
 c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
 c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
 
+boldred="$(tput setaf 9 bold)"
+
+
 pause(){ read -rp "$*" < /dev/tty; }
 
 notify(){
@@ -102,14 +105,16 @@ if [[ "$1" = -qq ]]; then qq=true; shift; else qq=false; fi    #for \mpc -q AND 
 if "$q" || "$qq"; then mpcq "$@"; exit "$?"; fi
 
 if [[ "$1" =~ '-t'|'-h' ]]; then
-  [[ "$1" = '-t' ]] && shift && finalout="$@"                  #this is printed after the mpctitle stuff
-  [[ "$1" = '-h' ]] && shift && hr2out="$@"                    #this is printed in the hr2 banner at the end
-  shift "$#"
+  [[ "$1" = '-t' ]] && shift && finalout="$1"                  #this is printed after the mpctitle stuff
+  [[ "$1" = '-h' ]] && shift && hr2out="$1"                    #this is printed in the hr2 banner at the end
+  shift #"$#"
 elif [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
   if [[ "$2" = @(on|off) ]]; then
     \mpc -q -h "$mpdpass@$mpchost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
+     hr2out="$1 $2"
      shift 2
-     mpctitle "${@:+$@}"
+     pause "$1"
+     mpctitle -h "$hr2out" "${@:+$@}"  #${@:+$@}: This is a conditional expression that will either use the value of ${@} (the list of arguments) or be empty if ${@} is not set. :+: This syntax checks if ${@} is non-empty. If it is, it expands to $@, meaning all arguments. If ${@} is empty, it expands to nothing (i.e., an empty string).
      exit "$?"
   elif [[ "$2" =~ ^[[:digit:]]+$ ]]; then
     \mpc -q -h "$mpdpass@$mpchost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
@@ -124,12 +129,15 @@ elif [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; th
   fi
 elif [[ "$1" = @(seek) ]]; then
   bftime="$(\mpc -h "$mpdpass@$mpchost" status %currenttime%/%totaltime%\ \(%percenttime%\))"
-  bftime="${bftime/ ( / (}"
+  bftime="${bftime/ (  / (}"; bftime="${bftime/ ( / (}"
+  bfpct="${bftime#*\(}"; bfpct="${bfpct%\)*}" #; echo "${bfpct##* }"
   \mpc -q -h "$mpdpass@$mpchost" "$1" "$2"  ||  { echo "Check mpd connection"; exit 1; }
   shift 2
   afttime="$(\mpc -h "$mpdpass@$mpchost" status %currenttime%/%totaltime%\ \(%percenttime%\))"
-  afttime="${afttime/ ( / (}"
-  mpctitle -h "seek: $bftime > $afttime$tput0" "$@"
+  afttime="${afttime/ (  / (}"; afttime="${afttime/ ( / (}"
+  aftpct="${afttime#*\(}"; aftpct="${aftpct%\)*}" #; echo "${bfpct##* }"
+#  mpctitle -h "${boldred}seek: $bftime > $afttime$tput0" "$@"
+  mpctitle -h "seek: ${bftime%%\/*} > ${afttime% *} (${bfpct} > ${aftpct})" "$@"
   exit "$?"
 elif [[ "$1" = 'next' ]]; then
   shift
@@ -248,7 +256,7 @@ output+=( "$(printf '         volume: %s%%%s %s %s random: %s%s%s consume: %s%s 
 if [[ "$@" && "$@" != "" ]]; then
   output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpchost" "$@")" )
 else
-  [[ "$1" || "$hr2out" ]] && output+=( "$(echo; hr2 "${hr2out:-$1}"; \mpc -q -h "$mpdpass@$mpchost")" ) ||
+  [[ "$1" || "$hr2out" ]] && output+=( "$(echo "$c_title_cur$bold"; hr2 "${hr2out:-$1}";echo "$tput0"; \mpc -q -h "$mpdpass@$mpchost")" ) ||
   output+=( "$(tput setaf 1; echo; hr2 "${0##*\/}"; \mpc -q -h "$mpdpass@$mpchost"; echo "$white")" )
 
 fi
