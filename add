@@ -12,16 +12,16 @@ function pause(){ read -p "$*" ; }
 
 if [[ "$1" == @(edit|e|nano) ]]; then editscript; fi
 
+
+. "$HOME/.config/mpd-local.conf"
 mpccmd=( mpc -h "$mpdpass@$mpchost" )
 
-. "$HOME/.config/local.conf"
-. "$HOME/.config/mpd-local.conf"
-#. <(mpd-current.py)
+#. <(mpd-current.py) #using mpc instead.
+
 startlength="$("${mpccmd[@]}" status %length%)"
 printf 'Previos playlist lentgth: %s\nItem(s) added: %s\n' "$startlength" "${@:1:1}"
 [[ "${@:2:1}" ]] && printf '               %s\n' "${@:2}"
 addout="$("${mpccmd[@]}" add "$@")"; ec="$?"
-#printf Current\ playlist\ lentgth:\ %s\\n "$song_length"
 if (( ec )); then
   mpctitle -t "$addout"
 else

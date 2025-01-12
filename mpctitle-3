@@ -184,6 +184,11 @@ elif [[ "$1" = update ]]; then
   mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@")" ||  { echo "Check mpd connection"; exit 1; }
   mpctitle -t "$mpcout"
   exit
+elif [[ "$1" = -f ]]; then
+  mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@")" ||  { echo "Check mpd connection"; exit 1; }
+  mpctitle -h "${mpcout%%$'\n'*}" #-t "${mpcout#*$'\n'}"
+
+  exit
 fi
 
 "${fromnext:=false}"
