@@ -1,0 +1,44 @@
+#!/bin/bash
+# nb: the swp file that editscript relies on is provided by nano
+
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+
+pause(){ read -rp "$*" < /dev/tty; }
+
+[[ "$1" == @(edit|e|-e) ]] && editscript
+
+trap 'echo "Interrupt received, processing data..."; avg=$(echo "scale=2; $total / $n" | bc); printf "Average CPU usage for mpd: %s%%\n\n" "$avg"; exit 0' SIGINT
+
+
+while (( $# > 0 )); do
+  [[ "$1" = -i ]] && interval="$2" && shift 2
+  [[ "$1" = -c ]] && count="$2" && shift 2
+  [[ "$1" = -p ]] && pid="$2" && shift 2
+done
+
+: "${pid:=$(pgrep mpd|head -1)}"
+: "${interval:=1}"
+: "${count:=10}"
+
+readarray -t resampler < <(grep ^resampler -A6 /etc/mpd.23.conf|grep -v ^\#|\grep -v '^$')
+format="$(mpc -f %audioformat% current)"
+
+printf '     pid: %s\n   count: %s\ninterval: %s\n  format: %s\n%s\n' "$pid" "$count" "$interval" "$format" "${resampler[0]}"
+printf %s\\n "${resampler[@]:1}"
+pause "ok? "
+
+total=0
+
+for i in $(seq 1 $count); do
+    usage=$(ps -p $pid -o %cpu --no-headers)
+    total=$(echo "$total + $usage" | bc)
+    sleep $interval
+    printf %s "$((n++))"
+done
+avg=$(echo "scale=2; $total / $count" | bc)
+mpctitle -f %audioformat%
+printf %s\\n "${resampler[@]}"
+printf 'Average CPU usage for mpd: %s%%\n\n' "$avg"

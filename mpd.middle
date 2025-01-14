@@ -1,0 +1,33 @@
+#!/bin/bash
+. /usr/local/bin/editscript
+
+ctrlc() {
+  echo -e "\nCaught Ctrl+C. Would you like to pause playback before exiting? (yes/no)"
+  read -r response
+  case "$response" in
+    [yY][eE][sS]|[yY])
+      pause
+      ;;
+    *)
+      echo "Exiting without pausing playback."
+      ;;
+  esac
+  exit
+}
+
+trap ctrlc INT
+
+#next
+mpctitle next -h "starting mpd.middle"
+
+while true; do
+  duration=$(\mpc current -f "%time%")
+  seconds=$(echo $duration | awk -F: '{print $1*60 + $2}')
+#  echo "$duration $seconds"
+  \mpc -q seek 25%
+  halfsec=$((seconds / 2))
+  \sleep "$halfsec"
+#  read -rp "$duration $seconds"
+  \mpc -q next
+  mpctitle -h "playing middle half ($halfsec s)"
+done
