@@ -1,11 +1,10 @@
 #!/bin/bash
+read -rp "$TERM" x < /dev/tty
 
-editscript(){
-  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
-     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
-     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+[[ -z "$TERM" ]] && TERM=xterm-256color
+export TERM
 
-[[ "$1" == @(edit|e|-e) ]] && editscript
+. /usr/local/editscript
 
 [[ "$XDG_CONFIG_HOME" ]] &&
     . "$XDG_CONFIG_HOME/mpd-local.conf" ||
@@ -23,8 +22,6 @@ bold="$(tput bold)"
 tput0=$(tput sgr0) # reset color
 
 lines=$(tput lines 2> /dev/null) || lines=$(tput -T xterm-256color lines)
-
-export TERM=xterm-256color
 
 pause(){ read -p "$*" ; }
 

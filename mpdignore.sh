@@ -2,21 +2,7 @@
 
 scriptname=$(realpath "$0")
 
-function editscript(){ if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then (/usr/bin/nano "$scriptname"); exit; fi ; }
-
-editscript "$1"
-
-####################################################
-#This block is now defined in mpdignore.functions
-#pldir="/var/lib/mpd/playlists"		# defines playlist directory; default = /var/lib/mpd/playlists
-#watchfile=".mpdignore.m3u"		    # defines the watched playlist; default = .mpdignore.m3u
-#mpdconf="/etc/mpd.conf"		    # defines mpd.conf location; default = /etc/mpd.conf
-#mpduser="mpd"				        # defines the user mpd service runs as; default = mpd
-#mpdgroup="media"			        # defines the group mpd service runs as; default = media
-#ignoredm3u="mpdignored.m3u"		# defines the playlist of songs ignored by mpdignore; default = mpdignored.m3u
-####################################################
-
-
+. /usr/local/bin/editscript
 . mpdignore.functions
 
 [[ ! "$musicdir" ]] && getmpdmusicdir
@@ -25,7 +11,7 @@ editscript "$1"
 
 [[ ! "$mpdlog" ]] && getmpdlog
 
-watchpath="$mpdpldir/$watchfile"		# sets full path of watchfile
+watchpath="$mpdpldir/$watchfile"		   # sets full path of watchfile
 ignoredpath="$mpdpldir/$ignoredm3u"        # sets full path of ignoredm3u
 
 while read -r line; do
@@ -35,22 +21,6 @@ while read -r line; do
   if [[ -f "$ignoredir"/.mpdignore ]]; then
     cp "$ignoredir"/.mpdignore "$ignoredir"/.mpdignore~
   fi
-
-### mpd does not recognize file names with square brackets in .mpdignore files and the
-### individual square bracket characters must be escaped such that they will be recognized
-
-#  if [[ "$song" =~ \[ ]] || [[ "$song" =~ \] ]]; then
-#    song=$(sed -e 's/\\\]/\]/g' -e 's/\\\[/\[/g' -e 's/\[/\\\[/g' -e 's/\]/\\\]/g' <<< "$song" )
-#  fi
-
-
-### Found out that it also fails to recognize file names with '\' in them!
-
-
-#  if [[ "$song" =~ \[ ]] || [[ "$song" =~ \] ]] || [[ "$song" =~ \\ ]]; then
-#    song=$(sed -e 's/\\\]/\]/g' -e 's/\\\[/\[/g' -e 's/\[/\\\[/g' -e 's/\]/\\\]/g' \
-#            -e 's/\\([^\\]/\\\\\1/g' <<< "$song")
-#  fi
 
 if [[ "$song" =~ \[ ]] || [[ "$song" =~ \] ]] || [[ "$song" =~ \\ ]]; then
   song=$(echo "$song" |  -e 's/\\\([^\\]\)/\\\\\1/g' sed -e 's/\[/\\[/g' -e 's/\]/\\]/g')

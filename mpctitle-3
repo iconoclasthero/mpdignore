@@ -165,16 +165,21 @@ elif [[ "$1" =~ vol(|ume) ]]; then
   fi
 elif [[ "$1" = save ]]; then
   if ! saveout=$(\mpc -q -h "$mpdpass@$mpchost" save "$2" 2>&1); then
-    #echo "$saveout"
     if [[ "$saveout" = MPD\ error:\ Playlist\ already\ exists ]]; then
       printf %s\\n "$saveout"
       unset saveout
-      confirm "Would you like to remove $mpdpldir/$2.m3u?"
+      confirm "Would you like to remove $mpdpldir/$2.m3u?" &&
       [[ -f "$mpdpldir/$2.m3u" ]] && { rm "$mpdpldir/$2.m3u" || sudo rm "$mpdpldir/$2.m3u"; } &&
         saveout="$(\mpc -q -h "$mpdpass@$mpchost" "$1" "$2" 2>&1)" ||
-        { printf '%s\nUnable to remove playlist, MPD still reports error. exit 1' "$saveout" && exit 1; }
+        { printf '%s\nUnable to remove playlist, MPD still reports error. exit 1' "$saveout"; exit 1; }
+    elif [[ "${saveout}" = "MPD error: Failed to create "*".m3u: Permission denied" ]]; then
+         namei -l "$mpdpldir"
+         confirm "Would you like to chown $mpduser:$mpdgroup $mpdpldir?" && sudo chown $mpd:media "$mpdpldir"
+         ! saveout=$(\mpc -q -h "$mpdpass@$mpchost" save "$2" 2>&1) &&
+      { printf '\nUnable to create playlist due to a fucked up permissions issue:\n%s\n\n%s\n\nexit 1\n' \
+               "$saveout" "$(namei -l /library/music/mpdplaylists)"; exit 1; }
     else
-      { printf '%s\nUnable to remove playlist, MPD still reports error. exit 1' "$saveout" && exit 1; }
+      { printf '\nMPD reports error:\n%s\nexit 1\n' "$saveout"; exit 1; }
     fi
   fi
   mpctitle
