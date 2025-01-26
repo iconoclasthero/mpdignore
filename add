@@ -9,7 +9,7 @@ mpccmd=( mpc -h "$mpdpass@$mpchost" )
 
 startlength="$("${mpccmd[@]}" status %length%)"
 addout="$("${mpccmd[@]}" add "$@")"; ec="$?"
-pause "$addout"
+pause "${addout[@]}"
 if (( ec )); then
   errorout="${addout##*: }"
   addfail="${addout%:*}"

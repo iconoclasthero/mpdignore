@@ -1,24 +1,12 @@
 #!/bin/bash
 
-scriptname=$(realpath "$0")
-
-#function editscript(){ if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then (/usr/bin/nano "$scriptname"); exit; fi ; }
-function editscript(){
-  local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
-  if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then
-     if [[ ! -e "$swp" ]]; then printf "\n\n%s\n\n" "$swp"; (/usr/bin/nano "$scriptname"); exit
-     else printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit; fi; 
-  fi; }
-
-function pause(){ read -p "$*" ; }
-
-editscript "$1"
+. /usr/local/bin/editscript
 . mpdignore.functions
+. ~/.config/mpd-local.conf || getmpdmusicdir
 
-getmpdmusicdir
+[[ "$1" = -d ]] && musicdir="$2" && shift 2
 
-stats=/library/music/stats
-
+stats="$musicdir/stats"
 date >>"$stats"
 mpc stats >> "$stats"
 
