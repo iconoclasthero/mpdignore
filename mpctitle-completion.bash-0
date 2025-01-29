@@ -1,0 +1,25 @@
+_mpctitle_complete() {
+    local cur prev cmd
+    cmd="${COMP_WORDS[1]}"  # The first argument (command) after mpctitle or mpc
+    cur="${COMP_WORDS[COMP_CWORD]}"  # Current word being typed
+
+    local musicdir="/library/music"
+
+    if [[ "$cmd" =~ ^(add|update)$ ]]; then
+#       cd "$musicdir"
+        local results
+        results=$(compgen -f -- "$musicdir/$cur")
+#       results=$(compgen -W "$(find "$musicdir" -maxdepth 1 -iname "$cur*")")
+#        readarray -t COMPREPLY < <(echo "$results" | sed "s|^$musicdir/||")
+        readarray -t COMPREPLY < <(echo "${results#"$musicdir/"}")
+    else
+        COMPREPLY=()
+    fi
+
+
+}
+
+swd="$PWD"
+complete -o nospace -fd -F _mpctitle_complete mpc
+complete -o nospace -fd -F _mpctitle_complete mpctitle
+#cd "$swd"

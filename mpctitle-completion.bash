@@ -1,0 +1,1 @@
+mpctitle-completion.bash-1

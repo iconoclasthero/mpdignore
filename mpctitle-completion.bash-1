@@ -1,0 +1,41 @@
+_mpctitle_complete() {
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+    local cmd="${COMP_WORDS[1]}"  # The first argument (command) after mpctitle or mpc
+    local cur="${COMP_WORDS[COMP_CWORD]}"  # Current word being typed
+
+    local musicdir="/library/music"
+
+#    if [[ "$cmd" =~ ^(add|update)$ ]]; then
+#        local results
+#        readarray -t COMPREPLY < <(
+#          while IFS= read -r f; do
+#            [[ -d "$f" ]] && f="$f/"
+#            f="${f#"$musicdir/"}"
+#            echo "$f"
+#          done < <(compgen -f -- "$musicdir/$cur")
+#        )
+    if (( COMP_CWORD == 1 )); then
+      COMPREPLY=( $(compgen -W "add update" -- "$cur") )
+    elif [[ "$prev" =~ ^(add|update)$ ]]; then
+        local results
+        readarray -t COMPREPLY < <(
+          while IFS= read -r f; do
+            [[ -d "$f" ]] && f="$f/"
+            f="${f#"$musicdir/"}"
+            echo "$f"
+          done < <(compgen -o nospace -f -- "$musicdir/$cur")
+        )
+
+    else
+        COMPREPLY=()
+    fi
+
+
+}
+
+
+
+
+
+complete -o nospace -fd -F _mpctitle_complete mpc
+complete -o nospace -fd -F _mpctitle_complete mpctitle
