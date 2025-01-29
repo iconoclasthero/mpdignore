@@ -151,17 +151,21 @@ elif [[ "$1" = enabled ]]; then
   mpcp outputs|grep --color=always enabled
   shift
 elif [[ "$1" =~ vol(|ume) ]]; then
-  volout="$(\mpc vol "$2")"
+  mpcvolout="$(\mpc -h "$mpdpass@$mpchost" vol "$2" 2>&1)"
   ec="$?"
+  volout="$(echo "$mpcvolout"|\grep volume\:)"
+  volout="${volout#volume:}"; volout="${volout%%%*}%"; volout="${volout// }";
+  #volout="$(\mpc status %volume%)"; volout="${volout// }"
+  shift 2
   if ! (( "$ec" )); then
-    volout="$(echo "$volout"|awk '/volume:/ {print $2}')"
-    shift 2
+#    volout="$(echo "$volout"|awk '/volume:/ {print $2}')"
+#    shift 2
     printf 'exec mpctitle -h "volume: %s" %s' "$volout" "$@"
     exec mpctitle -h "volume: $volout" "$@"
   else
-    shift 2
-    printf 'exec mpctitle -t "volume: %s" %s' "$volout" "$@"
-    exec mpctitle -t "volume: $volout" "$@"
+#    shift 2
+#    printf 'exec mpctitle -t "volume: %s" %s' "$volout" "$@"
+    exec mpctitle -t "$mpcvolout" "$@"
   fi
 elif [[ "$1" = save ]]; then
   if ! saveout=$(\mpc -q -h "$mpdpass@$mpchost" save "$2" 2>&1); then
@@ -194,6 +198,27 @@ elif [[ "$1" = -f ]]; then
   mpctitle -h "${mpcout%%$'\n'*}" #-t "${mpcout#*$'\n'}"
 
   exit
+elif [[ "$1" = playlist ]]; then
+  \mpc playlist -f "(%position%)~%title%~%artist%~%album%" | \
+    while IFS="~" read -r pos title artist album; do
+      blue=$(tput setaf 4 bold)
+      green=$(tput setaf 2 bold)
+      yellow=$(tput setaf 3 bold)
+      cyan=$(tput setaf 6 bold)
+#      blue=$(tput setaf 12 bold)
+#      green=$(tput setaf 10 bold)
+#      yellow=$(tput setaf 11 bold)
+#      cyan=$(tput setaf 14 bold)
+#      purple=$(tput setaf 13 bold)
+#      red=$(tput setaf 9)
+      tput0=$(tput sgr0)
+
+      printf '%b%s%b | %b%s%b | %b%s%b | %b%s%b\n' \
+        "$blue" "$pos" "$tput0" \
+        "$yellow" "$artist" "$tput0" \
+        "$green" "$title" "$tput0" \
+        "$cyan" "$album" "$tput0"
+    done
 fi
 
 "${fromnext:=false}"

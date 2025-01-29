@@ -1,10 +1,10 @@
 #!/bin/bash
+. /usr/local/bin/editscript
+
 read -rp "$TERM" x < /dev/tty
 
 [[ -z "$TERM" ]] && TERM=xterm-256color
 export TERM
-
-. /usr/local/editscript
 
 [[ "$XDG_CONFIG_HOME" ]] &&
     . "$XDG_CONFIG_HOME/mpd-local.conf" ||
@@ -16,8 +16,8 @@ green=$(tput setaf 2)
 yellow=$(tput setaf 3)
 blue=$(tput setaf 4)
 magenta=$(tput setaf 5)
-cyan=$(tput setaf 6)
-white=$(tput setaf 7)
+cyan="$(tput setaf 6)"
+white="$(tput setaf 7)"
 bold="$(tput bold)"
 tput0=$(tput sgr0) # reset color
 
