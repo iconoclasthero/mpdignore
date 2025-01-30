@@ -15,6 +15,7 @@ _mpctitle_complete() {
 #          done < <(compgen -f -- "$musicdir/$cur")
 #        )
     if (( COMP_CWORD == 1 )); then
+      compopt +o nospace
       COMPREPLY=( $(compgen -W "add update" -- "$cur") )
     elif [[ "$prev" =~ ^(add|update)$ ]]; then
         local results

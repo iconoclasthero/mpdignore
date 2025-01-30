@@ -193,6 +193,27 @@ elif [[ "$1" = update ]]; then
   mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@")" ||  { echo "Check mpd connection"; exit 1; }
   mpctitle -t "$mpcout"
   exit
+elif [[ "$1" = add ]]; then
+  shift
+  startlength="$(\mpc -h "$mpdpass@$mpchost" status %length%)"
+  addout="$(\mpc -h "$mpdpass@$mpchost" add "$@")"; ec="$?"
+#  printf \\n
+#  printf %s\\n "${addout[@]}"
+  printf \\n
+  if (( ec )); then
+    errorout="${addout##*: }"
+    addfail="${addout%:*}"
+    addfail="${addout#error adding }"
+    addout="Error adding \${boldred}$addfail\$tput0: $error"
+    mpctitle -t "$addout" -h "Error: Failed to add files..."
+#   mpctitle -h "Error: Failed to add files..."
+  else
+    printf 'Previos playlist lentgth: %s\nItem(s) added: %s\n' "$startlength" "${@:1:1}"
+    [[ "${@:2:1}" ]] && printf '               %s\n' "${@:2}"
+    endlength="$(\mpc -h "$mpdpass@$mpchost" status %length%)"
+    exec mpctitle -h "playlist: $startlength > $endlength"
+  fi
+  exit 0
 elif [[ "$1" = -f ]]; then
   mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@")" ||  { echo "Check mpd connection"; exit 1; }
   mpctitle -h "${mpcout%%$'\n'*}" #-t "${mpcout#*$'\n'}"
