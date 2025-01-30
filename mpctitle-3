@@ -2,13 +2,14 @@
 [[ "$TERM"=dumb || -z "$TERM" ]] && TERM="xterm-256color"
 export TERM
 
-editscript(){
-  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
-  [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
-  printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ; }
+#editscript(){
+#  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+#  [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+#  printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ; }
+#
+#[[ "$1" == @(edit|e|-e) ]] && editscript
 
-[[ "$1" == @(edit|e|-e) ]] && editscript
-
+. /usr/local/bin/editscript
 . mpdignore.functions
 . $HOME/.config/mpd-local.conf
 
@@ -190,7 +191,7 @@ elif [[ "$1" = save ]]; then
   ls "$mpdpldir"|grep ".*$2.*" -C 20 --color=always
   exit
 elif [[ "$1" = update ]]; then
-  mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@")" ||  { echo "Check mpd connection"; exit 1; }
+  mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@" 2>&1)" ||  { echo "Check mpd connection"; exit 1; }
   mpctitle -t "$mpcout"
   exit
 elif [[ "$1" = add ]]; then
@@ -215,9 +216,8 @@ elif [[ "$1" = add ]]; then
   fi
   exit 0
 elif [[ "$1" = -f ]]; then
-  mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@")" ||  { echo "Check mpd connection"; exit 1; }
+  mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@" 2>&1)" ||  { echo "Check mpd connection"; exit 1; }
   mpctitle -h "${mpcout%%$'\n'*}" #-t "${mpcout#*$'\n'}"
-
   exit
 elif [[ "$1" = playlist ]]; then
   \mpc playlist -f "(%position%)~%title%~%artist%~%album%" | \
@@ -240,6 +240,19 @@ elif [[ "$1" = playlist ]]; then
         "$green" "$title" "$tput0" \
         "$cyan" "$album" "$tput0"
     done
+elif [[ "$1" = del ]]; then
+  shift
+  startlength="$(\mpc -h "$mpdpass@$mpchost" status %length%)"
+  mpcout="$(\mpc -h "$mpdpass@$mpchost" del "$@" 2>&1)"
+  ec="$?"
+  if ! ((ec)); then
+    printf 'Previos playlist lentgth: %s\nItem(s) deleted: %s\n' "$startlength" "${@:1:1}"
+    [[ "${@:2:1}" ]] && printf '               %s\n' "${@:2}"
+    endlength="$(\mpc -h "$mpdpass@$mpchost" status %length%)"
+    exec mpctitle -h "playlist: $startlength > $endlength"
+  elif ((ec)); then
+    printf %s\\n "$mpcout" && exit 1
+  fi
 fi
 
 "${fromnext:=false}"

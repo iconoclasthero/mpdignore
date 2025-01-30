@@ -184,7 +184,15 @@ title(){
            "$tput0"
     readarray -d \/ -t file <<< "$filepath"
       if (( "${#file[@]}" > 2)); then
-        printf '%s   File : %s%s%s%s%s%s/\n' "$bold" "$tput0" "$c_path_cur" "${file[0]}" "$tput0" "$white" "$bold"
+#        printf '%s   File : %s%s%s%s%s%s/\n' \
+        printf '%s   File : %s%s%s%s%s/\n' \
+               "$bold" \
+               "$c_path_cur" \
+               "${file[0]}" \
+               "$tput0" \
+               "$white" \
+               "$bold"
+
         if (( "${#file[@]}" - 3 > 0 )); then
           for element in "${file[@]:1:${#file[@]}-3}"; do
 #           printf '        %s: %s%s/\n' "$white" "$c_path" "$element" "$white"
@@ -199,7 +207,7 @@ title(){
         printf '%s   File %s:%s\n' "$bold" "$c_aa_que" "$tput0"
         printf '        %s: %s%s\n' "$bold" "$c_title_que" "$tput0"
       else
-        printf '   File : %s%s%s%s/\n' "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
+        printf '%s   File : %s%s%s%s/\n' "$bold" "$c_aa_cur" "${file[-2]}" "$tput0" "$bold"
         printf '        : %s%s%s\n' "$c_title_cur" "${file[-1]%.*}" "$tput0"
       fi
 

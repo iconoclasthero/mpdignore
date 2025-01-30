@@ -1,0 +1,50 @@
+#!/bin/bash
+. /usr/local/bin/editscript
+. ~/.config/mpd-local.conf
+
+if (( $# < 2 )); then
+    echo "Usage: mvadd source destination"
+    exit 1
+fi
+
+#src=("$1") #no quotes f/globs
+#dest="$2"
+
+# Extract the last argument as the destination
+dest="${!#}"
+srcs=("${@:1:$#-1}")  # All arguments except the last one
+
+
+# Ensure script is run from within $musicdir or its subdirectories
+if [[ "$(realpath --relative-to="$musicdir" "$PWD")" = /* ]]; then
+    echo "Error: Must be run from within $musicdir or its subdirectories."
+    exit 1
+fi
+
+
+for src in "${srcs[@]}"; do
+    srcabs="$(realpath "$src")"
+    destabs="$(realpath "$dest")"
+
+    # Ensure source is inside $musicdir
+    if [[ "$(realpath --relative-to="$musicdir" "$srcabs")" == /* ]]; then
+        echo "Error: Source must be inside $musicdir."
+        exit 1
+    fi
+
+    newpath="$(realpath --relative-to="$musicdir" "$destabs/${srcabs##*/}")"
+
+    # Move the directory
+    printf 'source (cli) : %s\nsource (abs) : %s\ndest. (cli)  : %s\ndest. (abs)  : %s\n' "$src" "$srcabs" "$dest" "$destabs"
+    pause "newpath (rel): $newpath"
+    mv "$srcabs" "$destabs" || exit 1
+    ls -ltr "$destabs"|tail -10
+
+    # Determine the new relative path for MPD
+    mpc update "$newpath"
+    \sleep 2s
+    pause "$(grep update /var/log/mpd/mpd.log|tail -n 40)"
+
+    # Add to MPD
+    add "$newpath"
+done
