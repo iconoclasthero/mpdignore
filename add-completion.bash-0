@@ -1,0 +1,32 @@
+#!/bin/bash
+
+_add_complete(){
+  local musicdir="$(\grep musicdir= /etc/default/mpd-local.conf)"
+  musicdir="${musicdir/musicdir=}"
+  [[ ! "$musicdir" ]] && local musicdir="/library/music"
+  local cur="${COMP_WORDS[COMP_CWORD]}"  # Current word being typed
+
+  local exts=("flac" "mp3" "opus" "mp4" "ogg" "wav" "ape" "m3u")
+
+  local results f
+  unset COMPREPLY
+  compopt -o filenames
+  readarray -t COMPREPLY < <(
+    while IFS= read -r f; do
+      [[ "$f" = "$musicdir"* ]] &&
+      if [[ -d "$f" ]]; then
+        f="${f#"$musicdir/"}/"
+        echo "$f"
+      elif [[ -f "$f" ]]; then
+        local ext="${f##*.}"
+        if [[ " ${exts[@]} " =~ " $ext " ]]; then
+           f="${f#"$musicdir/"}"
+           echo "$f"
+        fi
+      fi
+    done < <( cd "$musicdir" && compgen -f -- "$musicdir/$cur" )
+  )
+}
+
+#complete -o nospace -fd -F _add_complete add
+complete -o nospace -F _add_complete add
