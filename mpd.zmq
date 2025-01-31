@@ -1,13 +1,15 @@
 #!/bin/bash
 #export LC_CTYPE="UTF-8"
 export TERM
-editscript(){
-  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
-     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
-     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
 
-[[ "$1" = @(edit|e|-e) ]] && editscript && exit
+#editscript(){
+#  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+#     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+#     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+#
+#[[ "$1" = @(edit|e|-e) ]] && editscript && exit
 
+. /usr/local/bin/editscript
 . mpdignore.functions
 
      bold="$(tput bold)"
@@ -88,11 +90,12 @@ resetzmq(){
 startautossh(){
 #if ! ps aux | grep "[a]utossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}" > /dev/null; then   #moving from ps aux to ss:
 #if ! ssout=( ss -tlnp | grep -E "LISTEN.+:${tunport}.*users:\(\(\"(ssh|autossh)\",pid=[[:digit:]]+,fd=[[:digit:]]\)\)" ); then
-if ! ssout=( "$(ss -tlnp | grep --color=always -E "LISTEN.+:${tunport}.*users:\(\(\"(ssh|autossh)\",pid=[[:digit:]]+,fd=[[:digit:]]\)\)")" ); then
+#if ! ssout=( "$(ss -tlnp | grep --color=always -E "LISTEN.+:${tunport}.*users:\(\(\"(ssh|autossh)\",pid=[[:digit:]]+,fd=[[:digit:]]\)\)")" ); then
+if ! ssout=( "$(ss -tlnp | grep --color=always -E "LISTEN.+:${tunport}.*users:\(\(\"(ssh|autossh)\",pid=[[:digit:]]+,fd=[[:digit:]]{1,2}\){2}")" ); then
 # more permissive:  if ! ss -tlnp | grep -E "LISTEN.+:${tunport}.*users:\(.*(ssh|autossh)"; then
   #pause "going to start a new connection!!!!!!!!!!!!!!! ok?  hit enter to continue"
   autoarr=(autossh -fvN -M0 -L "${tunport}:localhost:${tunport}" "$mpdhost" -p "${sshport}")
-  "${autoarr[@]}"; ec="$?"; pause "error code from autossh: $ec"
+  "${autoarr[@]}"; ec="$?" #; pause "error code from autossh: $ec"
   if ! (( ec )); then { printf '%s[ERROR]%s unable to open the tunnel\nexit 1' "${boldred}" "$tput0"; exit 1; exit 1; }; fi
   \sleep 1
   autossh_pid=$(pgrep -f "autossh/autossh.*-L${tunport}:localhost:${tunport}.*${mpdhost}.*-p${sshport}")
@@ -313,7 +316,7 @@ else
   sinkname="$sinkname1"
 fi
 if [[ "$connected" = no ]]; then
-  echo "entered if portion... are you stuck?  look at what's going on in connectBT&"
+#  echo "entered if portion... are you stuck?  look at what's going on in connectBT&"
   connectBT&
   IFS= read -r connected < "$btctlfifo"  # this should grab just one line (no while)
   . "$btctlfifo" # rest of FIFO
