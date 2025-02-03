@@ -166,8 +166,10 @@ if [[ "$mpccommand" = playlist ]]; then
 elif [[ "$mpccommand" = current ]]; then
   timeout=$(( $(sex2sec $(\mpc status %totaltime%)) - $(sex2sec $(\mpc status %currenttime%)) ))
   i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(( $(tput lines) - 14 )) --header="${playlistarray[0]}" --header.padding="0 2" --position=middle --timeout="${timeout}s" --selected=">>")
+  ec="$?"
 #  i=$(gum choose --position=middle --timeout="${timeout}s" --selected=">>" --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
 fi
+  (( ec )) && exec playlist "$query"
   (( n == 0 )) && printf 'Exiting.\n' && exit 1
 
   selection="$i"

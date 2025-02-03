@@ -7,6 +7,9 @@ mpccmd=( mpc -h "$mpdpass@$mpchost" )
 
 #. <(mpd-current.py) #using mpc instead.
 
+#[[ "$1" = . || "$1" = .\/* && "$1" != *\** ]] && set -- "$(realpath --relative-to "$musicdir" "$1")" "${@:2:}"
+
+pause "$(printf %s\\n "$@")"
 startlength="$("${mpccmd[@]}" status %length%)"
 addout="$("${mpccmd[@]}" add "$@")"; ec="$?"
 
