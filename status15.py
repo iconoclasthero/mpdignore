@@ -273,6 +273,7 @@ next_mbtrackid = nextsong.get("musicbrainz_trackid", "")
 next_mbreltrackid = nextsong.get("musicbrainz_releasetrackid", "")
 next_comment = escape_quotes(nextsong.get("comment", ""))
 next_date = escape_quotes(nextsong.get("date", ""))
+next_time = nextsong.get("time", "")
 
 #next_performer = escape_quotes(nextsong.get("performer", ""))
 # Get performer and ensure it's a string
@@ -345,6 +346,7 @@ next_mbreltrackid='{next_mbreltrackid}'
 next_comment='{next_comment}'
 next_performer='{next_performer}'
 next_date='{next_date}'
+next_time='{next_time}'
 """
 
 print(output)

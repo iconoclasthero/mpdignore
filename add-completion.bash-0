@@ -16,7 +16,8 @@ _add_complete(){
       [[ "$f" = "$musicdir"* ]] &&
       if [[ -d "$f" ]]; then
         f="${f#"$musicdir/"}/"
-        echo "$f"
+        echo "${f%/}"
+#        echo "${f%/}"
       elif [[ -f "$f" ]]; then
         local ext="${f##*.}"
         if [[ " ${exts[@]} " =~ " $ext " ]]; then
@@ -24,6 +25,7 @@ _add_complete(){
            echo "$f"
         fi
       fi
+#    done < <( cd "$musicdir" && compgen -o plusdirs -f -- "$musicdir/$cur" )
     done < <( cd "$musicdir" && compgen -f -- "$musicdir/$cur" )
   )
 }

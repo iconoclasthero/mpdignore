@@ -1,20 +1,145 @@
 #!/bin/bash
 # nb: the swp file that editscript relies on is provided by nano
 
-editscript(){
-  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
-     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
-     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+. /usr/local/bin/editscript
 
-pause(){ read -rp "$*" < /dev/tty; }
+    bold=$(tput bold)
+   tput0=$(tput sgr0)
+     red=$(tput setaf 1)
+   blue1=$(tput setaf 246)
+   green=$(tput setaf 2)
+   green=$(tput setaf 82)
+   blue0=$(tput setaf 4)
+   blue1=$(tput setaf 12)
+   blue2=$(tput setaf 39)
+    blue=$(tput setaf 33)
+     red=$(tput setaf 196)
+  yellow=$(tput setaf 3)
+   black=$(tput setaf 0)
+   white=$(tput setaf 7)
+  bgblue=$(tput setab 4)
+ bgwhite=$(tput setab 7)
+ bgblack=$(tput setab 0)
+ magenta=$(tput setaf 5)
+    cyan=$(tput setaf 6)
 
-[[ "$1" == @(edit|e|-e) ]] && editscript
 
+playlist(){
+    local revarr playedarr playlistarray i k n path line ext action timestamp basename filepath mpccommand="playlist";
+    [[ "$1" = current ]] && mpccommand="current" && lines=24;
+    n=0;
+    while read -r line; do
+        timestamp="${line%% : *}";
+        i="${line##* : player: }";
+        action="${i%% *}";
+        filepath="${i#*\"}";
+        filepath="${filepath%\"*}";
+        ext="${filepath##*.}";
+        filepath="${filepath%.*}";
+        basename="${filepath##*\/}";
+        if [[ "$basename" =~ .+\ --\ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+ ]]; then
+            artist="${basename%% -- *}";
+            ddtt="${basename%% - *}";
+            ddtt="${ddtt##* -- }";
+            unset disc track;
+            [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt";
+            song="${basename#* - }";
+        else
+            if [[ "$basename" =~ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+\ --\ .+ ]]; then
+                artist="${basename%% -- *}";
+                artist="${artist#* - }";
+                ddtt="${basename% - *}";
+                unset disc track;
+                [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt";
+                song="${basename#* -- }";
+            else
+                artist="$basename doesn't fit RegEx!";
+                unset artist ddtt disc track song;
+            fi;
+        fi;
+        path="${filepath%\/*}";
+        k="$timestamp~$action~$artist~$song~$path~$ddtt";
+        playedarr["$n"]="$k";
+        ((n++));
+    done < <(tail -n 2000 /var/log/mpd/mpd.log | \grep \:\ player\: | tail -n "$tail1");
+    for ((n-1; n>=0; n--))
+    do
+        [[ -n "${playedarr[$n]}" ]] && revarr+=("${playedarr[$n]}");
+    done;
+    readarray -t playlistarray < <({ if [[ "$mpccommand" = playlist ]]; then
+    printf %s\\n "${revarr[@]:0:$tail1}";
+else
+    if [[ "$mpccommand" = current ]]; then
+        printf '(-POS-)~title~albumartist~album~(dd-tt)~(mm:ss)~file\n'
+printf %s "${bgblue}"
+printf %s\\n "${revarr[@]:0:20}";
+    fi;
+fi; } | awk -F '~' -v red="$red" -v green="$green" -v cyan="$cyan" -v magenta="$magenta" -v yellow="$yellow" -v white="$white" -v blue1="$blue1" -v tput0="$tput0" -v bold="$bold" -v bgblue="$bgblue" -v black="$black" -v tput0="$tput0" -v bgblack="$bgblack" '
+function reverse_path(path) {
+    n = split(path, components, "/")
+    reversed = components[n]
+    for (i = n - 1; i >= 1; i--) {
+        reversed = reversed "/" components[i]
+    }
+    return reversed
+}
+ function clean_artist(artist) {
+        # Strip "with", "feat", and similar terms
+        gsub(/ with .*| feat.*| ft.*/i, "", artist)
+        return artist
+    }
+ function colorize(field, color) {
+    return color field tput0
+    }
+    {if (NR == 1) {
+        $1 = bgblue bold yellow "timestamp"
+#        $2 = bgblue bold green (length($2) > 40 ? substr($2, 1, 38) "…" : $2)
+        $3 = bgblue bold white "artist"
+        $4 = bgblue bold black "song"
+        $5 = bgblue bold blue1 "reversed path"
+        $6 = tput0 bgblue blue1 bold "dd-tt"
+#        $6 = bold blue1 "dd-tt"
+#        $6 = bgblue bold blue1 $6
+#        $1 = bgblue bold yellow $1
+##        $2 = bgblue bold green (length($2) > 40 ? substr($2, 1, 38) "…" : $2)
+#        $3 = bgblue bold white (length($3) > 30 ? substr($3, 1, 28) "…" : $3)
+#        $4 = bgblue bold black (length($4) > 30 ? substr($4, 1, 28) "…" : $4)
+#        $5 = bgblue bold blue1 $5
+#        $6 = bgblue bold blue1 (length($6) > 10 ? substr($6, 1, 8) "…" : $6)
+##        $6 = bgblue bold blue1 $6
+        print $1 "~" $3 "~" $4 "~" $5 "~" $6 "~"
+    } else {
+#        album_artist = $3
+#        primary_artist = $3
+#
+#        if (album_artist == "Various Artists") {
+#            primary_artist = clean_artist(primary_artist)
+#        }
+
+        $1 = bgblue ( $2 == "played" ? yellow : red ) $1
+#        $2 = bgblue ( $2 == "played" ? green : red ) (length($2) > 40 ? substr($2, 1, 38) "…" : $2)
+#        $3 = bgblue white (length(primary_artist) > 30 ? substr(primary_artist, 1, 28) "…" : primary_artist)
+        $3 = bgblue white (length($3) > 30 ? substr($3, 1, 28) "…" : $3)
+        $4 = bgblue black (length($4) > 30 ? substr($4, 1, 28) "…" : $4)
+        $5 = bgblue blue1 (length(reverse_path($5)) > 70 ? substr(reverse_path($5), 1, 68) "…" : reverse_path($5))
+        $6 = tput0 bgblue blue1 $6 bold
+        print $1 "~" $3 "~" $4 "~" $5 "~" $6 "~"
+    }
+}' | column -t -s "~" -o "$white ⏐ $bgblue");
+    printf %s\\n "${playlistarray[@]}"
+}
+
+
+echo -e "\033[48;5;4m\033[2J"
 tail1=40
 [[ "$1" = --long ]] && tail1=100
+[[ "$1" =~ (--color|-c) ]] && color=true
 
+if "${color:=false}"; then
+  playlist
+else
+  grep \:\ player\: /var/log/mpd/mpd.log|tail -n "$tail1"
+fi
 
-grep player /var/log/mpd/mpd.log|tail -n "${tail1}"
-
-
+printf %s\\n\\n "$tput0"
 exit 0
