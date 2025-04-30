@@ -155,7 +155,7 @@ done
 
 
 screen -dmS mpd.zmq sh -c \
-  'ffplay -autoexit -nodisp zmq:tcp://localhost:5555 -loglevel debug & echo $! > "$0"; wait' \
+  'ffplay -protocol_whitelist "file,rtp,udp,zmq,tcp" -autoexit -nodisp zmq:tcp://localhost:5555 -loglevel debug & echo $! > "$0"; wait' \
   "${ffplaypid}"
 }
 

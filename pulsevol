@@ -9,18 +9,7 @@ optiplex=192.168.12.222
 compaq=192.168.12.22
 
 scriptname=$(realpath "$0")
-
-function editscript(){
-  local script path; script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
-  if [[ ! -e "$swp" ]]; then
-    printf "\n\n%s\n\n" "$swp";
-    (/usr/bin/nano "$scriptname"); exit
-  else
-    printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit
-  fi
-}
-
-function pause(){ read -p "$*" ; }
+. /usr/local/bin/editscript
 
 
 #pactl load-module module-native-protocol-tcp auth-ip-acl="127.0.0.1;192.168.0.0/16" auth-anonymous=1
@@ -35,12 +24,12 @@ checktcpmodule(){
   echo "${loadmodule:+Module loaded: $loadmodule} ${loadmoderr:+stderr: $loadmoderr}"
 }
 
-if [[ "$1" == "edit" ]] || [[ "$1" == "e" ]] || [[ "$1" == "nano" ]]; then
-  editscript "$1"
-elif [[ "$1" == "help" ]] || [[ "$1" == "-h" ]]; then
-  printf "Call `%s (e|edit|nano)` to edit the script.\n" "$0"
-  exit 0
-fi
+#if [[ "$1" == "edit" ]] || [[ "$1" == "e" ]] || [[ "$1" == "nano" ]]; then
+#  editscript "$1"
+#elif [[ "$1" == "help" ]] || [[ "$1" == "-h" ]]; then
+#  printf "Call `%s (e|edit|nano)` to edit the script.\n" "$0"
+#  exit 0
+#fi
 
 sink=""
 
@@ -55,7 +44,7 @@ while [[ "$#" -gt 0 ]]; do
     *)
       if [[ "$1" =~ ^(-|\+)?[0-9]{1,3}$ ]]; then
         if [[ "$1" =~ ^[0-9]+$ ]]; then
-          cmd="--set-volume $1"  # Unsigned sets volume
+          cmd="--set-volume=$1"  # Unsigned sets volume
         else
           cmd="--change-volume=$1"  # Signed changes volume
         fi
@@ -86,6 +75,22 @@ elif [[ -n "$cmd" ]]; then
 # cmd2="pulsemixer --server=$ip --id=$sink $cmd"
 # $cmd2
 else
-  echo "Usage: $0 --compaq|--gig|--mute|<volume_change>"
-  exit 1
+  printf '\nNo volume command provided.\n\nUsage: %s --compaq|--gig|--mute|<volume_change>\n\n' "$0"
+  printf 'Current sink status:\n'
+
+  pulsemixer --server="$ip" --id="$sink" --get-volume | awk '{print "Volume:", $2 "%"}'
+  pulsemixer --server="$ip" --id="$sink" --get-mute | awk '{print "Muted:", ($2 == 1 ? "yes" : "no")}'
+
+#  printf '\nAvailable sinks:\n'
+#  pulsemixer --server="$ip" --list-sinks | awk '{print "- ID:", $3, "| Name:", $4}' | sed 's/,$//'
+
+(( db )) &&  pause "$ip"
+  printf '\nAvailable sinks:\n'
+  pulsemixer --server="$ip" --list-sinks |
+    grep '^Sink:' |
+    sed -E 's/^Sink:[[:space:]]+ID: ([^,]+), Name: ([^,]+),.*/- ID: \1 | Name: \2/'
+
+  printf \\n\\n
+
+  exit 0
 fi
