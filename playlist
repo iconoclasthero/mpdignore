@@ -158,25 +158,117 @@ function reverse_path(path) {
 ##  echo "$argmax argmax"
       printf 'Hits: %s (%s)  -  ' "$n" "$mpccommand"
 	      printf '%s/%s playlist array size\n' "$totalbytes2" "$argmax"
-
+#if [[ "$mpccommand" = playlist ]]; then
+#    # Insert "Search with fzf..." into the array for the first entry
+#    modifiedarray=("Search with fzf..." "${playlistarray[@]:1:$n}")
+#    pages=$(( 1 + (n / ($(tput lines) - 14)) ))
+#    (( db )) && printf Pages\:\ %s\\n "$pages" && pause ...
+#    # Loop through and insert "Search with fzf..." at the top of every page
+##    for (( i = 0; i < pages; i++ )); do
+##        modifiedarray=("${modifiedarray[@]:0:$((i * ($n - 14))) }" "Search with fzf..." "${modifiedarray[@]:$((i * ($n - 14))) + 1}")
+##    done
+#    # Loop through and insert "Search with fzf..." at the top of every page
+#    for (( i = 0; i < pages; i++ )); do
+#        # Calculate the index to insert at
+#        index=$(( index + ($(tput lines) - 14) ))
+#
+#        # Debugging: print index value
+#        ((db)) && pause "Inserting at index: $index"
+#
+#        # Separate the array into two parts: before and after the insertion point
+#        before=("${modifiedarray[@]:0:$index}")
+#        after=("${modifiedarray[@]:$((index + 1))}")
+#
+#        # Create the new array by inserting "Search with fzf..." at the correct position
+#        modifiedarray=("${before[@]}" "Search with fzf..." "${after[@]}")
+#        ((db)) && echo "After insertion at index $(( index + 1 )):"
+#        ((db)) && pause "$(printf '%s\n' "${modifiedarray[@]}")"
+#    done
+#
+##    (( db )) && printf %s\\n "${modifiedarray[@]}"|grep fzf && pause "next..."
+#    i=$(gum choose --header.bold "${modifiedarray[@]}" --cursor.italic --height=$(( $(tput lines) - 14 )) --header="${playlistarray[0]}" --header.padding="0 2")
+#    ec="$?"
+#    ((db)) && pause "$i"
+##if [[ "$mpccommand" = playlist ]]; then
+##  i=$(gum choose \
+##    --header.bold "Search with fzf..." \
+##    "${playlistarray[@]:1:$n}" \
+##    "Search with fzf..." \
+##    --cursor.italic \
+##    --height=$(( $(tput lines) - 14 )) \
+##    --header="${playlistarray[0]}" \
+##    --header.padding="0 2")
+##  ec="$?"
+##  (( db )) && pause "$i"
+#
+#elif [[ "$mpccommand" = current ]]; then
+#  timeout=$(( $(sex2sec $(\mpc status %totaltime%)) - $(sex2sec $(\mpc status %currenttime%)) ))
+#  i=$(gum choose \
+#    --header.bold "${playlistarray[@]:1:$n}" \
+#    --cursor.italic \
+#    --height=$(( $(tput lines) - 14 )) \
+#    --header="${playlistarray[0]}" \
+#    --header.padding="0 2" \
+#    --position=middle \
+#    --timeout="${timeout}s" \
+#    --selected=">>")
+#  ec="$?"
+#fi
+#
+#(( db )) && pause "$ec"
+#[[ "$i" = "Search with fzf..." ]] && fzfsel=1
 if [[ "$mpccommand" = playlist ]]; then
-   i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(( $(tput lines) - 14 )) --header="${playlistarray[0]}" --header.padding="0 2")
-#  i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(( $(tput lines) - $(tput lines)/10 )) --header="${playlistarray[0]}" --header.padding="0 2")
-#  i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
+    i=$(printf '%s\n' "${playlistarray[@]:1:$n}" | fzf --ansi --color=dark --header="Search with fzf...")
+    ec="$?"
+    ((db)) && pause "$i"
 elif [[ "$mpccommand" = current ]]; then
-  timeout=$(( $(sex2sec $(\mpc status %totaltime%)) - $(sex2sec $(\mpc status %currenttime%)) ))
-  i=$(gum choose --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=$(( $(tput lines) - 14 )) --header="${playlistarray[0]}" --header.padding="0 2" --position=middle --timeout="${timeout}s" --selected=">>")
-  ec="$?"
-#  i=$(gum choose --position=middle --timeout="${timeout}s" --selected=">>" --header.bold "${playlistarray[@]:1:$n}" --cursor.italic --height=40 --header="${playlistarray[0]}" --header.padding="0 2")
+    timeout=$(( $(sex2sec $(\mpc status %totaltime%)) - $(sex2sec $(\mpc status %currenttime%)) ))
+    startpos=$((n/2))
+    i=$(printf '%s\n' "${playlistarray[@]:1:$n}" | fzf --ansi --color=dark --header="${playlistarray[$((n/2))]}" --bind="load:pos($startpos)")
+#half=$((n / 2))
+#fzf --bind="load:pos($half)"
+
+    ec="$?"
 fi
-  (( ec )) && exec playlist "$query"
-  (( n == 0 )) && printf 'Exiting.\n' && exit 1
 
-  selection="$i"
-  i="${i%%\)*}"
-  i="${i#*\(}"
+((db)) && pause "$ec"
+[[ "$i" = "Search with fzf..." ]] && fzfsel=1
 
-  $(pause "Play $selection, Y/n? ") && \mpc ${remote:-} play "$i"
+# If no valid selection was made, prompt again.
+((ec)) || ((fzfsel)) && {
+    if ((fzfsel)); then
+        i=$(printf '%s\n' "${playlistarray[@]:1:$n}" | fzf --ansi --color=dark)
+        [[ -z "$i" ]] && exit 1
+    else
+        choice=$(gum choose \
+          --header="No selection made. What now?" \
+          --cursor.italic \
+          --header.bold \
+          "Redo search" "Search with fzf..." "Search with new term" "Exit") \
+          || exit 1
+
+        case "$choice" in
+            "Redo search") exec playlist "$query" ;;
+            "Search with fzf...")
+                i=$(printf '%s\n' "${playlistarray[@]:1:$n}" | fzf --ansi --color=dark)
+                [[ -z "$i" ]] && exit 1
+                ;;
+            "Search with new term")
+                new_term=$(gum input --placeholder "Enter search term")
+                exec playlist "$new_term"
+                ;;
+            "Exit or ^C again") exit 0 ;;
+        esac
+    fi
+}
+
+! (( n )) && printf 'Exiting.\n' && exit 1
+
+selection="$i"
+i="${i%%\)*}"
+i="${i#*\(}"
+
+$(pause "Play $selection, Y/n? ") && \mpc ${remote:-} play "$i"
 
 }
 ##--> searchfn() <--###########################################################################

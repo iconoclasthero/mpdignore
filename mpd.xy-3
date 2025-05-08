@@ -6,8 +6,10 @@
 
 MPD_SOCK="/var/run/mpd/socket"
 tputlines=$(tput lines)
+mpdxylog="/tmp/mpd.xy.log"
+mpdxyout="/tmp/mpd.xy"
 
-pause "$tputlines"
+(( db )) && pause "$tputlines"
 
 # Define tput variables for formatting
     bold=$(tput bold)
@@ -344,12 +346,12 @@ parse_mpd_response() {
                 state="${line#state: }";;
             song:*)
                 song_pos="${line#song: }"
-(( db )) && printf 'line: %s\n$song_pos: %s\n' "$line" "$song_pos" >> /tmp/mpd.xy.log
+(( db )) && printf 'line: %s\n$song_pos: %s\n' "$line" "$song_pos" >> "$mpdxylog"
                 (( song_pos++ ))
-(( db )) && printf '$song_pos: %s\n' "$song_pos" >> /tmp/mpd.xy.log ;;
+(( db )) && printf '$song_pos: %s\n' "$song_pos" >> "$mpdxylog" ;;
             playlistlength:*)
                 song_total="${line#playlistlength: }" ;;     # this is not a number that starts w/0; it is the actual count
-# (( db )) && printf '$song_total: %s\n' "$song_total" >> /tmp/mpd.xy.log ;;
+# (( db )) && printf '$song_total: %s\n' "$song_total" >> "$mpdxylog" ;;
             elapsed:*)
                 elapsed="$(sec2sex "${line#elapsed: }")" ;;
             duration:*)
@@ -440,6 +442,7 @@ mpdc(){
 cleanup() {
     printf '\nCaught SIGINT! Cleaning up...\n\n'
     mpdcout="$(mpdc "random $initrandom" 2>&1)"
+    rm "$mpdxyout" "$mpdxylog" 2>/dev/null
     exit 0
 }
 
@@ -447,7 +450,8 @@ trap cleanup SIGINT
 
 (( color )) && printf '\033[48;5;4m\033[2J'
 
-[[ "$1" == @(edit|e|-e) ]] && editscript
+[[ "$1" = @(--edit|e|-e) ]] && editscript
+[[ "$1" = @(--limit|--linger|-l) ]] && lingerl="$2" && linger=1 && shift 2
 [[ "$1" =~ [[:digit:]]+ ]] && bound1="$1" && shift
 [[ "$1" =~ [[:digit:]]+ ]] && bound2="$1" && shift
 
@@ -470,8 +474,9 @@ tput cup 15 0
 [[ -z "$bound2" ]] && read -rp "$bgblue$bold  Enter track number bound or enter for end of playlist ($pllength): " bound2
 [[ -z "$bound2" ]] && bound2="$pllength"
 
-(( db )) && printf '-----------------------------------------------\n' >> /tmp/mpd.xy.log
-(( db )) && printf 'bound1 initial: %s\nbound2 initial: %s\n' "$bound1" "$bound2" >> /tmp/mpd.xy.log
+(( db )) && printf -- '-----------------------------------------------\n' >> "$mpdxylog"
+(( db )) && printf 'bound1 initial: %s\nbound2 initial: %s\n' "$bound1" "$bound2" >> "$mpdxylog"
+(( db && linger )) && printf 'linger enabled: linger=%s; lingerl=%s\n' "$linger" "$lingerl" >> "$mpdxylog"
 
 ! (( bound2 > bound1 )) &&
    bound0="$bound1" &&
@@ -484,40 +489,51 @@ tput cup 15 0
 ###   mpc move "$rand" "$bound1"
    mpdcout=( "$(mpdc 'random 0\nconsume 1')" )
 
-(( db )) && printf '(( %s >= %s && %s <= %s )) || mpdc play\ %s 2>&1))\n' "$(mpc status %songpos%)" "$bound1" "$(mpc status %songpos%)" "$bound2" "$(( bound1-1 ))" >> /tmp/mpd.xy.log
+(( db )) && printf '(( %s >= %s && %s <= %s )) || mpdc play\ %s 2>&1))\n' "$(mpc status %songpos%)" "$bound1" "$(mpc status %songpos%)" "$bound2" "$(( bound1-1 ))" >> "$mpdxylog"
 
    (( $(mpc status %songpos%) >= bound1 && $(mpc status %songpos%) <= bound2 )) ||
       readarray -t mpdcout < <(mpdc play\ "$(( bound1-1 ))" 2>&1)
 
-(( db )) && printf %s\\n "${mpdcout[@]}" >> /tmp/mpd.xy.log
+(( db )) && printf %s\\n "${mpdcout[@]}" >> "$mpdxylog"
 printf \\n
-(( db )) && printf 'bound1 calc %s\nbound2 calc %s\n' "$bound1" "$bound2" >> /tmp/mpd.xy.log
+(( db )) && printf 'bound1 calc %s\nbound2 calc %s\n' "$bound1" "$bound2" >> "$mpdxylog"
+
+lingerc=0
+: "${lingerl:=0}"
 
 for ((i=bound1; i<=bound2; i++)); do
+   printf 'bound1=%s\nbound2=%s\n' > "$mpdxyout"
    mpdcout="$(mpdc 'random 0' 2>&1)"
    pllength="$(mpc status %length%)"
    id="$(mpc current -f %id%)"
 #   printf '%ssubqueue position: %s\n' "$bgblue" "$i"  #i don't think this prints...
    (( bound2 > pllength )) && bound2="$pllength"
-   rand="$(genrandom "$bound1" "$bound2")"
+   (( lingerc >= lingerl )) && rand="$(genrandom "$bound1" "$bound2")"
    ((bound2--)) #decrement happens before the song finishes so that after, the bound is correct.
    #turn random on here so that the next song output is correct; set end so it doesn't get turned off in the while loop
    (( bound1 == bound2 )) && end=true && unset mpdcout && mpdcout=( "$(mpdc 'random 1' 2>&1)" )
 
-(( db )) && printf 'bound1 == bound2 check: (( %s == %s )) = %s\nmpdcout: ' "$bound1" "$bound2" "$(( bound1 == bound2 ))" >>/tmp/mpd.xy.log
-(( db )) && printf %s\\n "${mpdcout[@]}" >>/tmp/mpd.xy.log
-(( db )) && printf '$bound2 after decrement %s\n' "$bound2" >>/tmp/mpd.xy.log
-(( db )) && mpc status "songpos %songpos%" >>/tmp/mpd.xy.log
-(( db )) && printf 'mpc move %s %s\n' "$rand" "$(( bound1 + 1 ))" >>/tmp/mpd.xy.log
+(( db )) && printf 'bound1 == bound2 check: (( %s == %s )) = %s\nmpdcout: ' "$bound1" "$bound2" "$(( bound1 == bound2 ))" >>"$mpdxylog"
+(( db )) && printf %s\\n "${mpdcout[@]}" >>"$mpdxylog"
+(( db )) && printf '$bound2 after decrement %s\n' "$bound2" >>"$mpdxylog"
+(( db )) && mpc status "songpos %songpos%" >>"$mpdxylog"
+(( db )) && printf 'mpc move %s %s\n' "$rand" "$(( bound1 + 1 ))" >>"$mpdxylog"
+(( db && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl"
+   (( lingerc >= lingerl )) && lingerc=0 && true
+## need to add a check to make sure that ! $rand > $bound2:
+## (( rand > bound2 )) && rand="$bound2"
    mpc move "$rand" "$(( bound1 + 1 ))"
-(( db )) && mpc status %songpos% >>/tmp/mpd.xy.log
+(( db && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl" >>"$mpdxylog"
+(( db )) && mpc status %songpos% >>"$mpdxylog"
    queued="$(mpc queued -f %file%)"
 
    mpdc 'currentsong\nstatus'|parse_mpd_response
 
-tput cup 15 11
-   printf '%sSongs remaining in subqueue: %s\n\n' "$bgblue" "$(( bound2 - bound1 + 1 ))"
-
+   tput cup 15 11
+   printf '%sSongs remaining in subqueue: %s\n' "$bgblue" "$(( bound2 - bound1 + 1 ))"
+   tput cup 16 11
+   (( linger )) && printf '%slinger count/limit=%s/%s\n' "$bgblue" "$lingerc" "$lingerl"
+   printf \\n
   playlist playlist
 
   while [[ "$id" = "$(mpc current -f %id%)" ]]; do
@@ -536,14 +552,18 @@ tput cup 15 11
     unset reset_bound1
   fi
 
-(( db )) && printf '========================\n' >> /tmp/mpd.xy.log
+  (( lingerc++ )) #increment linger counter
+
+(( db )) && printf '========================\n' >> "$mpdxylog"
+
 done
 
 mpdcout="$(mpdc "random $initrandom" 2>&1)"
-(( db )) && printf %s\\n "$mpdcout" >> /tmp/mpd.xy.log
+(( db )) && printf %s\\n "$mpdcout" >> "$mpdxylog"
 
 if [[ "$(mpc status %state%)" =~ (stopped|paused) ]]; then
   mpc play >/dev/null
 fi
 
+rm "$mpdxyout" "$mpdxylog" 2>/dev/null
 exit 0

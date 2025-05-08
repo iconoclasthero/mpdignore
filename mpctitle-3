@@ -11,7 +11,9 @@ export TERM
 
 . /usr/local/bin/editscript
 . mpdignore.functions
-. $HOME/.config/mpd-local.conf
+[[ -f "$HOME/.config/mpd-local.conf" ]] && config="$HOME/.config/mpd-local.conf"
+if [[ "$i" = --config ]]; then config="$2"; shift 2; fi
+. "$config"
 
 # [[ ! "$mpdhost" ]] && mpdhost=[—redacted—]
 
@@ -28,7 +30,6 @@ c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
 c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
 
 boldred="$(tput setaf 9 bold)"
-
 
 pause(){ read -rp "$*" < /dev/tty; }
 
@@ -99,7 +100,6 @@ mpcq(){
 ### Main Code: mpctitle
 
 if [[ "$1" = --fromnext ]]; then shift; fromnext=true; fi
-
 if [[ "$1" = -q ]]; then q=true; shift; else q=false; fi       #for \mpc -q to be called f/quiet
 if [[ "$1" = -qq ]]; then qq=true; shift; else qq=false; fi    #for \mpc -q AND mpctitle output quiet
 
