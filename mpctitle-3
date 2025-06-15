@@ -53,7 +53,7 @@ getlast(){
        lastpath=$(ssh -p "$sshport" "$mpdhost" "grep -E 'player: (played|skipped)' /var/log/mpd/mpd.log | tail -1" 2>/tmp/lastpath.err)
 
 #catch and handle known irrelevant ssh errors that will get adddressed elsewhere
-       readarray -t lastpatherr < /tmp/lastpath.err && rm /tmp/lastpath.err
+       [[ -f /tmp/lastpath.err ]] && readarray -t lastpatherr < /tmp/lastpath.err && rm /tmp/lastpath.err
        if [[ " ${lastpatherr[@]} " =~ "mux_client_request_session: session request failed: Session open refused by peer" ]]; then
     lastpatherr=($(printf "%s\n" "${lastpatherr[@]}" | grep -vE 'mux_client_request_session: session request failed: Session open refused by peer'))
        fi

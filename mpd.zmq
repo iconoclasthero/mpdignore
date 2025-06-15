@@ -262,7 +262,7 @@ connectBT(){
   } > "$btctlfifo"
 
 #debug output
- printf '\n\n\connectBT; exit %s' "$?"
+ printf '\n\nExiting function connectBT (exit %s)' "$?"
  kill "$readerpid"
 }
 

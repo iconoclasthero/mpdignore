@@ -25,7 +25,7 @@ pauseloop(){
     toilet -tf "$font1" "Resuming rock blocks! $limit in a row!"|"${lolargs[@]}"
     sleep 2
     paused=false
-    exec mpdlinger -s"$count" --off "$limit"
+    exec mpdlinger -c"$count" --off "$limit"
   else
     while output=( $(\mpc idle playlist player) ) && "$paused"; do
       if [[ "${output[@]}" = playlist\ player ]]; then
@@ -82,13 +82,13 @@ main_menu(){
         ;;
       "Pause")
         pauseloop --out
-        exec mpdlinger -p -s"$count" "$limit"
+        exec mpdlinger -p -c"$count" "$limit"
         ;;
       "Quit")
         cleanup_exit
         ;;
       "")
-        exec mpdlinger -s"$count" "$limit"
+        exec mpdlinger -c"$count" "$limit"
         ;;
       *)
         echo "Invalid option."
@@ -108,7 +108,7 @@ skip_song(){
     mpcp -q random off
     startcount=1
   fi
-  exec mpdlinger -s"$startcount"
+  exec mpdlinger -c"$startcount"
 }
 
 showhelp() {
@@ -118,24 +118,24 @@ Usage: $0 [options]
 Options:
   -p              Pause the process.
   --off, --on     Initialize with a random value, setting the state to 'off' or 'on'.
-  -s <number>     Set the count to the specified number. If no argument is provided after -s, the script expects a numeric value.
+  -c <number>     Set the count to the specified number. If no argument is provided after -c, the script expects a numeric value.
   next            Move to the next block of operations.
   <number>        Set a limit to the specified numeric value.
 
 Description:
   - The -p flag pauses the process.
   - The --off or --on flags initialize a random state.
-  - The -s flag sets the count to the specified number. If -s is used without an argument, the next argument must be a number.
+  - The -c flag sets the count to the specified number. If -c is used without an argument, the next argument must be a number.
   - The 'next' option advances to the next block.
   - A numeric value after the command sets a limit.
 
 Error:
-  - If -s is used without a valid number, an error message is displayed.
+  - If -c is used without a valid number, an error message is displayed.
 
 Examples:
   $0 -p                 # Pauses the process.
   $0 --on               # Initializes with the 'on' state.
-  $0 -s 5               # Sets the count to 5.
+  $0 -c 5               # Sets the count to 5.
   $0 next               # Moves to the next block.
   $0 10                 # Sets the limit to 10.
 EOF
@@ -202,7 +202,7 @@ search_playlist() {
 change_limit() {
   read -p "Enter new limit: " limit
   echo "Limit changed to $limit"
-  exec mpdlinger -s"$count" "$limit"
+  exec mpdlinger -c"$count" "$limit"
 }
 
 cleanup_exit() {
@@ -220,20 +220,8 @@ trap 'newcount=$(< /tmp/mpdlinger) && count=$newcount && echo "Count updated to:
 trap 'exec mpdlinger' USR2
 #//
 
-#//  editscript
-editscript(){
-  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
-     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
-     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
-[[ "$1" == @(edit|e|-e) ]] && editscript
-#//
-
+. /usr/local/bin/editscript
 . mpdignore.functions
-
-
-#//
-pause(){ read -rp "$*" < /dev/tty; }
-#//
 
 #//
 nextblock(){
@@ -290,18 +278,22 @@ getpids
 
 
 while [[ "$#" -gt 0 ]]; do
-  if [[ "$1" = -p ]]; then
+  if [[ "$1" = @(-s|--screen@(|ed)) ]]; then
+    screenname="mpdlinger-$(date -Im)"
+    shift
+    break
+ elif [[ "$1" = -p ]]; then
     paused=true
     shift
-  elif [[ "$i" = @(|-|--)?(h|elp) ]]; then
+  elif [[ "$1" = @(|-|--)?(h|elp) ]]; then
     showhelp
     exit 0
   elif [[ "$1" =~ (--off|--on) ]]; then
     initrand="${1#--}"
     shift
-  elif [[ "$1" =~ ^-s[0-9]+$ || "$1" == "-s" ]]; then
+  elif [[ "$1" =~ ^-c[0-9]+$ || "$1" == "-c" ]]; then
     (( "${#pids[@]}" > 2 )) && targetpid="${pids[0]}"
-    if [[ "$1" =~ ^-s([0-9]+)$ ]]; then
+    if [[ "$1" =~ ^-c([0-9]+)$ ]]; then
       count="${BASH_REMATCH[1]}"
       shift
       if [[ "$targetpid" ]]; then
@@ -310,7 +302,7 @@ while [[ "$#" -gt 0 ]]; do
         kill -USR1 "$targetpid"
         exit 0
       fi
-    elif [[ "$1" == "-s" ]]; then
+    elif [[ "$1" == "-c" ]]; then
       shift
       if [[ "$1" =~ ^[0-9]+$ ]]; then
         count="$1"
@@ -322,7 +314,7 @@ while [[ "$#" -gt 0 ]]; do
           exit 0
         fi
       else
-        echo "Error: -s requires a number argument."
+        echo "Error: -c requires a number argument."
         exit 1
       fi
     fi
@@ -336,6 +328,19 @@ while [[ "$#" -gt 0 ]]; do
     echo "Unknown option: $1"
   fi
 done
+
+
+if [[ "$screenname" ]]; then
+  pause "$screenname"
+  printline "$bold Calling mpdlinger in GNU screen $tput0"
+  printf \\n\\n
+#  screenname="mpdlinger-$(date -Im)"
+  screen -dmS "${screenname:0:26}" mpdlinger "$@"
+  screen -ls
+  printf \\n\\n
+  exit
+fi
+
 
 . <(mpd-current.py)
 
