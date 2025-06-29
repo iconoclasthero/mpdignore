@@ -9,13 +9,7 @@ fi
 export TERM
 # TERM=screen.xterm-256color  #default screen TERM value when calling from cli
 
-editscript(){
-  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
-     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
-     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
-
-pause(){ read -rp "$*"; }
-
+. /usr/local/bin/editscript
 
 #usermpdpw=  #manually define mpd password here
 #usermpdmd=  #maunally define mpd music directory here

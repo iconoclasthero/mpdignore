@@ -1,39 +1,12 @@
 #!/bin/bash
 . /usr/local/bin/editscript
 
-[[ "$1" = db ]] && db=1 && shift
-[[ "$1" = --mono ]] && color=0 && shift || color=1
-
 MPD_SOCK="/var/run/mpd/socket"
 tputlines=$(tput lines)
 mpdxylog="/tmp/mpd.xy.log"
 mpdxyout="/tmp/mpd.xy"
 
-(( db )) && pause "$tputlines"
-
-# Define tput variables for formatting
-    bold=$(tput bold)
-   tput0=$(tput sgr0)
-
-if (( color )); then
-     red=$(tput setaf 1)
-   blue1=$(tput setaf 246)
-   green=$(tput setaf 2)
-   green=$(tput setaf 82)
-   blue0=$(tput setaf 4)
-   blue1=$(tput setaf 12)
-   blue2=$(tput setaf 39)
-    blue=$(tput setaf 33)
-     red=$(tput setaf 196)
-  yellow=$(tput setaf 3)
-   black=$(tput setaf 0)
-   white=$(tput setaf 7)
-  bgblue=$(tput setab 4)
- bgwhite=$(tput setab 7)
- bgblack=$(tput setab 0)
- magenta=$(tput setaf 5)
-    cyan=$(tput setaf 6)
-fi
+(( verbose )) && pause "$tputlines"
 
 #playlist(){
 #  local width revarr playedarr playlistarray i k n path line ext action timestamp basename filepath mpccommand="playlist"
@@ -346,12 +319,12 @@ parse_mpd_response() {
                 state="${line#state: }";;
             song:*)
                 song_pos="${line#song: }"
-(( db )) && printf 'line: %s\n$song_pos: %s\n' "$line" "$song_pos" >> "$mpdxylog"
+(( verbose )) && printf 'line: %s\n$song_pos: %s\n' "$line" "$song_pos" >> "$mpdxylog"
                 (( song_pos++ ))
-(( db )) && printf '$song_pos: %s\n' "$song_pos" >> "$mpdxylog" ;;
+(( verbose )) && printf '$song_pos: %s\n' "$song_pos" >> "$mpdxylog" ;;
             playlistlength:*)
                 song_total="${line#playlistlength: }" ;;     # this is not a number that starts w/0; it is the actual count
-# (( db )) && printf '$song_total: %s\n' "$song_total" >> "$mpdxylog" ;;
+# (( verbose )) && printf '$song_total: %s\n' "$song_total" >> "$mpdxylog" ;;
             elapsed:*)
                 elapsed="$(sec2sex "${line#elapsed: }")" ;;
             duration:*)
@@ -447,13 +420,47 @@ cleanup() {
 }
 
 trap cleanup SIGINT
+color=1
+
+while (( $# )); do
+  [[ "$1" = --edit ]] && editscript && exit
+  [[ "$1" = @(-v|--verbose) ]] && { args+=("$1"); verbose=1; shift; continue; }
+  [[ "$1" = --mono ]] && { args+=("$1"); unset color; shift; continue; }
+  [[ "$1" = @(--limit|--linger|-l) ]] && { args+=("$1" "$2"); lingerl="$2"; linger=1; shift 2; continue; }
+  [[ "$1" = @(--mpd-linger|--mpdlinger) ]] && { args+=("$1"); mpdlinger=1; shift; continue; }
+  [[ "$1" =~ ^[[:digit:]]+$ ]] && { args+=("$1"); bound1="$1"; shift; continue; }
+  [[ "$1" =~ ^[[:digit:]]+$ ]] && { args+=("$1"); bound2="$1"; shift; continue; }
+  [[ "$1" = @(-s|--screen@(|ed)) ]] && { args+=(-s); screened=1; shift; continue; }
+  { printf 'CLI input not recognized, continuing anyway...\n'; shift; continue; }
+done
+
 
 (( color )) && printf '\033[48;5;4m\033[2J'
 
-[[ "$1" = @(--edit|e|-e) ]] && editscript
-[[ "$1" = @(--limit|--linger|-l) ]] && lingerl="$2" && linger=1 && shift 2
-[[ "$1" =~ [[:digit:]]+ ]] && bound1="$1" && shift
-[[ "$1" =~ [[:digit:]]+ ]] && bound2="$1" && shift
+# Define tput variables for formatting
+    bold=$(tput bold)
+   tput0=$(tput sgr0)
+
+if (( color )); then
+     red=$(tput setaf 1)
+   blue1=$(tput setaf 246)
+   green=$(tput setaf 2)
+   green=$(tput setaf 82)
+   blue0=$(tput setaf 4)
+   blue1=$(tput setaf 12)
+   blue2=$(tput setaf 39)
+    blue=$(tput setaf 33)
+     red=$(tput setaf 196)
+  yellow=$(tput setaf 3)
+   black=$(tput setaf 0)
+   white=$(tput setaf 7)
+  bgblue=$(tput setab 4)
+ bgwhite=$(tput setab 7)
+ bgblack=$(tput setab 0)
+ magenta=$(tput setaf 5)
+    cyan=$(tput setaf 6)
+fi
+
 
 mpdcout="$(mpdc 'currentsong\nstatus')"
 initrandom="$(grep -Po '(?<=random: )\d' <<< "$mpdcout")"
@@ -474,9 +481,9 @@ tput cup 15 0
 [[ -z "$bound2" ]] && read -rp "$bgblue$bold  Enter track number bound or enter for end of playlist ($pllength): " bound2
 [[ -z "$bound2" ]] && bound2="$pllength"
 
-(( db )) && printf -- '-----------------------------------------------\n' >> "$mpdxylog"
-(( db )) && printf 'bound1 initial: %s\nbound2 initial: %s\n' "$bound1" "$bound2" >> "$mpdxylog"
-(( db && linger )) && printf 'linger enabled: linger=%s; lingerl=%s\n' "$linger" "$lingerl" >> "$mpdxylog"
+(( verbose )) && printf -- '-----------------------------------------------\n' >> "$mpdxylog"
+(( verbose )) && printf 'bound1 initial: %s\nbound2 initial: %s\n' "$bound1" "$bound2" >> "$mpdxylog"
+(( verbose && linger )) && printf 'linger enabled: linger=%s; lingerl=%s\n' "$linger" "$lingerl" >> "$mpdxylog"
 
 ! (( bound2 > bound1 )) &&
    bound0="$bound1" &&
@@ -489,14 +496,14 @@ tput cup 15 0
 ###   mpc move "$rand" "$bound1"
    mpdcout=( "$(mpdc 'random 0\nconsume 1')" )
 
-(( db )) && printf '(( %s >= %s && %s <= %s )) || mpdc play\ %s 2>&1))\n' "$(mpc status %songpos%)" "$bound1" "$(mpc status %songpos%)" "$bound2" "$(( bound1-1 ))" >> "$mpdxylog"
+(( verbose )) && printf '(( %s >= %s && %s <= %s )) || mpdc play\ %s 2>&1))\n' "$(mpc status %songpos%)" "$bound1" "$(mpc status %songpos%)" "$bound2" "$(( bound1-1 ))" >> "$mpdxylog"
 
    (( $(mpc status %songpos%) >= bound1 && $(mpc status %songpos%) <= bound2 )) ||
       readarray -t mpdcout < <(mpdc play\ "$(( bound1-1 ))" 2>&1)
 
-(( db )) && printf %s\\n "${mpdcout[@]}" >> "$mpdxylog"
+(( verbose )) && printf %s\\n "${mpdcout[@]}" >> "$mpdxylog"
 printf \\n
-(( db )) && printf 'bound1 calc %s\nbound2 calc %s\n' "$bound1" "$bound2" >> "$mpdxylog"
+(( verbose )) && printf 'bound1 calc %s\nbound2 calc %s\n' "$bound1" "$bound2" >> "$mpdxylog"
 
 lingerc=0
 : "${lingerl:=0}"
@@ -508,23 +515,23 @@ for ((i=bound1; i<=bound2; i++)); do
    id="$(mpc current -f %id%)"
 #   printf '%ssubqueue position: %s\n' "$bgblue" "$i"  #i don't think this prints...
    (( bound2 > pllength )) && bound2="$pllength"
-   (( lingerc >= lingerl )) && rand="$(genrandom "$bound1" "$bound2")"
+   (( lingerc > lingerl )) && rand="$(genrandom "$bound1" "$bound2")"
    ((bound2--)) #decrement happens before the song finishes so that after, the bound is correct.
    #turn random on here so that the next song output is correct; set end so it doesn't get turned off in the while loop
    (( bound1 == bound2 )) && end=true && unset mpdcout && mpdcout=( "$(mpdc 'random 1' 2>&1)" )
 
-(( db )) && printf 'bound1 == bound2 check: (( %s == %s )) = %s\nmpdcout: ' "$bound1" "$bound2" "$(( bound1 == bound2 ))" >>"$mpdxylog"
-(( db )) && printf %s\\n "${mpdcout[@]}" >>"$mpdxylog"
-(( db )) && printf '$bound2 after decrement %s\n' "$bound2" >>"$mpdxylog"
-(( db )) && mpc status "songpos %songpos%" >>"$mpdxylog"
-(( db )) && printf 'mpc move %s %s\n' "$rand" "$(( bound1 + 1 ))" >>"$mpdxylog"
-(( db && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl"
-   (( lingerc >= lingerl )) && lingerc=0 && true
+(( verbose )) && printf 'bound1 == bound2 check: (( %s == %s )) = %s\nmpdcout: ' "$bound1" "$bound2" "$(( bound1 == bound2 ))" >>"$mpdxylog"
+(( verbose )) && printf %s\\n "${mpdcout[@]}" >>"$mpdxylog"
+(( verbose )) && printf '$bound2 after decrement %s\n' "$bound2" >>"$mpdxylog"
+(( verbose )) && mpc status "songpos %songpos%" >>"$mpdxylog"
+(( verbose )) && printf 'mpc move %s %s\n' "$rand" "$(( bound1 + 1 ))" >>"$mpdxylog"
+(( verbose && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl"
+   (( lingerc > lingerl )) && lingerc=0 && true
 ## need to add a check to make sure that ! $rand > $bound2:
 ## (( rand > bound2 )) && rand="$bound2"
    mpc move "$rand" "$(( bound1 + 1 ))"
-(( db && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl" >>"$mpdxylog"
-(( db )) && mpc status %songpos% >>"$mpdxylog"
+(( verbose && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl" >>"$mpdxylog"
+(( verbose )) && mpc status %songpos% >>"$mpdxylog"
    queued="$(mpc queued -f %file%)"
 
    mpdc 'currentsong\nstatus'|parse_mpd_response
@@ -554,16 +561,19 @@ for ((i=bound1; i<=bound2; i++)); do
 
   (( lingerc++ )) #increment linger counter
 
-(( db )) && printf '========================\n' >> "$mpdxylog"
+(( verbose )) && printf '========================\n' >> "$mpdxylog"
 
 done
 
 mpdcout="$(mpdc "random $initrandom" 2>&1)"
-(( db )) && printf %s\\n "$mpdcout" >> "$mpdxylog"
+(( verbose )) && printf %s\\n "$mpdcout" >> "$mpdxylog"
 
 if [[ "$(mpc status %state%)" =~ (stopped|paused) ]]; then
   mpc play >/dev/null
 fi
 
 rm "$mpdxyout" "$mpdxylog" 2>/dev/null
+
+(( mpdlinger )) && exec mpdlinger -s
+
 exit 0
