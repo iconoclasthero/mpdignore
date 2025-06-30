@@ -1,21 +1,39 @@
 #!/bin/bash
-printf '%s has started.\n' "$0"
+#probably should source confirm up here.
+shopt -s extglob nullglob
+#verbose=1
+{ (( verbose )) || [[ "$1" != --exec ]] ; } && printf '%s has started.\n' "$0"
+(( verbose )) && printf 'prevlimit=%s\nblocklimiton=%s\nblocklimit=%s\nlimit=%s\ncount=%s\n' "$0" "$prevlimit" "$blocklimiton" "$blocklimit" "$limit" "$count"
 pidfile='/tmp/mpdlinger.pid'
+cmdfile='/tmp/mpdlinger.cmd'
+countfile='/tmp/mpdlinger.count'
 
-[[ -f "$pidfile" ]] && mpdlingerpid="$(< "$pidfile")"
+# Signal traps
+## If you want the variables like $count and $(...) to be evaluated when the trap is triggered, not when it's defined, you should use single quotes.
+trap sigint SIGINT
+trap '[[ -f "$countfile" ]] && count=$(< "$countfile"); { (( verbose )) && echo "Count updated to: $count"; }' USR1
+trap 'pkill mpc; pkill -g $mpdlingerpid lolcat; ipchandler' USR2
+
+
+[[ -f "$pidfile" ]] &&
+   { mpdlingerpid="$(< "$pidfile")"; pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; }
 
 startupcheck(){
   readarray -t pids < <(pgrep mpdlinger)
   for i in "${!pids[@]}"; do
     [[ "$(ps -p "${pids[i]}" -o command --no-header)" = *\ --edit* ]] && unset 'pids[i]'
   done
+## this compacts the array in the event that something was removed above:
   pids=("${pids[@]}")
 
   if (( mpdlingerpid )) && ps -p "$mpdlingerpid" >/dev/null && screenpid="$(screen -ls|\grep -m1 mpdlinger)"; then
     printf '\nAn instance of mpdlinger is already running in a screen process:\n%s\n' "$screenpid"
     printf '\nAttempting to resume screen...\n\n'
     exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
-    exit 0
+    printf 'Unable to reattach to the screen that mpdlinger is running on.\n'
+    confirm -Y 'Try to reattach with "screen -x" to attemt attaching to a non-detatched screen?' && exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
+    printf 'Reattachment to screen aborted or failed.\nExiting (exit 1)\n.'
+    exit 1
 ## this elif is probably unnecessary and if there's no use for it, it should be removed...
   elif (( mpdlingerpid )) && ps -p "$mpdlingerpid" >/dev/null; then
     [[ "$(ps -o stat= -p "$mpdlingerpid")" = "S" ]] && background=1
@@ -28,12 +46,14 @@ startupcheck(){
     read -rp "$(pgrep mpdlinger -a)"
   else
     mpdlingerpid="$$"
-    echo "$mpdlingerpid" > "$pidfile"
+    printf %s\\n "$mpdlingerpid" > "$pidfile"
+ #   [[ -f "$cmdfile" ]] && rm "$cmdfile"
   fi
 }
 
-[[ "$@" != @(*next*|--edit|*--exec*|*pause*|*resume*) ]] && startupcheck
+(( verbose )) && printf %s\\n "$@"
 
+[[ "$1" != @(--edit|--exec) && "$@" != @(*pause*|*resume*|*next*|*quit*|*limit*|*count*|*blocklimit*) ]] && startupcheck
 
 
 #----------------- CLI IPC WRAPPER -----------------#
@@ -44,53 +64,70 @@ startupcheck(){
 #   mpdlinger limit N
 #   mpdlinger count N
 #   mpdlinger blocklimit N
-#
+
 if [[ "$1" =~ ^(pause|resume|quit|limit|count|blocklimit)$ ]]; then
-  cmd="$1"
+  ipccmd="$1"
   shift
-  case "$cmd" in
+  case "$ipccmd" in
     pause|resume|quit)
-      echo "$cmd" > /tmp/mpdlinger.cmd
+      echo "$ipccmd" > "$cmdfile"
       ;;
     limit|count|blocklimit)
-      echo "$cmd $1" > /tmp/mpdlinger.cmd
+      echo "$ipccmd $1" > "$cmdfile"
       ;;
     *)
       echo "Unknown command"
       exit 1
       ;;
   esac
+  (( verbose )) && printf 'kill -USR2 %s\n' "$mpdlingerpid"
+  [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
   kill -USR2 "$mpdlingerpid"
+  pkill -g "$pgid" mpc
+  pkill -g "$pgid" lolcat
   exit 0
 fi
 #---------------------------------------------------#
 
-# Signal traps
-trap sigint SIGINT
-trap 'newcount=$(< /tmp/mpdlinger) && count=$newcount && echo "Count updated to: $count"' USR1
-
-# Expanded USR2 trap to handle CLI commands via /tmp/mpdlinger.cmd
-trap 'clihandler' USR2
-
-clihandler(){
+ipchandler(){
   local cmd
-  cmd="$(head -n1 /tmp/mpdlinger.cmd 2>/dev/null)"
+  (( verbose )) && printf '\nIn "ipchandler()".\nContents of %s: "%s"\n\n' "$cmdfile" "$(< "$cmdfile")"
+  cmd="$(head -n1 "$cmdfile" 2>/dev/null)"
+  > "$cmdfile" # clear command after reading to local $cmd
+  pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
+  pkill -g "$pgid" lolcat
   case "$cmd" in
     pause)
       paused=1
       echo "Paused via CLI"
+      exec mpdlinger --exec -p -c"$count" -l"$limit"
       ;;
     resume)
       unset paused
       echo "Resumed via CLI"
-      exec mpdlinger --exec -c"$count" "$limit"
+      exec mpdlinger --exec -c"$count" -l"$limit"
       ;;
     quit)
       cleanupexit
       ;;
+    skip)
+      echo "Skipping song..."
+      if (( count < limit )); then
+        next >/dev/null
+        (( count++ ))
+      else
+        mpcp -q random on
+        next >/dev/null
+        mpcp -q random off
+        count=1
+      fi
+      (( verbose )) && pause "mpclinger --exec -c$count"
+      exec mpdlinger --exec -c"$count"
+      ;;
     limit\ *)
       limit="${cmd#limit }"
       echo "Limit set to $limit via CLI"
+      exec mpdlinger --exec -c"$count" -l"$limit"
       ;;
     count\ *)
       count="${cmd#count }"
@@ -98,31 +135,20 @@ clihandler(){
       ;;
     blocklimit\ *)
       blocklimit="${cmd#blocklimit }"
-      prevlimit="$limit"
-      limit="$blocklimit"
-      echo "Block limit set to $blocklimit for one block via CLI"
-      # After one block, restore previous limit (implement in main loop)
-      blocklimiton=1
+      prevlimit="${prevlimit:-$limit}"
+      export blocklimiton=1 blocklimit prevlimit
+      printf 'Block limit set to %s for one block via CLI.\n' "$blocklimit"
+      exec env limit="$blocklimit" count="$count" blocklimiton=1 prevlimit="$prevlimit" mpdlinger --exec -c"$count" -l"$blocklimit"
       ;;
     *)
       # Default to legacy behavior if no command found or unknown
-      exec mpdlinger --exec $limit
+      read -rp "ipchandler() fallback.  limit=$limit"
+      exec mpdlinger --exec -l"$limit"
       ;;
   esac
-  > /tmp/mpdlinger.cmd # clear command after handling
 }
-#//
+##--> ipchandler() <--###########################################################################
 
-
-
-
-##// signal traps
-#trap sigint SIGINT
-##trap 'echo usr1; [[ $newcount ]] && count=$newcount && echo "Count updated to: $count"' USR1
-#trap 'newcount=$(< /tmp/mpdlinger) && count=$newcount && echo "Count updated to: $count"' USR1
-#trap 'exec mpdlinger' USR2
-#trap "exec mpdlinger $limit" USR2
-##//
 
 #sourcefn /usr/local/bin/mpdignore.functions hr2
 . mpdignore.functions
@@ -146,9 +172,8 @@ pauseloop(){
   elif [[ "$1" = --in ]]; then
     toilet -tf "$font1" "Resuming rock blocks! $limit in a row!"|"${lolargs[@]}"
     sleep 2
-#    paused=false
     unset paused
-    exec mpdlinger --exec -c"$count" --off "$limit"
+    exec mpdlinger --exec -c"$count" --off -l"$limit"
   else
     while output=( $(\mpc idle playlist player) ) && (( paused )); do
       if [[ "${output[@]}" = playlist\ player ]]; then
@@ -197,7 +222,9 @@ mainmenu(){
         exec mpdlinger --exec
         ;;
       "Skip")
-        skipsong
+        printf 'skip' > "$cmdfile"
+        ipchandler
+#        skipsong
         ;;
       "Playlist")
         playlistmenu
@@ -207,13 +234,13 @@ mainmenu(){
         ;;
       "Pause")
         pauseloop --out
-        exec mpdlinger --exec -p -c"$count" "$limit"
+        exec mpdlinger --exec -p -c"$count" -l"$limit"
         ;;
       "Quit")
         cleanupexit
         ;;
       "")
-        exec mpdlinger --exec -c"$count" "$limit"
+        exec mpdlinger --exec -c"$count" -l"$limit"
         ;;
       *)
         echo "Invalid option."
@@ -224,22 +251,22 @@ mainmenu(){
 ##--> mainmenu() <--############################################################################
 
 
-skipsong(){
-  echo "Skipping song..."
-## shouldn't this be (( count < limit )) ??
-
-##  if (( count < 4 )); then
-  if (( count < limit )); then
-    next >/dev/null
-    startcount=$(( count + 1 ))
-  else
-    mpcp -q random on
-    next >/dev/null
-    mpcp -q random off
-    startcount=1
-  fi
-  exec mpdlinger --exec -c"$startcount"
-}
+#skipsong(){
+#  echo "Skipping song..."
+### shouldn't this be (( count < limit )) ??
+#
+###  if (( count < 4 )); then
+#  if (( count < limit )); then
+#    next >/dev/null
+#    startcount=$(( count + 1 ))
+#  else
+#    mpcp -q random on
+#    next >/dev/null
+#    mpcp -q random off
+#    startcount=1
+#  fi
+#  exec mpdlinger --exec -c"$startcount"
+#}
 
 ##--> skipsong() <--#############################################################################
 
@@ -339,7 +366,7 @@ searchplaylist(){
 changelimit(){
   read -p "Enter new limit: " limit
   echo "Limit changed to $limit"
-  exec mpdlinger --exec -c"$count" "$limit"
+  exec mpdlinger --exec -c"$count" -l"$limit"
 }
 ##--> changelimit() <--#######################################################################
 
@@ -374,10 +401,10 @@ getpids(){
 nextblock(){
 #  local pid=( $(ps aux|grep '[m]pdlinger'|grep -Ev nano\|mpdlinger\ e|awk '{print $2}') )
   getpids
+  printf 'next' > "$cmdfile"
   mpcp -q random on
-#  kill -USR2 "$pid"
-  read -rp "pids[0]: ${pids[0]}; mpdlingerpid: $mpdlingerpid"
-  kill -USR2 "${pids[0]}" # not sure what this is doing, it's kicking an error, probably becuase there's no pid anymore since i used exec for what needed killing?
+  read -rp "read -rp: pids[0]: ${pids[0]}; mpdlingerpid: $mpdlingerpid"
+  kill -USR2 "$mpdlingerpid"
   mpcp -q next
   mpcp -q random off
   exit
@@ -396,34 +423,33 @@ font2="$font1"
 [[ "$STY" ]] && unset COLORTERM
 lolargs=(lolcat)
 [[ "$STY" ]] && lolargs+=(-ap 2) || lolargs+=(-tap 2)
-lolargs+=(-F 0.075)
+#  -F, --freq=<f>        Rainbow frequency (default: 0.1)
+#  -d, --duration=<i>    Animation duration (default: 12)
+#  -s, --speed=<f>       Animation speed (default: 20.0)
 #lolargs+=(-d 08)
 #lolargs+=(-s 15)
 lolargs+=(-d 06)
 lolargs+=(-s 13)
+lolargs+=(-F 0.075)
 
 
 unset initrand
 unset paused
-limit=4
+#limit=4
+limit="${limit:-4}"
 unset current
 count=1
 getpids
-#//
 
-
-#// is another copy running?
-  (( "${#pids[@]}" > 2 )) &&
-  ! [[ "$*" =~ \-s\ ?[[:digit:]]+ || "$*" =~ (^|[[:space:]])'next'([[:space:]]|$) ]] &&
-  { echo "Another instance of mpdlinger is running, please investigate"; exit 1; }
-#//
-
-
-while [[ "$#" -gt 0 ]]; do
+while (( "$#" > 0 )); do
   if [[ "$1" = @(-s|--screen@(|ed)) ]]; then
     screenname="mpdlinger-$(date -Im)"
     shift
     break
+  elif [[ "$1" = --exec ]]; then
+    (( verbose )) && printf 'mpdlinger called with --exec option for internal control.\n'
+    execoption=1
+    shift
  elif [[ "$1" = -p ]]; then
     args+=("$1")
     paused=1
@@ -436,45 +462,45 @@ while [[ "$#" -gt 0 ]]; do
     initrand="${1#--}"
     shift
   elif [[ "$1" =~ ^-c[0-9]+$ || "$1" = "-c" ]]; then
-    (( "${#pids[@]}" > 2 )) && targetpid="${pids[0]}"
     if [[ "$1" =~ ^-c([0-9]+)$ ]]; then
-    args+=("$1")
+      args+=("$1")
       count="${BASH_REMATCH[1]}"
       shift
-      if [[ "$targetpid" ]]; then
-        echo "$count" > /tmp/mpdlinger
-        export newcount="$count"
-        kill -USR1 "$targetpid"
-        exit 0
-      fi
     elif [[ "$1" = "-c" ]]; then
       args+=("$1" "$2")
       if [[ "$2" =~ ^[0-9]+$ ]]; then
         count="$2"
         shift 2
-        if [[ "$targetpid" ]]; then
-          echo "$count" > /tmp/mpdlinger
-          export newcount="$count"
-          kill -USR1 "$targetpid"  #can't delete entirely...
-          exit 0
-        fi
       else
-        echo "Error: -c requires a number argument."
+        echo "Error: -c requires a numerical argument."
         exit 1
       fi
     fi
+    if [[ "$mpdlingerpid" ]]; then
+      echo "$count" > "$countfile"
+      export count
+      kill -USR1 "$mpdlingerpid"
+    fi
+#    exit 99
   elif [[ "$1" = next ]]; then
     args+=("$1")
     nextblock
     exit
-  elif [[ "$1" =~ ^[0-9]+$ ]]; then
+  elif [[ "$1" =~ ^-l[0-9]+$ || "$1" = "-l" ]]; then
+    if [[ "$1" =~ ^-l([0-9]+)$ ]]; then
     args+=("$1")
-    limit="$1"
-    shift
-  elif [[ "$1" = --exec ]]; then
-    printf 'mpdlinger called with --exec option for internal control.\n'
-    execoption=1
-    shift
+      limit="${BASH_REMATCH[1]}"
+      shift
+    elif [[ "$1" = "-l" ]]; then
+      args+=("$1" "$2")
+      if [[ "$2" =~ ^[0-9]+$ ]]; then
+        limit="$2"
+        shift 2
+      else
+        printf 'Error: -l requires a numerical argument.\n'
+        exit 1
+      fi
+    fi
   else
     echo "Unknown option: $1"
     shift
@@ -507,20 +533,21 @@ fi
 
 # check to make sure random is off when $0 starts:
 if [[ "$initrand" = off ]] || { [[ "$random" = '✅' ]] && (( count < limit )); }; then
-  echo "warn: turning random off"
+  echo "[WARN] Turning random off."
   mpcp -q random off
 elif [[ "$initrand" = on ]] || { [[ "$random" = '❌' ]] && (( count >= limit )); }; then
-  echo "warn: turning random on"
+  echo "[WARN] Turning random on."
   mpcp -q random on
 fi
 
 
 clear -x
-printf '%s \n%s \n%s \n \n%s\n ' \
+printf '%s \n%s \n%s \n \n%s\n%s\n' \
        "$(toilet -tf "$font1" "$artist / $title")" \
        "$(toilet -tf "$font1" "$album:")" \
        "$(toilet -tf "$font1" "$count/$limit")" \
-       "$(mpctitle)" |
+       "$(mpctitle)" \
+       "$(date -Is)" |
    "${lolargs[@]}" &
 
 # oneline this with: printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle)"
@@ -529,11 +556,11 @@ printf '%s \n%s \n%s \n \n%s\n ' \
 
 while output=( $(\mpc idle playlist player) ); do
   if [[ "${output[@]}" = playlist\ player ]]; then
-
     if (( paused )); then
       echo "mpdlinger paused. Waiting to be resumed..."
-      sleep 1
-      continue
+      pauseloop
+    #  sleep 1
+    #  continue
     fi
 
     . <(mpd-current.py)
@@ -546,19 +573,19 @@ while output=( $(\mpc idle playlist player) ); do
     clear -x
     randomst=$(( count >= limit ? 1 : 0 ))
     (( randomst )) && randomst='on' || randomst='off'
-#   if "$randomst"; then randomst='on'; else randomst='off'; fi
-    printf '%s \n%s \n%s \n \n%s\n ' \
+    printf '%s \n%s \n%s \n \n%s\n%s\n' \
            "$(toilet -tf "$font1" "$artist / $title")" \
            "$(toilet -tf "$font1" "$album:")" \
            "$(toilet -tf "$font1" "$count/$limit")" \
-           "$(mpctitle random $randomst)" |
+           "$(mpctitle random $randomst)" \
+           "$(date -Is)" |
       "${lolargs[@]}" &
     if (( count >= "$limit" )); then
       count=0
-      if (( blocklimiton )); then
+      if (( blocklimit )); then
         limit="$prevlimit"
-        unset blocklimiton
-        echo "Restored limit to $limit after blocklimit"
+        unset blocklimiton blocklimit
+        printf 'Temporary block limit reached; restoring limit to %s.\nEnjoy the next rock block coming up right after %s!\n' "$limit" "$title"
       fi
     fi
   fi
@@ -578,4 +605,5 @@ done
 #⇒	Right Double Arrow	U+21D2	8658
 #▶	Black Right-Pointing Triangle	U+25B6	9654
 #◀	Black Left-Pointing Triangle	U+25C0	9664
+
 
