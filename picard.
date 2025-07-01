@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+. /usr/local/bin/editscript
+. "$HOME/.config/mpd-local.conf"
+
+if [[ -z "$DISPLAY" ]]; then
+  printf '$DISPLAY not set; no way picard is gonna run.\n(exit 1)\n'
+  exit 1
+fi
+
+if [[ -n "$1" ]]; then
+  for arg in "$@"; do
+    if [[ -e "$arg" && -w "$arg" ]]; then
+      path+=("$arg")
+    else
+      printf 'Invalid path: %s\nMust be a writable file or directory.\n' "$arg"
+      exit 1
+    fi
+  done
+else
+  path=(".")
+fi
+
+remote() {
+  if [[ "$PWD" == /Library/* ]]; then
+    rpwd="${PWD/Library/library}"
+  elif [[ "$PWD" =~ (/dev/shm)?/cache/gigabyte ]]; then
+    rpwd="${PWD/cache\/gigabyte/cache}"
+  else
+    printf 'Check the directory you are launching from and retry. (exit 1)\n'
+    exit 1
+  fi
+  mpchost="${mpchost/ssh/music}"
+  exec ssh -YCttvp"$sshport" "$mpchost" \
+    cd "${rpwd@Q}"\; \
+    picard -e cluster -e lookup clustered -- "${path[@]}"
+}
+
+if [[ "$HOSTNAME" == gigabyte ]]; then
+  answer=l
+else
+  read -p "Would you like to use Picard locally or SSH to your server? [L/l for local, S/s for SSH]: " answer < /dev/tty
+fi
+
+case "$answer" in
+  [Ll])
+    exec picard -e cluster -e lookup clustered -- "${path[@]}"
+    ;;
+  [Ss])
+    remote
+    ;;
+  *)
+    echo "Invalid input. Please answer with L/l or S/s."
+    exit 1
+    ;;
+esac

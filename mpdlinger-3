@@ -65,11 +65,11 @@ startupcheck(){
 #   mpdlinger count N
 #   mpdlinger blocklimit N
 
-if [[ "$1" =~ ^(pause|resume|quit|limit|count|blocklimit)$ ]]; then
+if [[ "$1" =~ ^(pause|resume|quit|limit|count|blocklimit|next)$ ]]; then
   ipccmd="$1"
   shift
   case "$ipccmd" in
-    pause|resume|quit)
+    pause|resume|quit|next)
       echo "$ipccmd" > "$cmdfile"
       ;;
     limit|count|blocklimit)
@@ -123,6 +123,13 @@ ipchandler(){
       fi
       (( verbose )) && pause "mpclinger --exec -c$count"
       exec mpdlinger --exec -c"$count"
+      ;;
+    next)
+      mpcp -q random on
+      (( verbose )) && printf "read -rp: pids[0]: ${pids[0]}; mpdlingerpid: $mpdlingerpid"
+      next >/dev/null
+      mpcp -q random off
+      exec mpdlinger --exec
       ;;
     limit\ *)
       limit="${cmd#limit }"
@@ -208,18 +215,22 @@ mainmenu(){
       --item.foreground="33" \
       --cursor.foreground=214 \
       "Next block" \
-      "Skip" \
       "Playlist" \
       "Change limit" \
+      "Change current block limit" \
       "Pause" \
+      "Log" \
+      "Skip" \
       "Quit")
 
     case $option in
       "Next block")
-        mpcp -q random on
-        next >/dev/null
-        mpcp -q random off
-        exec mpdlinger --exec
+#        mpcp -q random on
+#        next >/dev/null
+#        mpcp -q random off
+#        exec mpdlinger --exec
+        printf 'next' > "$cmdfile"
+        ipchandler
         ;;
       "Skip")
         printf 'skip' > "$cmdfile"
@@ -230,7 +241,22 @@ mainmenu(){
         playlistmenu
         ;;
       "Change limit")
-        changelimit
+#        changelimit
+        read -p "Enter new limit: " limit &&
+          printf "$limit" > /tmp/mpdlinger.cmd
+        printf 'Limit changed to %s.\n' "limit $limit"
+        ipchandler
+        ;;
+      "Change current block limit")
+        printf 'This has not been implemented yet.\n'
+        read -p "Change limit for current block to: " blocklimit &&
+          printf "$blocklimit" > /tmp/mpdlinger.cmd
+        printf 'Current block limit changed to %s.\n' "blocklimit $blocklimit"
+        ipchandler
+        ;;
+      "Log")
+        grep \:\ player\: /var/log/mpd/mpd.log|tail -n 40
+        pause "Continue? "
         ;;
       "Pause")
         pauseloop --out
@@ -398,6 +424,7 @@ getpids(){
 ##--> getpids() <--############################################################################
 
 
+## this can probably be deleted Mon Jun 30 01:49:39 PM EDT 2025
 nextblock(){
 #  local pid=( $(ps aux|grep '[m]pdlinger'|grep -Ev nano\|mpdlinger\ e|awk '{print $2}') )
   getpids
@@ -445,7 +472,8 @@ while (( "$#" > 0 )); do
   if [[ "$1" = @(-s|--screen@(|ed)) ]]; then
     screenname="mpdlinger-$(date -Im)"
     shift
-    break
+##  this break is probably incorrect here:
+##    break
   elif [[ "$1" = --exec ]]; then
     (( verbose )) && printf 'mpdlinger called with --exec option for internal control.\n'
     execoption=1
@@ -481,11 +509,11 @@ while (( "$#" > 0 )); do
       export count
       kill -USR1 "$mpdlingerpid"
     fi
-#    exit 99
   elif [[ "$1" = next ]]; then
-    args+=("$1")
-    nextblock
-    exit
+    printf '[ERROR] This branch of the 2nd argument handling block should never be reached.\n'
+#    args+=("$1")
+#    nextblock
+#    exit
   elif [[ "$1" =~ ^-l[0-9]+$ || "$1" = "-l" ]]; then
     if [[ "$1" =~ ^-l([0-9]+)$ ]]; then
     args+=("$1")
@@ -547,7 +575,7 @@ printf '%s \n%s \n%s \n \n%s\n%s\n' \
        "$(toilet -tf "$font1" "$album:")" \
        "$(toilet -tf "$font1" "$count/$limit")" \
        "$(mpctitle)" \
-       "$(date -Is)" |
+       "$(date)" |
    "${lolargs[@]}" &
 
 # oneline this with: printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle)"
@@ -578,7 +606,7 @@ while output=( $(\mpc idle playlist player) ); do
            "$(toilet -tf "$font1" "$album:")" \
            "$(toilet -tf "$font1" "$count/$limit")" \
            "$(mpctitle random $randomst)" \
-           "$(date -Is)" |
+           "$(date)" |
       "${lolargs[@]}" &
     if (( count >= "$limit" )); then
       count=0
