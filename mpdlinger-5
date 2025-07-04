@@ -1,14 +1,18 @@
 #!/bin/bash
-#probably should source confirm up here.
-#sourcefn /usr/local/bin/mpdignore.functions hr2
+## probably should source confirm up here.  --> confirm's being used as a script from /usr/local//bin
+
 . mpdignore.functions
+
 shopt -s extglob nullglob
-#verbose=1
-{ (( verbose )) || [[ "$1" != --exec ]] ; } && printf '%s has started.\n' "$0"
-(( verbose )) && printf '\n           0 = %s\n   prevlimit = %s\nblocklimiton = %s\n  blocklimit = %s\n       limit = %s\n       count = %s\n          $* = %s\n\n' "$0" "$prevlimit" "$blocklimiton" "$blocklimit" "$limit" "$count" "$*"
+
 pidfile='/tmp/mpdlinger.pid'
 cmdfile='/tmp/mpdlinger.cmd'
 countfile='/tmp/mpdlinger.count'
+
+#verbose=1
+
+{ (( verbose )) || [[ "$1" != --exec ]] ; } && printf '%s has started.\n' "$0"
+(( verbose )) && printf '\n           0 = %s\n   prevlimit = %s\nblocklimiton = %s\n  blocklimit = %s\n       limit = %s\n       count = %s\n          $* = %s\n\n' "$0" "$prevlimit" "$blocklimiton" "$blocklimit" "$limit" "$count" "$*"
 
 # Signal traps
 ## If you want the variables like $count and $(...) to be evaluated when the trap is triggered, not when it's defined, you should use single quotes.
@@ -22,54 +26,6 @@ trap '
   pkill -g "$pgid" lolcat
   ipchandler
 ' USR2
-
-[[ -f "$pidfile" ]] &&
-   { mpdlingerpid="$(< "$pidfile")"; pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; }
-
-if [[ ! -f "$pidfile" ]]; then
-  (( verbose )) && printf 'pid of this process: $$ = %s\n' "$$"
-  readarray -t pgrepout < <(pgrep mpdlinger -a | grep -Ev -- "$$|--edit")
-  pgid2=$(ps -o pgid= -p $$ | tr -d ' ')
-
-  (( verbose )) && printf %s\\n "$pgid2"
-
-  for i in "${pgrepout[@]}"; do
-    unset pidpgid
-    pid="${i%% *}"  # pid is first field before first space
-    pidpgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
-    (( verbose )) && printf 'pid=%s  pidpgid=%s  ourpgid=%s  cmd=%s\n' "$pid" "$pidpgid" "$pgid2" "$i"
-    if [[ "$pidpgid" && "$pidpgid" != "$pgid2" ]]; then
-      pgreplines+=("$i")
-    fi
-  done
-
-
-  (( verbose )) && { printf -- --\\n; printf %s\\n "${pgreplines[@]}"; printf -- --\\n; }
-
-  if (( ${#pgreplines[@]} )); then
-    printf '\n[%sWARN%s] A pid for mpdlinger was identified without a corresponding %s!\n[%sWARN%s] This indicates that the pidfile has been somehow misplaced...\n\nOutput of '\''%spgrep mpdlinger -a|grep -Ev -- "$$|--edit"%s'\'':\n' "$yellow" "$tput0" "$pidfile" "$yellow" "$tput0" "$blue" "$tput0"
-    printf %s "$blue"
-    if (( ${#pgreplines[@]} > 1 )); then
-      mpdlingerpid="$(printf '%s\n' "${pgreplines[@]}" | gum choose)"
-      mpdlingerpid="${mpdlingerpid%% *}"
-    else
-      printf %s\\n "${pgreplines[0]}"
-      mpdlingerpid="${pgreplines[0]%% *}"
-    fi
-    printf %s "$tput0"
-
-    printf \\n
-    confirm -Y "${red}Write pid $mpdlingerpid to $pidfile?${tput0}" &&
-            { printf '%s\n' "$mpdlingerpid" > "$pidfile"
-              pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; } ||
-            { printf '\nFailed to determine a pid for the daemon. Investigate. (exit 1)\n\n'; exit 1; }
-
-#    while read -r i; do [[ "$i" = *.mpdlinger* ]] && screenls="$i"; done < <(screen -ls|awk '{print $1}')
-#    [[ "$screenls" ]] && { printf 'Calling sc...\n'; sc; }
-#    printf 'I think we should exit here. (exit 0)\n'
-#    exit 0
-   fi
-fi
 
 
 startupcheck(){
@@ -187,8 +143,8 @@ ipchandler(){
       ;;
     *)
       # Default to legacy behavior if no command found or unknown
-      read -rp "ipchandler() fallback.  limit=$limit"
-      exec mpdlinger --exec -l"$limit"
+      read -rp "ipchandler() fallback.  limit=$limit blocklimit=$blocklimit count=$count"
+      exec mpdlinger --exec -l"$limit" -c"$count"
       ;;
   esac
 }
@@ -313,25 +269,6 @@ mainmenu(){
 ##--> mainmenu() <--############################################################################
 
 
-#skipsong(){
-#  echo "Skipping song..."
-### shouldn't this be (( count < limit )) ??
-#
-###  if (( count < 4 )); then
-#  if (( count < limit )); then
-#    next >/dev/null
-#    startcount=$(( count + 1 ))
-#  else
-#    mpcp -q random on
-#    next >/dev/null
-#    mpcp -q random off
-#    startcount=1
-#  fi
-#  exec mpdlinger --exec -c"$startcount"
-#}
-
-##--> skipsong() <--#############################################################################
-
 
 showhelp(){
   cat <<EOF
@@ -344,10 +281,10 @@ Usage:
   mpdlinger next               Moves to the next block of songs
   mpdlinger skip               Skips currently-playing song?
   mpdlinger limit <num>        Changes the global limit to <num>
-  NOT WORKING:
-  mpdlinger count <num>        Updates the count of played songs for current block to <num>
   mpdlinger blocklimit <num>   Changes the limit for current block to <num>
   mpdlinger quit               Should terminate any current mpdlinger daemons
+  NOT WORKING:
+  mpdlinger count <num>        Updates the count of played songs for current block to <num>
 
 $(hr2 "CLI Launch Flags")
 NB: These are probably exclusively for internal control at this point.
@@ -355,23 +292,24 @@ NB: These are probably exclusively for internal control at this point.
 Options:
   -p              Pause the process.
   --off, --on     Initialize with a random value, setting the state to 'off' or 'on'.
-  -c <num>        Set the count to the specified number. If no argument is provided after -c, the script expects a numeric value.
-  -l <num>        Set the count to the specified number. If no argument is provided after -c, the script expects a numeric value.
+  -c <num>        Set the count to <num>. Error if no numerical argument after -c.
+  -l <num>        Set the limit to <num>. Error if no numerical argument after -l.
+  -b <num>        Set the current block limit to <num>. Error if no numerical argument after -b.
 
 Description:
   - The -p flag pauses the process.
   - The --off or --on flags initialize a random state.
-  - The -c|-l flags set the count|limit, respectively, to the specified number.
+  - The -c|-l|-b flags set the count|limit|blocklimit, respectively, to the specified number.
 
 Error:
-  - If -c|-l are used without a valid number, an error message is displayed.
+  - If -c|-l|-b are used without a valid number, an error message is displayed.
 
 Examples:
   $(basename $0) -p                  Pauses the process.
   $(basename $0) --on                Initializes with the 'on' state.
   $(basename $0) -c 5                Sets the count to 5.
   $(basename $0) -l 10               Sets the limit to 10.
-
+  $(basename $0) -b 6                Sets the limit for the current block to 6.
 EOF
 }
 ##--> showhelp() <--############################################################################
@@ -452,37 +390,87 @@ cleanupexit(){
 }
 ##--> cleanupexit() <--#######################################################################
 
-getpids(){
-  (( verbose )) && printf 'Entered getpids()...\n'
-#  pids=( $(ps aux | grep '[m]pdlinger' |grep -Ev nano\|mpdlinger\ e | awk '{print $2}') )
-  readarray -t pids < <(pgrep mpdlinger)
-
-  for i in "${!pids[@]}"; do
-    [[ "$(ps -p "${pids[i]}" -o command --no-header)" = *\ --edit* ]] && unset 'pids[i]'
-  done
-  pids=("${pids[@]}")
-
-  (( verbose )) && { printf 'After filtering and compacting ${pids[@]}:\n%s\n' "$(printf ' %s\n' "${pids[@]}")"; }
-  (( verbose )) && printf 'mpdlingerpid = %s\n' "$mpdlingerpid"
-
-  (( verbose )) && printf 'Original pgid: %s\n' "$pgid"
-  pgid=$(ps -o pgid= -p $$ | tr -d ' ')
-  (( verbose )) && printf 'Updated pgid: %s\n' "$pgid"
-
-## I don't think this is doing anything in this script.
-## 1. otherpids isn't being used anywhere
-## 2. what it appears to be doing won't work since it's looking for mpdlinger being edited... which I'm doing above
-## 3. the pgrep command above doesn't pull up the screen job with mpdlinger in it.
-
-  readarray -t otherpids < <(pgrep -a mpdlinger| \grep -Ev "^$$|^$(pgrep -P $$)|--edit") #`|mpdlinger e` is probably unnecessary
-  (( verbose )) && printf '${otherpids[@]}: %s\n' "${otherpids[@]}"
-  (( verbose )) && printf 'Leaving getpids()...\n'
-
-}
-##--> getpids() <--############################################################################
+#getpids(){
+#  (( verbose )) && printf 'Entered getpids()...\n'
+##  pids=( $(ps aux | grep '[m]pdlinger' |grep -Ev nano\|mpdlinger\ e | awk '{print $2}') )
+#  readarray -t pids < <(pgrep mpdlinger)
+#
+#  for i in "${!pids[@]}"; do
+#    [[ "$(ps -p "${pids[i]}" -o command --no-header)" = *\ --edit* ]] && unset 'pids[i]'
+#  done
+#  pids=("${pids[@]}")
+#
+#  (( verbose )) && { printf 'After filtering and compacting ${pids[@]}:\n%s\n' "$(printf ' %s\n' "${pids[@]}")"; }
+#  (( verbose )) && printf 'mpdlingerpid = %s\n' "$mpdlingerpid"
+#
+#  (( verbose )) && printf 'Original pgid: %s\n' "$pgid"
+#  pgid=$(ps -o pgid= -p $$ | tr -d ' ')
+#  (( verbose )) && printf 'Updated pgid: %s\n' "$pgid"
+#
+### I don't think this is doing anything in this script.
+### 1. otherpids isn't being used anywhere
+### 2. what it appears to be doing won't work since it's looking for mpdlinger being edited... which I'm doing above
+### 3. the pgrep command above doesn't pull up the screen job with mpdlinger in it.
+#
+#  readarray -t otherpids < <(pgrep -a mpdlinger| \grep -Ev "^$$|^$(pgrep -P $$)|--edit") #`|mpdlinger e` is probably unnecessary
+#  (( verbose )) && printf '${otherpids[@]}: %s\n' "${otherpids[@]}"
+#  (( verbose )) && printf 'Leaving getpids()...\n'
+#
+#}
+###--> getpids() <--############################################################################
 
 
 #═══════▶ MAIN CODE ◀════════════════════════════════════════════════════════
+
+[[ -f "$pidfile" ]] &&
+   { mpdlingerpid="$(< "$pidfile")"; pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; }
+
+if [[ ! -f "$pidfile" ]]; then
+  (( verbose )) && printf 'pid of this process: $$ = %s\n' "$$"
+  readarray -t pgrepout < <(pgrep mpdlinger -a | grep -Ev -- "$$|--edit")
+  pgid2=$(ps -o pgid= -p $$ | tr -d ' ')
+
+  (( verbose )) && printf %s\\n "$pgid2"
+
+  for i in "${pgrepout[@]}"; do
+    unset pidpgid
+    pid="${i%% *}"  # pid is first field before first space
+    pidpgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
+    (( verbose )) && printf 'pid=%s  pidpgid=%s  ourpgid=%s  cmd=%s\n' "$pid" "$pidpgid" "$pgid2" "$i"
+    if [[ "$pidpgid" && "$pidpgid" != "$pgid2" ]]; then
+      pgreplines+=("$i")
+    fi
+  done
+
+
+  (( verbose )) && { printf -- --\\n; printf %s\\n "${pgreplines[@]}"; printf -- --\\n; }
+
+  if (( ${#pgreplines[@]} )); then
+    printf '\n[%sWARN%s] A pid for mpdlinger was identified without a corresponding %s!\n[%sWARN%s] This indicates that the pidfile has been somehow misplaced...\n\nOutput of '\''%spgrep mpdlinger -a|grep -Ev -- "$$|--edit"%s'\'':\n' "$yellow" "$tput0" "$pidfile" "$yellow" "$tput0" "$blue" "$tput0"
+    printf %s "$blue"
+    if (( ${#pgreplines[@]} > 1 )); then
+      mpdlingerpid="$(printf '%s\n' "${pgreplines[@]}" | gum choose)"
+      mpdlingerpid="${mpdlingerpid%% *}"
+    else
+      printf %s\\n "${pgreplines[0]}"
+      mpdlingerpid="${pgreplines[0]%% *}"
+    fi
+    printf %s "$tput0"
+
+    printf \\n
+    confirm -Y "${red}Write pid $mpdlingerpid to $pidfile?${tput0}" &&
+            { printf '%s\n' "$mpdlingerpid" > "$pidfile"
+              pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; } ||
+            { printf '\nFailed to determine a pid for the daemon. Investigate. (exit 1)\n\n'; exit 1; }
+
+#    while read -r i; do [[ "$i" = *.mpdlinger* ]] && screenls="$i"; done < <(screen -ls|awk '{print $1}')
+#    [[ "$screenls" ]] && { printf 'Calling sc...\n'; sc; }
+#    printf 'I think we should exit here. (exit 0)\n'
+#    exit 0
+   fi
+fi
+
+
 #fonts are in /usr/share/figlet
 font1=future
 font2=pagga
@@ -604,6 +592,21 @@ while (( "$#" > 0 )); do
         shift 2
       else
         printf 'Error: -l requires a numerical argument.\n'
+        exit 1
+      fi
+    fi
+  elif [[ "$1" =~ ^-b[0-9]+$ || "$1" = -b ]]; then
+    if [[ "$1" =~ ^-b([0-9]+)$ ]]; then
+    args+=("$1")
+      blocklimit="${BASH_REMATCH[1]}"
+      shift
+    elif [[ "$1" = -b ]]; then
+      args+=("$1" "$2")
+      if [[ "$2" =~ ^[0-9]+$ ]]; then
+        blocklimit="$2"
+        shift 2
+      else
+        printf 'Error: -b requires a numerical argument.\n'
         exit 1
       fi
     fi
