@@ -1,5 +1,6 @@
 #!/bin/bash
-. /usr/local/bin/editscript
+. mpdignore.functions
+# . /usr/local/bin/editscript ##sourced from .mpdignore.functions
 
 MPD_SOCK="/var/run/mpd/socket"
 tputlines=$(tput lines)
@@ -419,20 +420,89 @@ cleanup() {
     exit 0
 }
 
+help() {
+  printf '%s\n' "\
+Usage: $(filename $0) [options] [bound1] [bound2]
+
+Options:
+  --edit                 Launch edit script and exit
+  -v, --verbose          Enable verbose output
+  --mono                 Disable color output
+  -l, --limit, --linger  Set linger/limit limit ([NUM]:-4 songs)
+  --mpdlinger            Enable automatic exit to mpdlinger
+  -s, --screen[ed]       Enable screened output
+  -h, --help             Show this help and exit
+
+Arguments:
+  NUM                    Optional numeric bounds (1 or 2 values)"
+}
+
+bounds(){
+  local bound0 pllength plpos
+  pllength=$(mpc status %length%)
+  plpos=$(mpc status %songpos%)
+
+  if [[ -t 0 ]]; then
+    [[ -z "$bound1" ]] && read -rp "$bgblue$bold  Enter track number bound or enter for current position ($plpos): " bound1
+    [[ -z "$bound1" ]] && bound1="$plpos"
+
+    [[ -z "$bound2" ]] && read -rp "$bgblue$bold  Enter track number bound or enter for end of playlist ($pllength): " bound2
+    [[ -z "$bound2" ]] && bound2="$pllength"
+
+    (( verbose )) && printf -- '-----------------------------------------------\n' >> "$mpdxylog"
+    (( verbose )) && printf 'bound1 initial: %s\nbound2 initial: %s\n' "$bound1" "$bound2" >> "$mpdxylog"
+
+    ! (( bound2 > bound1 )) && { bound0="$bound1"; bound1="$bound2"; bound2="$bound0";
+            (( verbose )) && printf 'bound1 corrected: %s\n' "$bound1" >> "$mpdxylog"; }
+
+    (( bound2 > pllength )) && { bound2="$pllength";
+            (( verbose )) && printf 'bound2 corrected: %s\n' "$bound2" >> "$mpdxylog"; }
+  else
+    bound1="$plpos"
+    bound2="$pllength"
+  fi
+}
+
+
 trap cleanup SIGINT
 color=1
 
+args=( mpd.xy )
+
 while (( $# )); do
-  [[ "$1" = --edit ]] && editscript && exit
+  [[ "$1" = --edit ]] && { editscript; exit; }
+  [[ "$1" = @(-h|--help) ]] && { help; exit; }
   [[ "$1" = @(-v|--verbose) ]] && { args+=("$1"); verbose=1; shift; continue; }
   [[ "$1" = --mono ]] && { args+=("$1"); unset color; shift; continue; }
-  [[ "$1" = @(--limit|--linger|-l) ]] && { args+=("$1" "$2"); lingerl="$2"; linger=1; shift 2; continue; }
   [[ "$1" = @(--mpd-linger|--mpdlinger) ]] && { args+=("$1"); mpdlinger=1; shift; continue; }
-  [[ "$1" =~ ^[[:digit:]]+$ ]] && { args+=("$1"); bound1="$1"; shift; continue; }
-  [[ "$1" =~ ^[[:digit:]]+$ ]] && { args+=("$1"); bound2="$1"; shift; continue; }
-  [[ "$1" = @(-s|--screen@(|ed)) ]] && { args+=(-s); screened=1; shift; continue; }
+  [[ "$1" =~ ^[[:digit:]]+$ ]] &&
+             { if [[ ! "$bound1" ]]; then bound1="$1"
+               elif [[ ! "$bound2" ]]; then bound2="$1"
+               fi;  args+=("$1"); shift; continue; }
+  [[ "$1" = @(-s|--screen@(|ed)) ]] && { screenname="mpd.xy-$(date -Im)"; shift; continue; }
+  [[ "$1" = @(--limit|--linger|-l) ]] &&
+             { if [[ "$2" =~ ^[0-9]{1,2}$ ]]; then lingerl="$2"; shift;
+               else lingerl=4; fi; linger=1; args+=(-l "$lingerl"); shift; continue; }
   { printf 'CLI input not recognized, continuing anyway...\n'; shift; continue; }
 done
+
+if [[ "$screenname" ]]; then
+  (( verbose )) && pause "$screenname"
+  hr2 "$bold Calling mpd.xy to GNU screen $tput0"
+  printf \\n
+  bounds
+
+## bound1 & bound2 can stay in args for other reasons, but pass them via env variables
+## regardless of their presence in $args as they won't be processed as cli args inside screen
+
+  args=(env bound1="$bound1" bound2="$bound2" "${args[@]}")
+
+  [[ -d "$musicdir" ]] && cd "$musicdir" || cd "$HOME" || cd /
+  printf \\n\\n
+  screen -dmS "${screenname:0:26}" "${args[@]}"
+  screen -ls
+  exit
+fi
 
 
 (( color )) && printf '\033[48;5;4m\033[2J'
@@ -469,28 +539,32 @@ parse_mpd_response --random="$random" <<< "$mpdcout"
 
 #mpdc 'currentsong\nstatus'|parse_mpd_response
 
-pllength=$(mpc status %length%)
-plpos=$(mpc status %songpos%)
-
 tput cup 15 0
 
-[[ -z "$bound1" ]] && read -rp "$bgblue$bold  Enter track number bound or enter for current position ($plpos): " bound1
-[[ -z "$bound1" ]] && bound1="$plpos"
+#pllength=$(mpc status %length%)
+#plpos=$(mpc status %songpos%)
+#
+#[[ -z "$bound1" ]] && read -rp "$bgblue$bold  Enter track number bound or enter for current position ($plpos): " bound1
+#[[ -z "$bound1" ]] && bound1="$plpos"
+#
+#
+#[[ -z "$bound2" ]] && read -rp "$bgblue$bold  Enter track number bound or enter for end of playlist ($pllength): " bound2
+#[[ -z "$bound2" ]] && bound2="$pllength"
+#
+#(( verbose )) && printf -- '-----------------------------------------------\n' >> "$mpdxylog"
+#(( verbose )) && printf 'bound1 initial: %s\nbound2 initial: %s\n' "$bound1" "$bound2" >> "$mpdxylog"
+#(( verbose && linger )) && printf 'linger enabled: linger=%s; lingerl=%s\n' "$linger" "$lingerl" >> "$mpdxylog"
+#
+#! (( bound2 > bound1 )) &&
+#   bound0="$bound1" &&
+#   bound1="$bound2" &&
+#   bound2="$bound0"
+#
+#(( bound2 > pllength )) && bound2="$pllength"
 
+bounds
 
-[[ -z "$bound2" ]] && read -rp "$bgblue$bold  Enter track number bound or enter for end of playlist ($pllength): " bound2
-[[ -z "$bound2" ]] && bound2="$pllength"
-
-(( verbose )) && printf -- '-----------------------------------------------\n' >> "$mpdxylog"
-(( verbose )) && printf 'bound1 initial: %s\nbound2 initial: %s\n' "$bound1" "$bound2" >> "$mpdxylog"
 (( verbose && linger )) && printf 'linger enabled: linger=%s; lingerl=%s\n' "$linger" "$lingerl" >> "$mpdxylog"
-
-! (( bound2 > bound1 )) &&
-   bound0="$bound1" &&
-   bound1="$bound2" &&
-   bound2="$bound0"
-
-(( bound2 > pllength )) && bound2="$pllength"
 
    rand="$(genrandom "$bound1" "$bound2")"
 ###   mpc move "$rand" "$bound1"
@@ -509,7 +583,7 @@ lingerc=0
 : "${lingerl:=0}"
 
 for ((i=bound1; i<=bound2; i++)); do
-   printf 'bound1=%s\nbound2=%s\n' > "$mpdxyout"
+   printf 'bound1=%s\nbound2=%s\n' >> "$mpdxyout"
    mpdcout="$(mpdc 'random 0' 2>&1)"
    pllength="$(mpc status %length%)"
    id="$(mpc current -f %id%)"
@@ -520,18 +594,18 @@ for ((i=bound1; i<=bound2; i++)); do
    #turn random on here so that the next song output is correct; set end so it doesn't get turned off in the while loop
    (( bound1 == bound2 )) && end=true && unset mpdcout && mpdcout=( "$(mpdc 'random 1' 2>&1)" )
 
-(( verbose )) && printf 'bound1 == bound2 check: (( %s == %s )) = %s\nmpdcout: ' "$bound1" "$bound2" "$(( bound1 == bound2 ))" >>"$mpdxylog"
-(( verbose )) && printf %s\\n "${mpdcout[@]}" >>"$mpdxylog"
+(( verbose )) && printf 'bound1 == bound2 check: (( %s == %s )) = %s\nmpdcout: ' "$bound1" "$bound2" "$(( bound1 == bound2 ))" >> "$mpdxylog"
+(( verbose )) && printf %s\\n "${mpdcout[@]}" >> "$mpdxylog"
 (( verbose )) && printf '$bound2 after decrement %s\n' "$bound2" >>"$mpdxylog"
-(( verbose )) && mpc status "songpos %songpos%" >>"$mpdxylog"
-(( verbose )) && printf 'mpc move %s %s\n' "$rand" "$(( bound1 + 1 ))" >>"$mpdxylog"
+(( verbose )) && mpc status "songpos %songpos%" >> "$mpdxylog"
+(( verbose )) && printf 'mpc move %s %s\n' "$rand" "$(( bound1 + 1 ))" >> "$mpdxylog"
 (( verbose && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl"
    (( lingerc > lingerl )) && lingerc=0 && true
 ## need to add a check to make sure that ! $rand > $bound2:
 ## (( rand > bound2 )) && rand="$bound2"
    mpc move "$rand" "$(( bound1 + 1 ))"
-(( verbose && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl" >>"$mpdxylog"
-(( verbose )) && mpc status %songpos% >>"$mpdxylog"
+(( verbose && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl" >> "$mpdxylog"
+(( verbose )) && mpc status %songpos% >> "$mpdxylog"
    queued="$(mpc queued -f %file%)"
 
    mpdc 'currentsong\nstatus'|parse_mpd_response
@@ -572,8 +646,10 @@ if [[ "$(mpc status %state%)" =~ (stopped|paused) ]]; then
   mpc play >/dev/null
 fi
 
-rm "$mpdxyout" "$mpdxylog" 2>/dev/null
+#rm "$mpdxyout" "$mpdxylog" 2>/dev/null
 
-(( mpdlinger )) && exec mpdlinger -s
+(( mpdlinger )) &&  mpdlingerargs=(mpdlinger)
+(( screened )) && mpdlingerargs=(-s)
+[[ mpdlingerargs ]] && exec "${mpdlingerargs[@]}"
 
 exit 0

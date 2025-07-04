@@ -33,7 +33,7 @@ remote() {
   mpchost="${mpchost/ssh/music}"
   exec ssh -YCttvp"$sshport" "$mpchost" \
     cd "${rpwd@Q}"\; \
-    picard -e cluster -e lookup clustered -- "${path[@]}"
+    picard -e cluster -e lookup clustered -- "${path[@]}" &
 }
 
 if [[ "$HOSTNAME" == gigabyte ]]; then
@@ -44,7 +44,7 @@ fi
 
 case "$answer" in
   [Ll])
-    exec picard -e cluster -e lookup clustered -- "${path[@]}"
+    exec picard -e cluster -e lookup clustered -- "${path[@]}" &
     ;;
   [Ss])
     remote

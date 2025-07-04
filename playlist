@@ -257,10 +257,13 @@ fi
                 new_term=$(gum input --placeholder "Enter search term")
                 exec playlist "$new_term"
                 ;;
-            "Exit or ^C again") exit 0 ;;
+            "Exit") exit 130 ;;
+            "Exit or ^C again") exit 130 ;;
         esac
     fi
 }
+
+(( "$ec" == 130 )) && exit 130
 
 ! (( n )) && printf 'Exiting.\n' && exit 1
 

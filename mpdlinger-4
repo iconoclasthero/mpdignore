@@ -1,9 +1,11 @@
 #!/bin/bash
 #probably should source confirm up here.
+#sourcefn /usr/local/bin/mpdignore.functions hr2
+. mpdignore.functions
 shopt -s extglob nullglob
 #verbose=1
 { (( verbose )) || [[ "$1" != --exec ]] ; } && printf '%s has started.\n' "$0"
-(( verbose )) && printf 'prevlimit=%s\nblocklimiton=%s\nblocklimit=%s\nlimit=%s\ncount=%s\n' "$0" "$prevlimit" "$blocklimiton" "$blocklimit" "$limit" "$count"
+(( verbose )) && printf '\n           0 = %s\n   prevlimit = %s\nblocklimiton = %s\n  blocklimit = %s\n       limit = %s\n       count = %s\n          $* = %s\n\n' "$0" "$prevlimit" "$blocklimiton" "$blocklimit" "$limit" "$count" "$*"
 pidfile='/tmp/mpdlinger.pid'
 cmdfile='/tmp/mpdlinger.cmd'
 countfile='/tmp/mpdlinger.count'
@@ -18,23 +20,111 @@ trap 'pkill mpc; pkill -g $mpdlingerpid lolcat; ipchandler' USR2
 [[ -f "$pidfile" ]] &&
    { mpdlingerpid="$(< "$pidfile")"; pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; }
 
+if [[ ! -f "$pidfile" ]]; then
+  (( verbose )) && printf 'pid of this process: $$ = %s\n' "$$"
+#  pgid2=$(ps -o pgid= -p $$ | tr -d ' ')
+#
+#  pgrepout=$(pgrep -a mpdlinger | grep -Ev -- "$$|--edit"| awk '{print $1}' |
+#             while read -r pid; do
+#               pidpgid="$(ps -o pgid= -p "$pid" | tr -d ' ')"
+#               [[ "$pidpgid" != "$pgid2" ]] && echo "$pid"
+#             done)
+#
+#  (( verbose )) && printf -- '--\n %s\n--\n' "$pgrepout"
+#
+#  if [[ "$pgrepout" ]]; then
+#    printf 'A pid for mpdlinger was identified without a corresponding %s!\nThis indicates that the pidfile has been somehow misplaced...\nOutput of '\''pgrep mpdlinger -a|grep -Ev -- "$$|--edit"'\'':\n' "$pidfile"
+#    readarray -t pgreplines < <(pgrep mpdlinger -a | grep -Ev -- "$$|--edit")
+
+  readarray -t pgrepout < <(pgrep mpdlinger -a | grep -Ev -- "$$|--edit")
+  pgid2=$(ps -o pgid= -p $$ | tr -d ' ')
+
+  (( verbose )) && printf %s\\n "$pgid2"
+
+#  for i in "${pgrepout[@]}"; do
+#    pid="${i%% *}"  # pid is first field before first space
+#    pidpgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
+#    if [[ "$pidpgid" != "$pgid2" ]]; then
+#      pgreplines+=("$i")
+#    fi
+#  done
+
+
+#for i in "${pgrepout[@]}"; do
+#  pid="${i%% *}"  # pid is first field before first space
+#  pidpgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
+#  (( verbose )) && echo "\$pgid $pgid"
+#  printf 'pid=%s  pidpgid=%s  ourpgid=%s  cmd=%s\n' "$pid" "$pidpgid" "$pgid2" "$i"
+#  if [[ "$pidpgid" != "$pgid2" ]]; then
+#    pgreplines+=("$i")
+#  fi
+#done
+
+  for i in "${pgrepout[@]}"; do
+    unset pidpgid
+    pid="${i%% *}"  # pid is first field before first space
+    pidpgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
+    (( verbose )) && printf 'pid=%s  pidpgid=%s  ourpgid=%s  cmd=%s\n' "$pid" "$pidpgid" "$pgid2" "$i"
+    if [[ "$pidpgid" && "$pidpgid" != "$pgid2" ]]; then
+      pgreplines+=("$i")
+    fi
+  done
+
+
+  (( verbose )) && { printf -- --\\n; printf %s\\n "${pgreplines[@]}"; printf -- --\\n; }
+
+  if (( ${#pgreplines[@]} )); then
+    printf '\n[%sWARN%s] A pid for mpdlinger was identified without a corresponding %s!\n[%sWARN%s] This indicates that the pidfile has been somehow misplaced...\n\nOutput of '\''%spgrep mpdlinger -a|grep -Ev -- "$$|--edit"%s'\'':\n' "$yellow" "$tput0" "$pidfile" "$yellow" "$tput0" "$blue" "$tput0"
+    printf %s "$blue"
+    if (( ${#pgreplines[@]} > 1 )); then
+      mpdlingerpid="$(printf '%s\n' "${pgreplines[@]}" | gum choose)"
+      mpdlingerpid="${mpdlingerpid%% *}"
+    else
+      printf %s\\n "${pgreplines[0]}"
+      mpdlingerpid="${pgreplines[0]%% *}"
+    fi
+    printf %s "$tput0"
+
+    printf \\n
+    confirm -Y "${red}Write pid $mpdlingerpid to $pidfile?${tput0}" &&
+            { printf '%s\n' "$mpdlingerpid" > "$pidfile"
+              pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; } ||
+            { printf '\nFailed to determine a pid for the daemon. Investigate. (exit 1)\n\n'; exit 1; }
+
+#    while read -r i; do [[ "$i" = *.mpdlinger* ]] && screenls="$i"; done < <(screen -ls|awk '{print $1}')
+#    [[ "$screenls" ]] && { printf 'Calling sc...\n'; sc; }
+#    printf 'I think we should exit here. (exit 0)\n'
+#    exit 0
+   fi
+fi
+
+
 startupcheck(){
+  (( verbose )) && printf 'In %s.\n' "${FUNCNAME[0]}"
   readarray -t pids < <(pgrep mpdlinger)
   for i in "${!pids[@]}"; do
     [[ "$(ps -p "${pids[i]}" -o command --no-header)" = *\ --edit* ]] && unset 'pids[i]'
   done
+
 ## this compacts the array in the event that something was removed above:
+
   pids=("${pids[@]}")
+  (( verbose )) && printf '${pids[@]} = %s\n' "${pids[@]}"
+  (( verbose )) && printf '$mpdlingerpid = %s\n' "$mpdlingerpid"
+  (( verbose )) && printf 'ps -p %s = %s\n' "$mpdlingerpid" "$(ps -p $mpdlingerpid)"
 
   if (( mpdlingerpid )) && ps -p "$mpdlingerpid" >/dev/null && screenpid="$(screen -ls|\grep -m1 mpdlinger)"; then
     printf '\nAn instance of mpdlinger is already running in a screen process:\n%s\n' "$screenpid"
     printf '\nAttempting to resume screen...\n\n'
     exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
     printf 'Unable to reattach to the screen that mpdlinger is running on.\n'
-    confirm -Y 'Try to reattach with "screen -x" to attemt attaching to a non-detatched screen?' && exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
+    confirm -Y 'Try to reattach with "screen -x" to attemt attaching to a non-detatched screen?' &&
+      exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
     printf 'Reattachment to screen aborted or failed.\nExiting (exit 1)\n.'
     exit 1
+
 ## this elif is probably unnecessary and if there's no use for it, it should be removed...
+
   elif (( mpdlingerpid )) && ps -p "$mpdlingerpid" >/dev/null; then
     [[ "$(ps -o stat= -p "$mpdlingerpid")" = "S" ]] && background=1
     printf 'An instance of mpdlinger is already running (not in a named screen process):\n'
@@ -49,45 +139,10 @@ startupcheck(){
     printf %s\\n "$mpdlingerpid" > "$pidfile"
  #   [[ -f "$cmdfile" ]] && rm "$cmdfile"
   fi
+
+ (( verbose )) && printf 'Leaving %s...' "${FUNCNAME[0]}"
 }
-
-(( verbose )) && printf %s\\n "$@"
-
-[[ "$1" != @(--edit|--exec) && "$@" != @(*pause*|*resume*|*next*|*quit*|*limit*|*count*|*blocklimit*) ]] && startupcheck
-
-
-#----------------- CLI IPC WRAPPER -----------------#
-# Usage:
-#   mpdlinger pause
-#   mpdlinger resume
-#   mpdlinger quit
-#   mpdlinger limit N
-#   mpdlinger count N
-#   mpdlinger blocklimit N
-
-if [[ "$1" =~ ^(pause|resume|quit|limit|count|blocklimit|next)$ ]]; then
-  ipccmd="$1"
-  shift
-  case "$ipccmd" in
-    pause|resume|quit|next)
-      echo "$ipccmd" > "$cmdfile"
-      ;;
-    limit|count|blocklimit)
-      echo "$ipccmd $1" > "$cmdfile"
-      ;;
-    *)
-      echo "Unknown command"
-      exit 1
-      ;;
-  esac
-  (( verbose )) && printf 'kill -USR2 %s\n' "$mpdlingerpid"
-  [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
-  kill -USR2 "$mpdlingerpid"
-  pkill -g "$pgid" mpc
-  pkill -g "$pgid" lolcat
-  exit 0
-fi
-#---------------------------------------------------#
+##--> startupcheck() <--#######################################################################
 
 ipchandler(){
   local cmd
@@ -131,6 +186,9 @@ ipchandler(){
       mpcp -q random off
       exec mpdlinger --exec
       ;;
+    verbose)
+      exec env verbose=1 mpdlinger --exec -c"$count" -l"$limit"
+      ;;
     limit\ *)
       limit="${cmd#limit }"
       echo "Limit set to $limit via CLI"
@@ -157,8 +215,6 @@ ipchandler(){
 ##--> ipchandler() <--###########################################################################
 
 
-#sourcefn /usr/local/bin/mpdignore.functions hr2
-. mpdignore.functions
 
 pauseloop(){
   pauseout(){
@@ -301,29 +357,40 @@ showhelp(){
   cat <<EOF
 Usage: $0 [options]
 
+$(hr2 "CLI IPC Wrapper")
+Usage:
+  mpdlinger pause              Suspends mpdlinger function
+  mpdlinger resume             Resumes mpdlinger function
+  mpdlinger next               Moves to the next block of songs
+  mpdlinger skip               Skips currently-playing song?
+  mpdlinger limit <num>        Changes the global limit to <num>
+  mpdlinger count <num>        Updates the count of played songs for current block to <num>
+  mpdlinger blocklimit <num>   Changes the limit for current block to <num>
+  mpdlinger quit               Should terminate any current mpdlinger daemons
+
+$(hr2 "CLI Launch Flags")
+NB: These are probably exclusively for internal control at this point.
+
 Options:
   -p              Pause the process.
   --off, --on     Initialize with a random value, setting the state to 'off' or 'on'.
-  -c <number>     Set the count to the specified number. If no argument is provided after -c, the script expects a numeric value.
-  next            Move to the next block of operations.
-  <number>        Set a limit to the specified numeric value.
+  -c <num>        Set the count to the specified number. If no argument is provided after -c, the script expects a numeric value.
+  -l <num>        Set the count to the specified number. If no argument is provided after -c, the script expects a numeric value.
 
 Description:
   - The -p flag pauses the process.
   - The --off or --on flags initialize a random state.
-  - The -c flag sets the count to the specified number. If -c is used without an argument, the next argument must be a number.
-  - The 'next' option advances to the next block.
-  - A numeric value after the command sets a limit.
+  - The -c|-l flags set the count|limit, respectively, to the specified number.
 
 Error:
-  - If -c is used without a valid number, an error message is displayed.
+  - If -c|-l are used without a valid number, an error message is displayed.
 
 Examples:
-  $0 -p                 # Pauses the process.
-  $0 --on               # Initializes with the 'on' state.
-  $0 -c 5               # Sets the count to 5.
-  $0 next               # Moves to the next block.
-  $0 10                 # Sets the limit to 10.
+  $(basename $0) -p                  Pauses the process.
+  $(basename $0) --on                Initializes with the 'on' state.
+  $(basename $0) -c 5                Sets the count to 5.
+  $(basename $0) -l 10               Sets the limit to 10.
+
 EOF
 }
 ##--> showhelp() <--############################################################################
@@ -424,22 +491,6 @@ getpids(){
 ##--> getpids() <--############################################################################
 
 
-## this can probably be deleted Mon Jun 30 01:49:39 PM EDT 2025
-nextblock(){
-#  local pid=( $(ps aux|grep '[m]pdlinger'|grep -Ev nano\|mpdlinger\ e|awk '{print $2}') )
-  getpids
-  printf 'next' > "$cmdfile"
-  mpcp -q random on
-  read -rp "read -rp: pids[0]: ${pids[0]}; mpdlingerpid: $mpdlingerpid"
-  kill -USR2 "$mpdlingerpid"
-  mpcp -q next
-  mpcp -q random off
-  exit
-}
-##--> nextblock() <--#######################################################################
-
-
-
 #═══════▶ MAIN CODE ◀════════════════════════════════════════════════════════
 #fonts are in /usr/share/figlet
 font1=future
@@ -460,6 +511,42 @@ lolargs+=(-s 13)
 lolargs+=(-F 0.075)
 
 
+ipcargs=(pause resume next skip quit limit count blocklimit verbose)
+ipc1args=(pause resume next skip quit)
+ipc2args=(limit count blocklimit)
+
+#[[ "$1" != @(--edit|--exec|--help|-h|help) && "$@" != @(*pause*|*resume*|*next*|*quit*|*limit*|*count*|*blocklimit*|*verbose*) ]] && startupcheck
+#[[ "$1" != @(--edit|--exec|--help|-h|help) && " ${ipcargs[*]} "!= *" $@ "* ]] && startupcheck
+[[ "$1" != @(--edit|--exec|--help|-h|help) && " ${ipcargs[*]} " != *" $1 "* ]] && startupcheck
+
+#if [[ "$1" =~ ^(pause|resume|quit|limit|count|blocklimit|next|skip)$ ]]; then
+if [[ " ${ipcargs[*]} " = *" $1 "* ]]; then
+  ipccmd="$1"
+  shift
+  [[ "$1" =~ ^[0-9]+$ ]] && ipcval="$1" && shift
+
+  if (( $# )); then
+    printf 'The IPC wrapper accepts EXACTLY ONE of the following cli arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipcargs[*]}")" "$*"
+    set --
+  elif [[ " ${ipc1args[*]} " = *" $ipccmd " ]] && [[ "$ipcval" ]]; then
+    printf 'These IPC wrapper commands do not accept numeric arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipc1args[*]}")" "$ipcval"
+    unset ipcval
+  elif [[ " ${ipc2args[*]} " = *" $ipccmd " ]] && [[ ! "$ipcval" ]]; then
+    printf 'These IPC wrapper commands require a numeric argument:\n%s' "$(IFS=\|; printf '%s' "${ipc2args[*]}")"
+    exit 1
+  fi
+
+  printf '%s%s\n' "$ipccmd" "${ipcval:+ $ipcval}" > "$cmdfile"
+
+  (( verbose )) && printf 'kill -USR2 %s\n' "$mpdlingerpid"
+  [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
+  kill -USR2 "$mpdlingerpid"
+  pkill -g "$pgid" mpc
+  pkill -g "$pgid" lolcat
+  exit 0
+fi
+#---------------------------------------------------#
+
 unset initrand
 unset paused
 #limit=4
@@ -472,8 +559,6 @@ while (( "$#" > 0 )); do
   if [[ "$1" = @(-s|--screen@(|ed)) ]]; then
     screenname="mpdlinger-$(date -Im)"
     shift
-##  this break is probably incorrect here:
-##    break
   elif [[ "$1" = --exec ]]; then
     (( verbose )) && printf 'mpdlinger called with --exec option for internal control.\n'
     execoption=1
@@ -482,19 +567,19 @@ while (( "$#" > 0 )); do
     args+=("$1")
     paused=1
     shift
-  elif [[ "$1" = @(|-|--)?(h|elp) ]]; then
+  elif [[ "$1" =~ ^(-h|--help|help)$ ]]; then
     showhelp
     exit 0
   elif [[ "$1" =~ (--off|--on) ]]; then
     args+=("$1")
     initrand="${1#--}"
     shift
-  elif [[ "$1" =~ ^-c[0-9]+$ || "$1" = "-c" ]]; then
+  elif [[ "$1" =~ ^-c[0-9]+$ || "$1" = -c ]]; then
     if [[ "$1" =~ ^-c([0-9]+)$ ]]; then
       args+=("$1")
       count="${BASH_REMATCH[1]}"
       shift
-    elif [[ "$1" = "-c" ]]; then
+    elif [[ "$1" = -c ]]; then
       args+=("$1" "$2")
       if [[ "$2" =~ ^[0-9]+$ ]]; then
         count="$2"
@@ -509,17 +594,12 @@ while (( "$#" > 0 )); do
       export count
       kill -USR1 "$mpdlingerpid"
     fi
-  elif [[ "$1" = next ]]; then
-    printf '[ERROR] This branch of the 2nd argument handling block should never be reached.\n'
-#    args+=("$1")
-#    nextblock
-#    exit
-  elif [[ "$1" =~ ^-l[0-9]+$ || "$1" = "-l" ]]; then
+  elif [[ "$1" =~ ^-l[0-9]+$ || "$1" = -l ]]; then
     if [[ "$1" =~ ^-l([0-9]+)$ ]]; then
     args+=("$1")
       limit="${BASH_REMATCH[1]}"
       shift
-    elif [[ "$1" = "-l" ]]; then
+    elif [[ "$1" = -l ]]; then
       args+=("$1" "$2")
       if [[ "$2" =~ ^[0-9]+$ ]]; then
         limit="$2"

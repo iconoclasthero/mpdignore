@@ -34,6 +34,7 @@ export TERM
      italics="$(tput -T $TERM sitm)"
         ritm="$(tput -T $TERM ritm)"
       yellow="$(tput -T $TERM setaf 214)"
+       green="$(tput -T $TERM setaf 10)"
         blue="$(tput -T $TERM setaf 33)"
 
 mpdc(){
