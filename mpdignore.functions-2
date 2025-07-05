@@ -414,7 +414,7 @@ sec2sex() {
   fi
 }
 
-hr2() {
+hr2(){
   local width="$(tput -T $TERM cols)"
   local status="$1"
   local left_padding="${2:-22}"
@@ -422,10 +422,11 @@ hr2() {
   local right_dashes=$(printf -- '%.0s—' $(seq 1 "$((width - left_padding - ${#status} - 2))"))
   printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
 }
+##--> hr2() <--###########################################################################
 
 
 
-hr2() {
+hr2(){
   local width="$(tput -T $TERM cols)"
   local status=""
   local left_padding=22
@@ -460,6 +461,7 @@ hr2() {
 
   printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
 }
+##--> hr2() <--###########################################################################
 
 
 [[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript

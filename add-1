@@ -1,0 +1,43 @@
+#!/bin/bash
+
+. /usr/local/bin/editscript
+. "$HOME/.config/mpd-local.conf"
+
+mpccmd=( mpc -h "$mpdpass@$mpchost" )
+
+#. <(mpd-current.py) #using mpc instead.
+
+#[[ "$1" = . || "$1" = .\/* && "$1" != *\** ]] && set -- "$(realpath --relative-to "$musicdir" "$1")" "${@:2:}"
+
+while [[ "$@" ]]; do
+  [[ "$1" = .* ]] && chkadd+="$(realpath --relative-to "$musicdir" "$1" 2>/dev/null)" || failadd+="$1"
+  shift
+done
+
+for ((i=0; i<"${#chkadd[@]}"; i++ )); do
+  [[ -e "$i" ]] && addpath+="$i"
+done
+
+
+pause "$(printf %s\\n "$@")"
+startlength="$("${mpccmd[@]}" status %length%)"
+addout="$("${mpccmd[@]}" add "$@")"; ec="$?"
+
+printf \\n
+printf %s\\n "${addout[@]}"
+printf \\n
+
+if (( ec )); then
+  errorout="${addout##*: }"
+  addfail="${addout%:*}"
+  addfail="${addout#error adding }"
+  addout="Error adding \${boldred}$addfail\$tput0: $error"
+  mpctitle -t "$addout" -h "Error: Failed to add files..."
+#  mpctitle -h "Error: Failed to add files..."
+else
+  printf 'Previos playlist lentgth: %s\nItem(s) added: %s\n' "$startlength" "${@:1:1}"
+  [[ "${@:2:1}" ]] && printf '               %s\n' "${@:2}"
+  endlength="$("${mpccmd[@]}" status %length%)"
+  exec mpctitle -h "playlist: $startlength > $endlength"
+fi
+exit 0

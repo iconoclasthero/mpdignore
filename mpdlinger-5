@@ -12,7 +12,7 @@ countfile='/tmp/mpdlinger.count'
 #verbose=1
 
 { (( verbose )) || [[ "$1" != --exec ]] ; } && printf '%s has started.\n' "$0"
-(( verbose )) && printf '\n           0 = %s\n   prevlimit = %s\nblocklimiton = %s\n  blocklimit = %s\n       limit = %s\n       count = %s\n          $* = %s\n\n' "$0" "$prevlimit" "$blocklimiton" "$blocklimit" "$limit" "$count" "$*"
+(( verbose )) && printf '\n           0 = %s\n   prevlimit = %s\n  blocklimit = %s\n       limit = %s\n       count = %s\n          $* = %s\n\n' "$0" "$prevlimit" "$blocklimit" "$limit" "$count" "$*"
 
 # Signal traps
 ## If you want the variables like $count and $(...) to be evaluated when the trap is triggered, not when it's defined, you should use single quotes.
@@ -113,7 +113,7 @@ ipchandler(){
       (( verbose )) && printf "read -rp: pids[0]: ${pids[0]}; mpdlingerpid: $mpdlingerpid\n"
       next >/dev/null
       mpcp -q random off
-      unset blocklimit blocklimiton
+      unset blocklimit
 ##    exec mpdlinger --exec
 ## i think i want to pass the prevlimit if it exists when I skip if
 ## blocklimit's on and in the event that i'm not running with limit=default
@@ -128,18 +128,19 @@ ipchandler(){
     limit\ *)
       limit="${cmd#limit }"
       echo "Limit set to $limit via CLI"
-      exec mpdlinger --exec -c"$count" -l"$limit"
+      exec env verbose=1 mpdlinger --exec -c"$count" -l"$limit"
       ;;
     count\ *)
       count="${cmd#count }"
       echo "Count set to $count via CLI"
+      exec env verbose=1 mpdlinger --exec -c"$count" -l"$limit"
       ;;
     blocklimit\ *)
       blocklimit="${cmd#blocklimit }"
       prevlimit="${prevlimit:-$limit}"
-      export blocklimiton=1 blocklimit prevlimit
+      export blocklimit prevlimit
       printf 'Block limit set to %s for one block via CLI.\n' "$blocklimit"
-      exec env limit="$blocklimit" count="$count" blocklimiton=1 prevlimit="$prevlimit" mpdlinger --exec -c"$count" -l"$blocklimit"
+      exec env verbose=1 blocklimit="$blocklimit" limit="$blocklimit" count="$count" prevlimit="$prevlimit" mpdlinger --exec -c"$count" -l"$blocklimit"
       ;;
     *)
       # Default to legacy behavior if no command found or unknown
@@ -240,9 +241,9 @@ mainmenu(){
         ipchandler
         ;;
       "Change current block limit")
-        printf 'This has not been implemented yet.\n'
+        printf 'This has not been implemented yet?\n'
         read -p "Change limit for current block to: " blocklimit &&
-          printf "$blocklimit" > /tmp/mpdlinger.cmd
+          printf blocklimit\ %s\\n "$blocklimit" > /tmp/mpdlinger.cmd
         printf 'Current block limit changed to %s.\n' "blocklimit $blocklimit"
         ipchandler
         ;;
@@ -480,22 +481,17 @@ font2="$font1"
 [[ "$STY" ]] && unset COLORTERM
 lolargs=(lolcat)
 [[ "$STY" ]] && lolargs+=(-ap 2) || lolargs+=(-tap 2)
-#  -F, --freq=<f>        Rainbow frequency (default: 0.1)
-#  -d, --duration=<i>    Animation duration (default: 12)
-#  -s, --speed=<f>       Animation speed (default: 20.0)
-#lolargs+=(-d 08)
-#lolargs+=(-s 15)
-lolargs+=(-d 06)
-lolargs+=(-s 13)
+##  -F, --freq=<f>        Rainbow frequency (default: 0.1)
+##  -d, --duration=<i>    Animation duration (default: 12)
+##  -s, --speed=<f>       Animation speed (default: 20.0)
+lolargs+=(-d 06) #lolargs+=(-d 08)
+lolargs+=(-s 13) #lolargs+=(-s 15)
 lolargs+=(-F 0.075)
-
 
 ipcargs=(pause resume next skip quit limit count blocklimit verbose)
 ipc1args=(pause resume next skip quit)
 ipc2args=(limit count blocklimit)
 
-#[[ "$1" != @(--edit|--exec|--help|-h|help) && "$@" != @(*pause*|*resume*|*next*|*quit*|*limit*|*count*|*blocklimit*|*verbose*) ]] && startupcheck
-#[[ "$1" != @(--edit|--exec|--help|-h|help) && " ${ipcargs[*]} "!= *" $@ "* ]] && startupcheck
 [[ "$1" != @(--edit|--exec|--help|-h|help) && " ${ipcargs[*]} " != *" $1 "* ]] && startupcheck
 
 #if [[ "$1" =~ ^(pause|resume|quit|limit|count|blocklimit|next|skip)$ ]]; then
@@ -522,6 +518,7 @@ if [[ " ${ipcargs[*]} " = *" $1 "* ]]; then
   kill -USR2 "$mpdlingerpid"
   pkill -g "$pgid" mpc
   pkill -g "$pgid" lolcat
+  [[ "$ipccmd" = next ]] && mpctitle
   exit 0
 fi
 #---------------------------------------------------#
@@ -560,8 +557,9 @@ while (( "$#" > 0 )); do
     args+=("$1")
     initrand="${1#--}"
     shift
-  elif [[ "$1" =~ ^-c[0-9]+$ || "$1" = -c ]]; then
-    if [[ "$1" =~ ^-c([0-9]+)$ ]]; then
+  elif [[ "$1" =~ ^-c([0-9]+)$ || "$1" = -c ]]; then
+#    if [[ "$1" =~ ^-c([0-9]+)$ ]]; then
+    if [[ "${BASH_REMATCH[1]}" ]]; then
       args+=("$1")
       count="${BASH_REMATCH[1]}"
       shift
@@ -575,14 +573,16 @@ while (( "$#" > 0 )); do
         exit 1
       fi
     fi
-    if [[ "$mpdlingerpid" ]]; then
-      echo "$count" > "$countfile"
-      export count
-      kill -USR1 "$mpdlingerpid"
-    fi
-  elif [[ "$1" =~ ^-l[0-9]+$ || "$1" = -l ]]; then
-    if [[ "$1" =~ ^-l([0-9]+)$ ]]; then
-    args+=("$1")
+#    if [[ "$mpdlingerpid" ]]; then
+#      echo "$count" > "$countfile"
+#      export count
+#      kill -USR1 "$mpdlingerpid"
+#      (( verbose )) && echo "count: $count"
+#    fi
+  elif [[ "$1" =~ ^-l([0-9]+)$ || "$1" = -l ]]; then
+#    if [[ "$1" =~ ^-l([0-9]+)$ ]]; then
+    if [[ "${BASH_REMATCH[1]}" ]]; then
+      args+=("$1")
       limit="${BASH_REMATCH[1]}"
       shift
     elif [[ "$1" = -l ]]; then
@@ -596,8 +596,9 @@ while (( "$#" > 0 )); do
       fi
     fi
   elif [[ "$1" =~ ^-b[0-9]+$ || "$1" = -b ]]; then
-    if [[ "$1" =~ ^-b([0-9]+)$ ]]; then
-    args+=("$1")
+#    if [[ "$1" =~ ^-b([0-9]+)$ ]]; then
+    if [[ "${BASH_REMATCH[1]}" ]]; then
+      args+=("$1")
       blocklimit="${BASH_REMATCH[1]}"
       shift
     elif [[ "$1" = -b ]]; then
@@ -693,7 +694,7 @@ while output=( $(\mpc idle playlist player) ); do
       count=0
       if (( blocklimit )); then
         limit="$prevlimit"
-        unset blocklimiton blocklimit
+        unset blocklimit
         printf 'Temporary block limit reached; restoring limit to %s.\nEnjoy the next rock block coming up right after %s!\n' "$limit" "$title"
       fi
     fi
