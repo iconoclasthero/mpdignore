@@ -271,6 +271,8 @@ selection="$i"
 i="${i%%\)*}"
 i="${i#*\(}"
 
+(( mpdxy )) && { printf %s\\n "$i"; exit 0; }
+
 $(pause "Play $selection, Y/n? ") && \mpc ${remote:-} play "$i"
 
 }

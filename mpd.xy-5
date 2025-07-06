@@ -1,0 +1,701 @@
+#!/bin/bash
+. mpdignore.functions
+# . /usr/local/bin/editscript ##sourced from .mpdignore.functions
+
+MPD_SOCK="/var/run/mpd/socket"
+tputlines=$(tput lines)
+mpdxylog="/tmp/mpd.xy.log"
+mpdxyout="/tmp/mpd.xy"
+
+(( verbose )) && pause "$tputlines"
+
+#playlist(){
+#  local width revarr playedarr playlistarray i k n path line ext action timestamp basename filepath mpccommand="playlist"
+#  [[ "$1" = current ]] && mpccommand="current" && lines=24 #maybe change this so that the number of lines can change...
+#
+#  n=0
+#  width="$(tput cols)"
+#  while read -r line; do
+#    timestamp="${line%% : *}"
+#    i="${line##* : player: }"
+#    action="${i%% *}"
+#    filepath="${i#*\"}"
+#    filepath="${filepath%\"*}"
+#    ext="${filepath##*.}"
+#    filepath="${filepath%.*}"
+#    basename="${filepath##*\/}"
+#
+#    if [[ "$basename" =~ .+\ --\ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+ ]]; then
+#      artist="${basename%% -- *}"
+#      ddtt="${basename%% - *}"; ddtt="${ddtt##* -- }"
+#      unset disc track
+#      [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt"
+#      song="${basename#* - }"
+#    elif [[ "$basename" =~ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+\ --\ .+ ]]; then
+#      artist="${basename%% -- *}"; artist="${artist#* - }"
+#      ddtt="${basename% - *}"
+#      unset disc track
+#      [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt"
+#      song="${basename#* -- }"
+#    else
+#      artist="$basename doesn't fit RegEx!"
+#      unset artist ddtt disc track song
+#    fi
+#
+#    path="${filepath%\/*}"
+#    k="$timestamp~$action~$artist~$song~$path~$ddtt"
+#    playedarr["$n"]="$k"
+#    ((n++))
+#  done < <(tail -n 2000 /var/log/mpd/mpd.log|\grep \:\ player\:|tail -n 20)
+#
+#  for ((n-1; n>=0; n--)); do
+#    [[ "${playedarr[$n]}" ]] && revarr+=("${playedarr[$n]}")
+#  done
+#
+#  # Read the playlist into an array
+#  readarray -t playlistarray < <(
+#    {
+#       if [[ "$mpccommand" = playlist ]]; then
+##          printf 'timestamp~action~artist~song~path~dd–tt~'
+##          printf \\n%s "${bgblue}"
+#          printf %s\\n "${revarr[@]:0:20}"
+#     elif [[ "$mpccommand" = current ]]; then
+#          printf '(-POS-)~title~albumartist~album~(dd-tt)~(mm:ss)~file\n'
+#          printf %s "${bgblue}"
+#          printf %s\\n "${revarr[@]:0:20}"
+#       fi
+#    } |
+#    awk -F '~' -v red="$red" -v green="$green" -v cyan="$cyan" -v magenta="$magenta" -v yellow="$yellow" -v white="$white" -v blue1="$blue1" -v tput0="$tput0" -v bold="$bold" -v bgblue="$bgblue" -v black="$black" -v tput0="$tput0" -v bgblack="$bgblack" '
+#function reverse_path(path) {
+#    n = split(path, components, "/")
+#    reversed = components[n]
+#    for (i = n - 1; i >= 1; i--) {
+#        reversed = reversed "/" components[i]
+#    }
+#    return reversed
+#}
+# function clean_artist(artist) {
+#        # Strip "with", "feat", and similar terms
+#        gsub(/ with .*| feat.*| ft.*/i, "", artist)
+#        return artist
+#    }
+#  {  if (NR == 1) {
+#        $1 = bgblue bold yellow "timestamp"
+##        $2 = bgblue bold green (length($2) > 40 ? substr($2, 1, 38) "…" : $2)
+#        $3 = bgblue bold white "artist"
+#        $4 = bgblue bold black "song"
+#        $5 = bgblue bold blue1 "reversed path"
+#        $6 = tput0 bgblue blue1 bold "dd-tt"
+##        $6 = bold blue1 "dd-tt"
+##        $6 = bgblue bold blue1 $6
+##        $1 = bgblue bold yellow $1
+###        $2 = bgblue bold green (length($2) > 40 ? substr($2, 1, 38) "…" : $2)
+##        $3 = bgblue bold white (length($3) > 30 ? substr($3, 1, 28) "…" : $3)
+##        $4 = bgblue bold black (length($4) > 30 ? substr($4, 1, 28) "…" : $4)
+##        $5 = bgblue bold blue1 $5
+##        $6 = bgblue bold blue1 (length($6) > 10 ? substr($6, 1, 8) "…" : $6)
+###        $6 = bgblue bold blue1 $6
+#        print $1 "~" $3 "~" $4 "~" $5 "~" $6 "~"
+#    } else {
+##        album_artist = $3
+##        primary_artist = $3
+##
+##        if (album_artist == "Various Artists") {
+##            primary_artist = clean_artist(primary_artist)
+##        }
+#
+#        $1 = bgblue ( $2 == "played" ? yellow : red ) $1
+##        $2 = bgblue ( $2 == "played" ? green : red ) (length($2) > 40 ? substr($2, 1, 38) "…" : $2)
+##        $3 = bgblue white (length(primary_artist) > 30 ? substr(primary_artist, 1, 28) "…" : primary_artist)
+#        $3 = bgblue white (length($3) > 30 ? substr($3, 1, 28) "…" : $3)
+#        $4 = bgblue black (length($4) > 30 ? substr($4, 1, 28) "…" : $4)
+#        $5 = bgblue blue1 (length(reverse_path($5)) > 70 ? substr(reverse_path($5), 1, 68) "…" : reverse_path($5))
+#        $6 = tput0 bgblue blue1 $6 bold
+#        print $1 "~" $3 "~" $4 "~" $5 "~" $6 "~"
+#    }
+#}' |
+#column -t -s "~" -o "$white ⏐ "  # Retain the background color in column output
+#)
+#
+##  timeout=$(( $(sex2sec $(\mpc status %totaltime%)) - $(sex2sec $(\mpc status %currenttime%)) ))
+#
+#    printf %s\\n "${playlistarray[@]}"
+#}
+
+playlist(){
+  local width revarr playedarr playlistarray i k n path line ext action timestamp basename filepath mpccommand="playlist"
+  [[ "$1" = current ]] && mpccommand="current" && lines=24 #maybe change this so that the number of lines can change...
+
+  n=0
+  width="$(tput cols)"
+  while read -r line; do
+    timestamp="${line%% : *}"
+    (( width < 105 )) && timestamp="${timestamp##* }"
+    i="${line##* : player: }"
+    action="${i%% *}"
+    filepath="${i#*\"}"
+    filepath="${filepath%\"*}"
+    ext="${filepath##*.}"
+    filepath="${filepath%.*}"
+    basename="${filepath##*\/}"
+
+    if [[ "$basename" =~ .+\ --\ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+ ]]; then
+      artist="${basename%% -- *}"
+      ddtt="${basename%% - *}"; ddtt="${ddtt##* -- }"
+      unset disc track
+      [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt"
+      song="${basename#* - }"
+    elif [[ "$basename" =~ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+\ --\ .+ ]]; then
+      artist="${basename%% -- *}"; artist="${artist#* - }"
+      ddtt="${basename% - *}"
+      unset disc track
+      [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt"
+      song="${basename#* -- }"
+    else
+      artist="$basename doesn't fit RegEx!"
+      unset artist ddtt disc track song
+    fi
+
+    path="${filepath%\/*}"
+    k="$timestamp~$action~$artist~$song~$path~$ddtt"
+    playedarr["$n"]="$k"
+    ((n++))
+  done < <(tail -n 2000 /var/log/mpd/mpd.log|\grep \:\ player\:|tail -n 20)
+
+  for ((n-1; n>=0; n--)); do
+    [[ "${playedarr[$n]}" ]] && revarr+=("${playedarr[$n]}")
+  done
+
+  (( width < 105 )) && timehead="time" || timehead="timestamp"
+
+  # Read the playlist into an array
+  readarray -t playlistarray < <(
+    {
+          printf '%s~action~artist~song~path~dd–tt~' "$timehead"
+#         printf \\n%s "${bgblue}"
+          printf %s\\n "${revarr[@]:0:20}"
+    } |
+    awk -F '~' -v red="$red" -v green="$green" -v cyan="$cyan" -v magenta="$magenta" -v yellow="$yellow" -v white="$white" -v blue1="$blue1" -v tput0="$tput0" -v bold="$bold" -v bgblue="$bgblue" -v black="$black" -v tput0="$tput0" -v bgblack="$bgblack" -v width="$width" '
+function reverse_path(path) {
+    n = split(path, components, "/")
+    reversed = components[n]
+    for (i = n - 1; i >= 1; i--) {
+        reversed = reversed "/" components[i]
+    }
+    return reversed
+}
+ function clean_artist(artist) {
+        # Strip "with", "feat", and similar terms
+        gsub(/ with .*| feat.*| ft.*/i, "", artist)
+        return artist
+}
+{
+        $1 = bold bgblue ( $2 == "skipped" ? red : yellow ) $1
+        $3 = bold bgblue white (length($3) > 30 ? substr($3, 1, 28) "…" : $3)
+      if (width > 80 && width < 105) {
+        $4 = bold bgblue black (length($4) > 60 ? substr($4, 1, 58) "…" : $4)
+    } else {
+        $4 = bold bgblue black (length($4) > 30 ? substr($4, 1, 28) "…" : $4)
+        }
+#       $4 = bold bgblue black (length($4) > 30 ? substr($4, 1, 28) "…" : $4)
+        $5 = bold bgblue blue1 (length(reverse_path($5)) > 70 ? substr(reverse_path($5), 1, 68) "…" : reverse_path($5))
+        $6 = bold tput0 bgblue blue1 $6 bold
+
+    if (width > 160) out = $1 "~" $3 "~" $4 "~" $5 "~" $6 "~"
+    else if (width >= 105) out = $1 "~" $3 "~" $4 "~" $5 "~"
+    else if (width >= 80) out = $1 "~" $3 "~" $4 "~"
+    else out = $1 "~" $4 "~"
+
+    print out
+
+}' |
+column -t -s "~" -o "$white ⏐ "  # Retain the background color in column output
+)
+
+#  timeout=$(( $(sex2sec $(\mpc status %totaltime%)) - $(sex2sec $(\mpc status %currenttime%)) ))
+
+    printf %s\\n "${playlistarray[@]}"
+}
+
+
+
+sex2sec(){
+  local time="$1";
+# [[ ! "$time" =~ [[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2} ]] && time='00:00:00' #&& pause "${time@A}"
+  [[ ! "$time" =~ [[:digit:]]{1,2}:[[:digit:]]{2} ]] && time='00:00' #&& pause "${time@A}"
+# local hours=$(echo "$time" | awk -F: '{print $1}'); # pause "$hours"
+  local minutes=$(echo "$time" | awk -F: '{print $1}'); # pause "$minutes"
+  local seconds=$(echo "$time" | awk -F: '{print $2}'); # pause "$seconds"
+  local total_seconds=$(( ( 10#$minutes * 60) + 10#$seconds ));
+# pause "no sec $(local total_seconds=$(( (10#$hours * 3600) + (10#$minutes * 60) )) )"
+# pause "no min $(local total_seconds=$(( (10#$hours * 3600) + (10#$seconds) )) )"
+# pause "no hours $(local total_seconds=$(( (10#$minutes * 60) + (10#$seconds) )) )"
+  echo "$total_seconds" ;  }
+##--> sexagesimal_to_sec() <--##################################################################
+
+sec2sex() {
+  local h m s
+  local input="${1%.*}"
+  local dec="${1#*.}"; dec="${dec:0:1}"
+  [[ "$dec" > 4 ]] && ((input++))
+
+  h=$(( input / 3600 ))
+  m=$(( (input % 3600) / 60 ))
+  s=$(( input % 60 ))
+
+  if (( h > 0 )); then
+    printf "%02d:%02d:%02d" "$h" "$m" "$s"
+  else
+    printf "%d:%02d" "$m" "$s"
+  fi
+}
+
+genrandom() {
+    local lower="$1"
+    local upper="$2"
+    local range=$(( upper - lower + 1 ))
+    local rand=$(( (RANDOM << 15 | RANDOM) % range ))
+    printf %s\\n "$(( lower + rand ))"
+}
+
+format_path() {
+  local path="$1"
+  local term_width=$(tput cols)
+  local length=11  # Initial length set to the length of the initial indentation
+#  local indent='           '  # 11 spaces
+  local indent="$(printf %*s $length '')"
+  local formatted_path="$indent"  # Add initial indentation here
+  local max_length=$(( term_width - 2 ))  # Account for two spaces from the right border
+
+  # Split the path into an array based on the '/' character
+  IFS='/' read -ra parts <<< "$path"
+  for ((i = 0; i < ${#parts[@]}; i++)); do
+    part="${parts[i]}"
+    # Check if adding the next part will exceed the maximum length
+    if (( length + ${#part} + 2 > max_length )); then
+      formatted_path+="/\n$indent"  # Add newline and indentation after slash
+      length="${#indent}"  # Reset length to initial indentation length
+    fi
+    # Add a slash if the current length is greater than the initial indentation length
+    if (( length > ${#indent} )); then
+      formatted_path+="/"
+      (( length++ ))
+    fi
+    formatted_path+="$part"
+    (( length += ${#part} ))
+  done
+
+  # Add a slash at the end if it's a directory
+  if [[ -d "$path" || -z "${path##*/}" ]]; then
+    formatted_path+="/"
+  fi
+
+  echo -e "$formatted_path"
+#  printf '%s\n' "$formatted_path"
+}
+
+
+parse_mpd_response() {
+  [[ "$1" = --random=* ]] && randomflag="${1#--random=}" && shift
+  tputlines="$(tput lines)"
+  (( color)) && printf '\033[48;5;4m\033[2J'
+
+    local file="" title="" album="" artist="" next_file="" next_title="" next_album="" next_artist="" state=""
+    local song_pos="" song_total="" elapsed="" duration="" volume="" repeat="" random="" single="" consume=""
+    local nextsong_id="" current="$(mpc current -f %position%)"
+
+    while read -r line; do
+        case "$line" in
+            file:*)
+                file="${line#file: }";;
+            Album:*)
+                album="${line#Album: }";;
+            Artist:*)
+                artist="${line#Artist: }";;
+            Title:*)
+                title="${line#Title: }";;
+            nextsong:*)
+                nextsong_id="${line#nextsong: }";;
+            state:*)
+                state="${line#state: }";;
+            song:*)
+                song_pos="${line#song: }"
+(( verbose )) && printf 'line: %s\n$song_pos: %s\n' "$line" "$song_pos" >> "$mpdxylog"
+                (( song_pos++ ))
+(( verbose )) && printf '$song_pos: %s\n' "$song_pos" >> "$mpdxylog" ;;
+            playlistlength:*)
+                song_total="${line#playlistlength: }" ;;     # this is not a number that starts w/0; it is the actual count
+# (( verbose )) && printf '$song_total: %s\n' "$song_total" >> "$mpdxylog" ;;
+            elapsed:*)
+                elapsed="$(sec2sex "${line#elapsed: }")" ;;
+            duration:*)
+                duration="$(sec2sex "${line#duration: }")";;
+            volume:*)
+                volume="${line#volume: }";;
+            repeat:*)
+                repeat="${line#repeat: }";;
+            random:*)
+#                random="${line#random: }";;
+                 random="${randomflag:-${line#random: }}";;
+            single:*)
+                single="${line#single: }";;
+            consume:*)
+                consume="${line#consume: }";;
+        esac
+    done
+
+    # If nextsong_id is not empty, get the next song's info
+    if [ -n "$nextsong_id" ]; then
+        nextsong_info=$(mpdc "playlistinfo $nextsong_id")
+
+        while read -r line; do
+            case "$line" in
+                file:*)
+                    next_file="${line#file: }";;
+                Album:*)
+                    next_album="${line#Album: }";;
+                Artist:*)
+                    next_artist="${line#Artist: }";;
+                Title:*)
+                    next_title="${line#Title: }";;
+            esac
+        done <<< "$nextsong_info"
+    fi
+
+
+    # Calculate the percentage of the song that has played
+    percentage=$(awk -v e="$elapsed" -v d="$duration" 'BEGIN { printf "%.0f", (e / d) * 100 }')
+
+    # Format file paths to wrap at slashes
+    file_wrapped=$(echo "$file" | sed 's/\//\n\//g')
+    next_file_wrapped=$(echo "$next_file" | sed 's/\//\n\//g')
+
+#    # Clear the top tputlines lines
+##bgblue=$(tput setab 4)
+#    tput cup 0 0
+#   (( color)) && printf '\033[48;5;4m\033[2J'
+#    for ((i = 0; i < tputlines; i++)); do
+#        tput el
+#        tput cud1
+##echo "$bgblue"
+#    done
+#    tput cup 0 0
+
+(( color )) && printf '\033[48;5;4m\033[2J'
+#tput clear
+tput cup 0 0
+
+
+    # Print border top
+    term_width=$(tput cols)
+    printf %s%s "${bgblue}" "${bold}"
+    printf '┌%*s┐' "$(( term_width - 2 ))" '' | sed 's/ /─/g'
+    printf \\n
+    printf '%s%s%s%s  [%s] #%s/%s   %s/%s (%s%%)\n' "$tput0" "$bgblue" "$bold" "$black" "$state" "$song_pos" "$song_total" "$elapsed" "$duration" "$percentage"
+    printf '%s  volume: %s%%   repeat: %s   random: %s   single: %s   consume: %s%s\n\n' "$bgblue" "$volume" "$repeat" "$random" "$single" "$consume" "$tput0"
+    printf '%s%s%s  Playing: %s%s - %s%s\n' "$bgblue" "$bold" "$black" "$white" "$title" "$artist" "$tput0"
+    printf '%s%s           %s%s%s\n' "$bgblue" "$bold" "$yellow" "$album" "$normal"
+    printf '%s%s%s%s%s\n' "$bgblue" "$bold" "$blue1" "$(format_path "${file}")" "$tput0"
+#    printf '%s%s%s  Up next: %s%s - %s%s\n' "$bgblue" "$bold" "$black" "$white" "$next_title" "$next_artist" "$tput0"
+    printf '%s%s  Up next: %s%s - %s%s\n' "$bgblue" "$black" "$white" "$next_title" "$next_artist" "$tput0"
+#    printf '%s%s           %s%s%s\n' "$bgblue" "$bold" "$yellow" "$next_album" "$tput0"
+    printf '%s           %s%s%s\n' "$bgblue" "$yellow" "$next_album" "$tput0"
+    printf '%s%s%s %s\n' "$bgblue" "$blue1" "$(format_path "$next_file")" "$tput0"
+
+    # Print border bottom
+    printf %s%s "$bgblue" "$bold"
+    printf '└%*s┘' "$(( term_width - 2 ))" '' | sed 's/ /─/g'
+    printf %s "$tput0"
+}
+
+mpdc(){
+    local command=$1
+    echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPD_SOCK"
+}
+
+cleanup() {
+    printf '\nCaught SIGINT! Cleaning up...\n\n'
+    mpdcout="$(mpdc "random $initrandom" 2>&1)"
+    rm "$mpdxyout" "$mpdxylog" 2>/dev/null
+    exit 0
+}
+
+help() {
+  printf '%s\n' "\
+Usage: $(filename $0) [options] [bound1] [bound2]
+
+Options:
+  --edit                 Launch edit script and exit
+  -v, --verbose          Enable verbose output
+  --mono                 Disable color output
+  -l, --limit, --linger  Set linger/limit limit ([NUM]:-4 songs)
+  --mpdlinger            Enable automatic exit to mpdlinger
+  -s, --screen[ed]       Enable screened output
+  -h, --help             Show this help and exit
+
+Arguments:
+  NUM                    Optional numeric bounds (1 or 2 values)"
+}
+
+bounds(){
+  local bound0 pllength plpos
+  pllength=$(mpc status %length%)
+  plpos=$(mpc status %songpos%)
+
+  if [[ -t 0 ]]; then
+    (( ! bound1 )) && read -rp "$bgblue$bold  Enter track number bound or enter for current position ($plpos): " bound1
+    (( verbose )) && read -rp "\$bound1 = $bound1"
+    if [[ playlist = "$bound1"* || play\ list = "$bound1"* ]]; then
+      bound1="$(gum input)"
+      [[ ! "$bound1" ]] && { printf 'Will search the playlist from the current track.\n'; playlistbound="$(mpdxy=1 /usr/local/bin/playlist|tail -n1)"; }
+      [[ "$bound1" ]] && { preventry="$bound1" && printf 'Calling "playlist %s"...\n' "$bound1"; playlistbound="$(mpdxy=1 /usr/local/bin/playlist "$bound1"|tail -n1)"; }
+      (( playlistbound )) && bound1="$playlistbound"
+      (( verbose )) && read -rp "bound1=$bound1"
+    elif ! (( bound1 )) 2>/dev/null && [[ "$bound1" ]]; then
+      confirm -y "Would you like to search the playlist for your nonnumeric entry:\n$bound1\n" &&
+      { preventry="$bound1"; printf 'Calling "playlist %s"...\n' "$bound1"; playlistbound="$(mpdxy=1 /usr/local/bin/playlist "$bound1"|tail -n1)"; }
+      (( playlistbound )) 2>/dev/null && bound1="$playlistbound" || unset bound1
+      (( verbose )) && read -rp "bound1=$bound1"
+    fi
+
+    (( ! "$bound1" )) &&
+       { bound1="$plpos"
+         printf 'The starting bound will be set to the current playlist position, %s\n.' "$bound1"; }
+
+    (( ! bound2 )) && read -rp "$bgblue$bold  Enter track number bound or enter for end of playlist ($pllength): " bound2
+    (( verbose )) && read -rp "\$bound2 = $bound2"
+    if [[ playlist = "$bound2"* || play\ list = "$bound2"* ]]; then
+      bound2="$(gum input)"
+      [[ ! "$bound2" ]] && { printf 'Will search the playlist from the current track.\n';
+                             playlistbound="$(mpdxy=1 /usr/local/bin/playlist | tail -n1)"; }
+
+      [[ "$bound2" ]] && { printf 'Calling "playlist %s"...\n' "$bound2";
+                           playlistbound="$(mpdxy=1 /usr/local/bin/playlist "$bound2" | tail -n1)"; }
+      (( playlistbound )) 2>/dev/null && bound2="$playlistbound" || unset bound2
+      (( verbose )) && read -rp "bound2=$bound2"
+    elif ! (( bound2 )) 2>/dev/null && [[ "$bound2" ]]; then
+      confirm -y "Would you like to search the playlist for your nonnumeric entry:\n$bound2\n" &&
+      { printf 'Calling "playlist %s"...\n' "$bound2"
+        playlistbound="$(mpdxy=1 /usr/local/bin/playlist "$bound2" | tail -n1)"; }
+      (( playlistbound )) 2>/dev/null && bound2="$playlistbound" || unset bound2
+      (( verbose )) && read -rp "bound2=$bound2"
+    fi
+
+#    (( ! bound2 )) && read -rp "$bgblue$bold  Enter track number bound or enter for end of playlist ($pllength): " bound2
+#    if [[ playlist = "$bound2"* || play\ list = "$bound2"* ]]; then
+#      boundin="$(gum input)"
+#      [[ ! "$boundin" ]] && { printf 'Will search the playlist from the current track.\n'; /usr/local/bin/playlist; }
+#      [[ "$boundin" ]] && { printf 'Calling "playlist %s"...\n' "$bound2"; playlistbound="$(mpdxy=1 /usr/local/bin/playlist "$boundin"|tail -n1)"; }
+#      printf 'Playlist returned %s, but that functionality is not yet enabled.\n' "$playlistbound"
+#      (( playlistbound )) && bound2="$playlistbound"
+#      read -rp "bound2=$bound2"
+#    fi
+
+    (( ! bound2 )) &&
+       { bound2="$pllength"
+         printf 'The starting bound will be set to the end of the current playlist, %s\n.' "$bound2"; }
+
+    (( verbose )) && printf -- '-----------------------------------------------\n' >> "$mpdxylog"
+    (( verbose )) && printf 'bound1 initial: %s\nbound2 initial: %s\n' "$bound1" "$bound2" >> "$mpdxylog"
+
+    ! (( bound2 > bound1 )) && { bound0="$bound1"; bound1="$bound2"; bound2="$bound0";
+            (( verbose )) && printf 'bound1 corrected: %s\n' "$bound1" >> "$mpdxylog"; }
+
+    (( bound2 > pllength )) && { bound2="$pllength";
+            (( verbose )) && printf 'bound2 corrected: %s\n' "$bound2" >> "$mpdxylog"; }
+  else
+    bound1="$plpos"
+    bound2="$pllength"
+  fi
+}
+
+
+trap cleanup SIGINT
+color=1
+
+args=( mpd.xy )
+
+while (( $# )); do
+  [[ "$1" = --edit ]] && { editscript; exit; }
+  [[ "$1" = @(-h|--help) ]] && { help; exit; }
+  [[ "$1" = @(-v|--verbose) ]] && { args+=("$1"); verbose=1; shift; continue; }
+  [[ "$1" = --mono ]] && { args+=("$1"); unset color; shift; continue; }
+  [[ "$1" = @(--mpd-linger|--mpdlinger) ]] && { args+=("$1"); mpdlinger=1; shift; continue; }
+  [[ "$1" =~ ^[[:digit:]]+$ ]] &&
+             { if [[ ! "$bound1" ]]; then bound1="$1"
+               elif [[ ! "$bound2" ]]; then bound2="$1"
+               fi;  args+=("$1"); shift; continue; }
+  [[ "$1" = @(-s|--screen@(|ed)) ]] && { screenname="mpd.xy-$(date -Im)"; shift; continue; }
+  [[ "$1" = @(--limit|--linger|-l) ]] &&
+             { if [[ "$2" =~ ^[0-9]{1,2}$ ]]; then lingerl="$2"; shift;
+               else lingerl=4; fi; linger=1; args+=(-l "$lingerl"); shift; continue; }
+  { printf 'CLI input not recognized, continuing anyway...\n'; shift; continue; }
+done
+
+if [[ "$screenname" ]]; then
+  (( verbose )) && pause "$screenname"
+  hr2 "$bold Calling mpd.xy to GNU screen $tput0"
+  printf \\n
+  bounds
+
+## bound1 & bound2 can stay in args for other reasons, but pass them via env variables
+## regardless of their presence in $args as they won't be processed as cli args inside screen
+
+  args=(env bound1="$bound1" bound2="$bound2" "${args[@]}")
+
+  [[ -d "$musicdir" ]] && cd "$musicdir" || cd "$HOME" || cd /
+  printf \\n\\n
+  screen -dmS "${screenname:0:26}" "${args[@]}"
+  screen -ls
+  exit
+fi
+
+
+(( color )) && printf '\033[48;5;4m\033[2J'
+
+# Define tput variables for formatting
+    bold=$(tput bold)
+   tput0=$(tput sgr0)
+
+if (( color )); then
+     red=$(tput setaf 1)
+   blue1=$(tput setaf 246)
+   green=$(tput setaf 2)
+   green=$(tput setaf 82)
+   blue0=$(tput setaf 4)
+   blue1=$(tput setaf 12)
+   blue2=$(tput setaf 39)
+    blue=$(tput setaf 33)
+     red=$(tput setaf 196)
+  yellow=$(tput setaf 3)
+   black=$(tput setaf 0)
+   white=$(tput setaf 7)
+  bgblue=$(tput setab 4)
+ bgwhite=$(tput setab 7)
+ bgblack=$(tput setab 0)
+ magenta=$(tput setaf 5)
+    cyan=$(tput setaf 6)
+fi
+
+
+mpdcout="$(mpdc 'currentsong\nstatus')"
+initrandom="$(grep -Po '(?<=random: )\d' <<< "$mpdcout")"
+[[ "$(mpdc 'random 0'|tail -1)" = OK ]] && random=0
+parse_mpd_response --random="$random" <<< "$mpdcout"
+
+#mpdc 'currentsong\nstatus'|parse_mpd_response
+
+tput cup 15 0
+
+#pllength=$(mpc status %length%)
+#plpos=$(mpc status %songpos%)
+#
+#[[ -z "$bound1" ]] && read -rp "$bgblue$bold  Enter track number bound or enter for current position ($plpos): " bound1
+#[[ -z "$bound1" ]] && bound1="$plpos"
+#
+#
+#[[ -z "$bound2" ]] && read -rp "$bgblue$bold  Enter track number bound or enter for end of playlist ($pllength): " bound2
+#[[ -z "$bound2" ]] && bound2="$pllength"
+#
+#(( verbose )) && printf -- '-----------------------------------------------\n' >> "$mpdxylog"
+#(( verbose )) && printf 'bound1 initial: %s\nbound2 initial: %s\n' "$bound1" "$bound2" >> "$mpdxylog"
+#(( verbose && linger )) && printf 'linger enabled: linger=%s; lingerl=%s\n' "$linger" "$lingerl" >> "$mpdxylog"
+#
+#! (( bound2 > bound1 )) &&
+#   bound0="$bound1" &&
+#   bound1="$bound2" &&
+#   bound2="$bound0"
+#
+#(( bound2 > pllength )) && bound2="$pllength"
+
+bounds
+
+(( verbose && linger )) && printf 'linger enabled: linger=%s; lingerl=%s\n' "$linger" "$lingerl" >> "$mpdxylog"
+
+   rand="$(genrandom "$bound1" "$bound2")"
+###   mpc move "$rand" "$bound1"
+   mpdcout=( "$(mpdc 'random 0\nconsume 1')" )
+
+(( verbose )) && printf '(( %s >= %s && %s <= %s )) || mpdc play\ %s 2>&1))\n' "$(mpc status %songpos%)" "$bound1" "$(mpc status %songpos%)" "$bound2" "$(( bound1-1 ))" >> "$mpdxylog"
+
+   (( $(mpc status %songpos%) >= bound1 && $(mpc status %songpos%) <= bound2 )) ||
+      readarray -t mpdcout < <(mpdc play\ "$(( bound1-1 ))" 2>&1)
+
+(( verbose )) && printf %s\\n "${mpdcout[@]}" >> "$mpdxylog"
+printf \\n
+(( verbose )) && printf 'bound1 calc %s\nbound2 calc %s\n' "$bound1" "$bound2" >> "$mpdxylog"
+
+lingerc=0
+: "${lingerl:=0}"
+
+for ((i=bound1; i<=bound2; i++)); do
+   printf 'bound1=%s\nbound2=%s\n' >> "$mpdxyout"
+   mpdcout="$(mpdc 'random 0' 2>&1)"
+   pllength="$(mpc status %length%)"
+   id="$(mpc current -f %id%)"
+#   printf '%ssubqueue position: %s\n' "$bgblue" "$i"  #i don't think this prints...
+   (( bound2 > pllength )) && bound2="$pllength"
+   (( lingerc > lingerl )) && rand="$(genrandom "$bound1" "$bound2")"
+   ((bound2--)) #decrement happens before the song finishes so that after, the bound is correct.
+   #turn random on here so that the next song output is correct; set end so it doesn't get turned off in the while loop
+   (( bound1 == bound2 )) && end=true && unset mpdcout && mpdcout=( "$(mpdc 'random 1' 2>&1)" )
+
+(( verbose )) && printf 'bound1 == bound2 check: (( %s == %s )) = %s\nmpdcout: ' "$bound1" "$bound2" "$(( bound1 == bound2 ))" >> "$mpdxylog"
+(( verbose )) && printf %s\\n "${mpdcout[@]}" >> "$mpdxylog"
+(( verbose )) && printf '$bound2 after decrement %s\n' "$bound2" >>"$mpdxylog"
+(( verbose )) && mpc status "songpos %songpos%" >> "$mpdxylog"
+(( verbose )) && printf 'mpc move %s %s\n' "$rand" "$(( bound1 + 1 ))" >> "$mpdxylog"
+(( verbose && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl"
+   (( lingerc > lingerl )) && lingerc=0 && true
+## need to add a check to make sure that ! $rand > $bound2:
+## (( rand > bound2 )) && rand="$bound2"
+   mpc move "$rand" "$(( bound1 + 1 ))"
+(( verbose && linger )) && printf 'linger count/limit=%s/%s\n' "$lingerc" "$lingerl" >> "$mpdxylog"
+(( verbose )) && mpc status %songpos% >> "$mpdxylog"
+   queued="$(mpc queued -f %file%)"
+
+   mpdc 'currentsong\nstatus'|parse_mpd_response
+
+   tput cup 15 11
+   printf '%sSongs remaining in subqueue: %s\n' "$bgblue" "$(( bound2 - bound1 + 1 ))"
+   tput cup 16 11
+   (( linger )) && printf '%slinger count/limit=%s/%s\n' "$bgblue" "$lingerc" "$lingerl"
+   printf \\n
+  playlist playlist
+
+  while [[ "$id" = "$(mpc current -f %id%)" ]]; do
+    ! "${end:=false}" && mpdc 'random 0' >/dev/null
+    mpc idle player playlist update
+    mpdc 'currentsong\nstatus'|parse_mpd_response
+    [[ "$reset_bound1" != true ]] &&
+      (( bound1 != $(mpc status %songpos%) )) &&
+      reset_bound1=true
+  done
+
+  if [[ "$reset_bound1" = true ]]; then
+    mpdc_out+=( $(mpdc pause) )
+    mpc move "$(mpc status %songpos%)" "$bound1"
+    mpc play "$bound1"
+    unset reset_bound1
+  fi
+
+  (( lingerc++ )) #increment linger counter
+
+(( verbose )) && printf '========================\n' >> "$mpdxylog"
+
+done
+
+mpdcout="$(mpdc "random $initrandom" 2>&1)"
+(( verbose )) && printf %s\\n "$mpdcout" >> "$mpdxylog"
+
+if [[ "$(mpc status %state%)" =~ (stopped|paused) ]]; then
+  mpc play >/dev/null
+fi
+
+#rm "$mpdxyout" "$mpdxylog" 2>/dev/null
+
+(( mpdlinger )) &&  mpdlingerargs=(mpdlinger)
+(( screened )) && mpdlingerargs=(-s)
+[[ mpdlingerargs ]] && exec "${mpdlingerargs[@]}"
+
+exit 0
