@@ -27,82 +27,39 @@ trap '
   ipchandler
 ' USR2
 
-
-oldstartupcheck(){
-  (( verbose )) && printf 'In %s.\n' "${FUNCNAME[0]}"
-
-## look to see if there is a stale $pidfile that has not been removed
-  if [[ -f "$pidfile" ]]; then
-    mpdlingerpid="$(< "$pidfile")"
-    if ! ps -p "$mpdlingerpid" > /dev/null; then
-      printf 'Stale pidfile found, removing: %s\n' "$pidfile"
-      rm -f "$pidfile"
-      unset mpdlingerpid
-    fi
-  fi
-
-  readarray -t pids < <(pgrep mpdlinger)
-  for i in "${!pids[@]}"; do
-    (( verbose )) && printf 'i=%s\n' "$i"
-    (( verbose )) && ps -p "${pids[i]}" -o command --no-header
-    [[ "$(ps -p "${pids[i]}" -o command --no-header)" = *\ --edit* ]] && unset 'pids[i]'
-  done
-
-## this compacts the array in the event that something was removed above:
-
-  pids=("${pids[@]}")
-  (( verbose )) && printf 'Array compacted, ${#pids[@]}: %s\n' "${#pids[@]}"
-  (( verbose )) && printf '${pids[@]} = %s\n' "${pids[@]}"
-  (( verbose )) && printf '$mpdlingerpid = %s\n' "$mpdlingerpid"
-  (( verbose )) && (( mpdlingerpid )) &&
-                   printf 'ps -p %s = %s\n' "$mpdlingerpid" "$(ps -p $mpdlingerpid)"
-  (( verbose )) && printf 'ls %s:\n%s\n' "$pidfile" "$(ls "$pidfile" 2>/dev/null)"
-  (( verbose )) && printf 'cat %s:\n%s\n' "$pidfile" "$(cat "$pidfile" 2>/dev/null)"
-  (( verbose )) && read -rp bppbs
-  if (( mpdlingerpid )) && (( mpdlinger != $$ )) && ps -p "$mpdlingerpid" >/dev/null && screenpid="$(screen -ls|\grep -m1 mpdlinger)"; then
-    printf '\nAn instance of mpdlinger is already running in a screen process:\n%s\n' "$screenpid"
-    printf '\nAttempting to resume screen...\n\n'
-    (( verbose )) && read -rp 'exec screen -r "$(awk '\''{print $1}'\'' <<< "$screenpid")"'
-    exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
-    printf 'Unable to reattach to the screen that mpdlinger is running on.\n'
-    confirm -Y 'Try to reattach with "screen -x" to attemt attaching to a non-detatched screen?' &&
-      exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
-    printf 'Reattachment to screen aborted or failed.\nExiting (exit 1)\n.'
-    (( verbose )) && read -rp pause\ before\ exit\ 1
-    exit 1
-
-## this elif is probably unnecessary and if there's no use for it, it should be removed...
-
-  elif (( mpdlingerpid )) && (( mpdlingerpid != $$ )) && ps -p "$mpdlingerpid" >/dev/null; then
-    [[ "$(ps -o stat= -p "$mpdlingerpid")" = "S" ]] && background=1
-    printf 'An instance of mpdlinger is already running (not in a named screen process):\n'
-    ! (( background )) && printf 'You will need to chase it down in another window or kill it (pid=%s).\nExiting (exit 1)\n.' "$mpdlingerpid"
-    (( background )) && printf 'You will need to chase it down somewhere in the background or kill it (pid=%s).\nExiting (exit 1)\n.' "$mpdlingerpid"
-    (( verbose )) && read -rp pause\ before\ exit\ 2
-    exit 1
-  elif (( "${#pids[@]}" > 1 )); then
-    printf 'There is more than one instance of mpdlinger running:\n%s\n\n' "$(read -rp "$(pgrep mpdlinger -a)")"
-    printf 'Exiting. (exit 1)'
-    (( verbose )) && read -rp pause\ before\ exit\ 3
-    exit 1
-  else
-    mpdlingerpid="$$"
-    printf %s\\n "$mpdlingerpid" > "$pidfile"
-    export mpdlingerpid="$mpdlingerpid"
- #   [[ -f "$cmdfile" ]] && rm "$cmdfile"
-  fi
-
- (( verbose )) && printf 'Leaving %s...' "${FUNCNAME[0]}"
-}
-##--> oldstartupcheck() <--#######################################################################
-
-
-
 startupcheck(){
-  local ipcon
-  [[ "$1" = 'ipcon' ]] && ipcon=1
-
   (( verbose )) && printf 'In %s.\n' "${FUNCNAME[0]}"
+
+## first determine if there's an ipc command passed
+
+if [[ " ${ipcargs[*]} " = *" $1 "* ]]; then
+  ipccmd="$1"
+  shift
+  [[ "$1" =~ ^[0-9]+$ ]] && ipcval="$1" && shift
+
+  if (( $# )); then
+    printf 'The IPC wrapper accepts EXACTLY ONE of the following cli arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipcargs[*]}")" "$*"
+    set --
+  elif [[ " ${ipc1args[*]} " = *" $ipccmd " ]] && [[ "$ipcval" ]]; then
+    printf 'These IPC wrapper commands do not accept numeric arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipc1args[*]}")" "$ipcval"
+    unset ipcval
+  elif [[ " ${ipc2args[*]} " = *" $ipccmd " ]] && [[ ! "$ipcval" ]]; then
+    printf 'These IPC wrapper commands require a numeric argument:\n%s' "$(IFS=\|; printf '%s' "${ipc2args[*]}")"
+    exit 1
+  fi
+
+  printf '%s%s\n' "$ipccmd" "${ipcval:+ $ipcval}" > "$cmdfile"
+
+## run balance of startupcheck() after validating the ipc commands to get "$mpdlingerpid"
+#  startupcheck "ipc"
+  ipc=1
+
+fi
+
+
+
+
+
 
   ## if pidfile exists, check if pid still running; if stale remove pidfile and unset mpdlingerpid
   if [[ -f "$pidfile" ]]; then
@@ -175,7 +132,7 @@ startupcheck(){
   fi
 
 ## this was the start of the old startupcheck() and shouldn't be run when an ipc command is passed
-  if ! (( ipcon )); then
+  if ! (( ipc )); then
     ## compact pids array excluding --edit processes
     readarray -t pids < <(pgrep mpdlinger)
     for i in "${!pids[@]}"; do
@@ -230,6 +187,35 @@ startupcheck(){
       export mpdlingerpid="$mpdlingerpid"
    #   [[ -f "$cmdfile" ]] && rm "$cmdfile"
     fi
+
+## in the case ipc=1, process the validaded ipccommand
+  else
+if [[ ! "$mpdlingerpid" ]]; then
+  printf 'No running mpdlinger daemon found. Would you like to launch one in screen?'
+  confirm -Y 'Launch mpdlinger now?' && {
+#    screen -S mpdlinger -dm bash -c 'exec ~/bin/mpdlinger'
+    mpdlinger -s
+    sleep 1
+    if [[ -f "$pidfile" ]]; then
+      mpdlingerpid="$(< "$pidfile")"
+      pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"
+      export mpdlingerpid pgid
+    else
+      printf 'Failed to launch mpdlinger daemon or pidfile not created. (exit 1)\n'
+      exit 1
+    fi
+  } || {
+    printf 'Cannot send IPC command without running daemon. (exit 1)\n'
+    exit 1
+  }
+fi
+    (( verbose )) && printf 'kill -USR2 %s\n' "$mpdlingerpid"
+    [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
+    kill -USR2 "$mpdlingerpid"
+    pkill -g "$pgid" mpc
+    pkill -g "$pgid" lolcat
+    [[ "$ipccmd" = next ]] && mpctitle
+    exit 0
   fi
 
   (( verbose )) && printf 'Leaving %s...' "${FUNCNAME[0]}"
@@ -237,90 +223,87 @@ startupcheck(){
 ##--> startupcheck() <--#######################################################################
 
 
-oldipchandler(){
-  local cmd
-  (( verbose )) && printf '\nIn "ipchandler()".\nContents of %s: "%s"\n\n' "$cmdfile" "$(< "$cmdfile")"
-  cmd="$(head -n1 "$cmdfile" 2>/dev/null)"
-  > "$cmdfile" # clear command after reading to local $cmd
-  [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d " ")
-  pkill -g "$pgid" lolcat
-  case "$cmd" in
-    pause)
-      paused=1
-      echo "Paused via CLI"
-      exec mpdlinger --exec -p -c"$count" -l"$limit"
-      ;;
-    resume)
-      unset paused
-      echo "Resumed via CLI"
-      exec mpdlinger --exec -c"$count" -l"$limit"
-      ;;
-    quit)
-      cleanupexit
-      ;;
-    skip)
-      echo "Skipping song..."
-      if (( count < limit )); then
-        next >/dev/null
-        (( count++ ))
-      else
-        mpcp -q random on
-        next >/dev/null
-        mpcp -q random off
-        count=1
-      fi
-      (( verbose )) && pause "mpclinger --exec -c$count"
-      exec mpdlinger --exec -c"$count"
-      ;;
-    next)
-      mpcp -q random on
-      (( verbose )) && printf "read -rp: pids[0]: ${pids[0]}; mpdlingerpid: $mpdlingerpid\n"
-      next >/dev/null
-      mpcp -q random off
-      unset blocklimit
-##    exec mpdlinger --exec
-## i think i want to pass the prevlimit if it exists when I skip if
-## blocklimit's on and in the event that i'm not running with limit=default
-      (( verbose )) && printf 'ipchander()\nnext)\nprevlimit = %s\n    limit = %s\nblocklimit = %s\n' "$prevlimit" "$limit" "$blocklimit"
-      (( blocklimit )) && limit="$prevlimit"
-#      exec mpdlinger --exec -l"${prevlimit:-$limit}"
-      exec mpdlinger --exec -l"$limit"
-      ;;
-    verbose)
-      exec env verbose=1 mpdlinger --exec -c"$count" -l"$limit"
-      ;;
-    limit\ *)
-      limit="${cmd#limit }"
-      echo "Limit set to $limit via CLI"
-      exec env verbose=1 mpdlinger --exec -c"$count" -l"$limit"
-      ;;
-    count\ *)
-      count="${cmd#count }"
-      echo "Count set to $count via CLI"
-      exec env verbose=1 mpdlinger --exec -c"$count" -l"$limit"
-      ;;
-    blocklimit\ *)
-      blocklimit="${cmd#blocklimit }"
-      prevlimit="${prevlimit:-$limit}"
-      export blocklimit prevlimit
-      printf 'Block limit set to %s for one block via CLI.\n' "$blocklimit"
-      exec env verbose=1 blocklimit="$blocklimit" limit="$blocklimit" count="$count" prevlimit="$prevlimit" mpdlinger --exec -c"$count" -l"$blocklimit"
-      ;;
-    *)
-      # Default to legacy behavior if no command found or unknown
-      read -rp "ipchandler() fallback.  limit=$limit blocklimit=$blocklimit count=$count"
-      exec mpdlinger --exec -l"$limit" -c"$count"
-      ;;
-  esac
+checkpid(){
+  ## Try reading from pidfile
+  if [[ -f "$pidfile" ]]; then
+    mpdlingerpid="$(< "$pidfile")"
+    (( verbose )) && read -rp "$mpdlingerpid"
+
+    if ! ps -p "$mpdlingerpid" > /dev/null; then
+      printf 'Stale pidfile found, removing: %s\n' "$pidfile"
+      rm -f "$pidfile"
+      unset mpdlingerpid
+    else
+      pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"
+      export mpdlingerpid
+      return 0
+    fi
+  fi
+
+  ## If pidfile missing or stale, fallback to searching for a running process
+  readarray -t pgrepout < <(pgrep mpdlinger -a | grep -Ev -- "$$|--edit")
+  pgid2=$(ps -o pgid= -p $$ | tr -d ' ')
+
+  pgreplines=()
+  for i in "${pgrepout[@]}"; do
+    pid="${i%% *}"
+    pidpgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
+    [[ "$pidpgid" && "$pidpgid" != "$pgid2" ]] && pgreplines+=("$i")
+  done
+
+  (( verbose )) && { printf -- --\\n; printf '%s\n' "${pgreplines[@]}"; printf -- --\\n; }
+
+  if (( ${#pgreplines[@]} )); then
+    printf '\n[%sWARN%s] A pid for mpdlinger was identified without a corresponding %s!\n' "$yellow" "$tput0" "$pidfile"
+    printf '[%sWARN%s] This indicates that the pidfile has been somehow misplaced...\n\n' "$yellow" "$tput0"
+
+    printf 'Output of '\''%spgrep mpdlinger -a | grep -Ev -- "$$|--edit"%s'\''\n' "$blue" "$tput0"
+    printf '%s' "$blue"
+
+    if (( ${#pgreplines[@]} > 1 )); then
+      mpdlingerpid="$(printf '%s\n' "${pgreplines[@]}" | gum choose)"
+    else
+      printf '%s\n' "${pgreplines[0]}"
+      mpdlingerpid="${pgreplines[0]}"
+    fi
+    printf '%s' "$tput0"
+
+    mpdlingerpid="${mpdlingerpid%% *}"
+
+    confirm -Y "${red}Write pid $mpdlingerpid to $pidfile?${tput0}" &&
+      { printf '%s\n' "$mpdlingerpid" > "$pidfile"
+        export mpdlingerpid
+        pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; } ||
+      { printf '\nFailed to determine a pid for the daemon. Investigate. (exit 1)\n\n'; exit 1; }
+  fi
 }
-##--> ipchandler() <--###########################################################################
+##--> checkpid() <--#######################################################################
 
 
+ipcparse(){
+  ipccmd="$1"
+  shift
+  [[ "$1" =~ ^[0-9]+$ ]] && ipcval="$1" && shift
 
+  if (( $# )); then
+    printf 'The IPC wrapper accepts EXACTLY ONE of the following cli arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipcargs[*]}")" "$*"
+    set --
+  elif [[ " ${ipc1args[*]} " = *" $ipccmd " ]] && [[ "$ipcval" ]]; then
+    printf 'These IPC wrapper commands do not accept numeric arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipc1args[*]}")" "$ipcval"
+    unset ipcval
+  elif [[ " ${ipc2args[*]} " = *" $ipccmd " ]] && [[ ! "$ipcval" ]]; then
+    printf 'These IPC wrapper commands require a numeric argument:\n%s' "$(IFS=\|; printf '%s' "${ipc2args[*]}")"
+    exit 1
+  fi
 
+  printf '%s%s\n' "$ipccmd" "${ipcval:+ $ipcval}" > "$cmdfile"
 
+  ## run balance of startupcheck() after validating the ipc commands to get "$mpdlingerpid"
+  #  startupcheck "ipc"
+  ipc=1
+}
 
-
+##--> ipcparse() <--###########################################################################
 
 
 
@@ -681,63 +664,16 @@ cleanupexit(){
 
 #═══════▶ MAIN CODE ◀════════════════════════════════════════════════════════
 
-removeaftertesting(){
-:
-#
-#[[ -f "$pidfile" ]] &&
-#   { mpdlingerpid="$(< "$pidfile")"; pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; }
-#
-#if [[ ! -f "$pidfile" ]]; then
-#  (( verbose )) && printf 'pid of this process: $$ = %s\n' "$$"
-#  readarray -t pgrepout < <(pgrep mpdlinger -a | grep -Ev -- "$$|--edit")
-#  pgid2=$(ps -o pgid= -p $$ | tr -d ' ')
-#
-#  (( verbose )) && printf %s\\n "$pgid2"
-#
-#  for i in "${pgrepout[@]}"; do
-#    unset pidpgid
-#    pid="${i%% *}"  # pid is first field before first space
-#    pidpgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
-#    (( verbose )) && printf 'pid=%s  pidpgid=%s  ourpgid=%s  cmd=%s\n' "$pid" "$pidpgid" "$pgid2" "$i"
-#    if [[ "$pidpgid" && "$pidpgid" != "$pgid2" ]]; then
-#      pgreplines+=("$i")
-#    fi
-#  done
-#
-#
-#  (( verbose )) && { printf -- --\\n; printf %s\\n "${pgreplines[@]}"; printf -- --\\n; }
-#
-#  if (( ${#pgreplines[@]} )); then
-#    printf '\n[%sWARN%s] A pid for mpdlinger was identified without a corresponding %s!\n' "$yellow" "$tput0" "$pidfile"
-#    printf '[%sWARN%s] This indicates that the pidfile has been somehow misplaced...\n\n' "$yellow" "$tput0"
-#    printf 'Output of '\''%spgrep mpdlinger -a|grep -Ev -- "$$|--edit"%s'\'':\n' "$blue" "$tput0"
-#    printf %s "$blue"
-#    if (( ${#pgreplines[@]} > 1 )); then
-#      mpdlingerpid="$(printf '%s\n' "${pgreplines[@]}" | gum choose)"
-#      mpdlingerpid="${mpdlingerpid%% *}"
-#    else
-#      printf %s\\n "${pgreplines[0]}"
-#      mpdlingerpid="${pgreplines[0]%% *}"
-#    fi
-#    printf %s "$tput0"
-#
-#    printf \\n
-#    confirm -Y "${red}Write pid $mpdlingerpid to $pidfile?${tput0}" &&
-#            { printf '%s\n' "$mpdlingerpid" > "$pidfile"
-#              pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; } ||
-#            { printf '\nFailed to determine a pid for the daemon. Investigate. (exit 1)\n\n'; exit 1; }
-#   fi
-#fi
-
-}
-
-
-
 ipcargs=(pause resume next skip quit limit count blocklimit verbose)
 ipc1args=(pause resume next skip quit)
 ipc2args=(limit count blocklimit)
 
-[[ "$1" != @(--edit|--exec|--help|-h|help) && " ${ipcargs[*]} " != *" $1 "* ]] && startupcheck
+[[ " $* " = *\ @(-h|--help|help)\ * ]] && { showhelp; exit 0; }
+## --edit should be handled by the sourced editscript funciton
+## uncomment if needed:
+## [[ " $* " = *\ --edit\ * ]] && { editscript; exit 0; }
+
+#[[ "$1" != @(--edit|--exec|--help|-h|help) && startupcheck "$@"
 
 [[ "$STY" ]] && unset COLORTERM
 lolargs=(lolcat)
@@ -754,42 +690,6 @@ font2=pagga
 font2="$font1"
 #filter=metal
 
-if [[ " ${ipcargs[*]} " = *" $1 "* ]]; then
-  ipccmd="$1"
-  shift
-  [[ "$1" =~ ^[0-9]+$ ]] && ipcval="$1" && shift
-
-  if (( $# )); then
-    printf 'The IPC wrapper accepts EXACTLY ONE of the following cli arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipcargs[*]}")" "$*"
-    set --
-  elif [[ " ${ipc1args[*]} " = *" $ipccmd " ]] && [[ "$ipcval" ]]; then
-    printf 'These IPC wrapper commands do not accept numeric arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipc1args[*]}")" "$ipcval"
-    unset ipcval
-  elif [[ " ${ipc2args[*]} " = *" $ipccmd " ]] && [[ ! "$ipcval" ]]; then
-    printf 'These IPC wrapper commands require a numeric argument:\n%s' "$(IFS=\|; printf '%s' "${ipc2args[*]}")"
-    exit 1
-  fi
-
-  printf '%s%s\n' "$ipccmd" "${ipcval:+ $ipcval}" > "$cmdfile"
-
-  startupcheck "ipcon"
-
-  (( verbose )) && printf 'kill -USR2 %s\n' "$mpdlingerpid"
-  [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
-  kill -USR2 "$mpdlingerpid"
-  pkill -g "$pgid" mpc
-  pkill -g "$pgid" lolcat
-  [[ "$ipccmd" = next ]] && mpctitle
-  exit 0
-fi
-#---------------------------------------------------#
-
-## i really have no idea if any of these should be here...
-## what are they doing when this shit loops or execs?
-## do i still need getpids()?  should I even be using it if I have these defined at the top?
-## speaking of which, I probably ought to move the "top" stuff down here...
-## really, how are these not fucking things up?  because they're all before the signal processing?
-
 unset initrand  #probably can remove
 unset paused    #probably can remove
 #limit=4
@@ -799,12 +699,209 @@ count=1        #since i'm not zero indexed, i need to fix that before removing t
 #getpids        #need to decide if this is redudnant/problematic
                #it isn't, only insofar as NOTHING in the script uses it anymore.
 
+if [[ "$1" != --exec ]]; then
+  (( verbose )) && printf 'In %s.\n' "startupcheck block"
+
+#  ## first determine if there's an ipc command passed
+#  if [[ " ${ipcargs[*]} " = *" $1 "* ]]; then
+#    ipccmd="$1"
+#    shift
+#    [[ "$1" =~ ^[0-9]+$ ]] && ipcval="$1" && shift
+#
+#    if (( $# )); then
+#      printf 'The IPC wrapper accepts EXACTLY ONE of the following cli arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipcargs[*]}")" "$*"
+#      set --
+#    elif [[ " ${ipc1args[*]} " = *" $ipccmd " ]] && [[ "$ipcval" ]]; then
+#      printf 'These IPC wrapper commands do not accept numeric arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipc1args[*]}")" "$ipcval"
+#      unset ipcval
+#    elif [[ " ${ipc2args[*]} " = *" $ipccmd " ]] && [[ ! "$ipcval" ]]; then
+#      printf 'These IPC wrapper commands require a numeric argument:\n%s' "$(IFS=\|; printf '%s' "${ipc2args[*]}")"
+#      exit 1
+#    fi
+#
+#    printf '%s%s\n' "$ipccmd" "${ipcval:+ $ipcval}" > "$cmdfile"
+#
+#    ## run balance of startupcheck() after validating the ipc commands to get "$mpdlingerpid"
+#    #  startupcheck "ipc"
+#    ipc=1
+#  fi
+
+  if [[ " ${ipcargs[*]} " = *" $1 "* ]]; then
+    ipcparse "$@"
+    set --
+  fi
+
+#boobs  ## if pidfile exists, check if pid still running; if stale remove pidfile and unset mpdlingerpid
+#  if [[ -f "$pidfile" ]]; then
+#    mpdlingerpid="$(< "$pidfile")"
+#    (( verbose )) && read -rp "$mpdlingerpid"
+#    if ! ps -p "$mpdlingerpid" > /dev/null; then
+#      printf 'Stale pidfile found, removing: %s\n' "$pidfile"
+#      rm -f "$pidfile"
+#      unset mpdlingerpid
+#    else
+#      pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"
+#      export mpdlingerpid="$mpdlingerpid"
+#    fi
+#  fi
+#
+#  ## if no valid pidfile found, try to find running mpdlinger processes excluding this shell and edits
+#  if [[ ! -f "$pidfile" ]] || [[ ! "$mpdlingerpid" ]]; then
+#    (( verbose )) && printf 'pid of this process: $$ = %s\n' "$$"
+#
+#    readarray -t pgrepout < <(pgrep mpdlinger -a | grep -Ev -- "$$|--edit")
+#
+#    ## get our process group id for comparison
+#    pgid2=$(ps -o pgid= -p $$ | tr -d ' ')
+#    (( verbose )) && printf '%s\n' "$pgid2"
+#
+#    ## filter out any pids in same pgid as us (screen or exec children)
+#    for i in "${pgrepout[@]}"; do
+#      unset pidpgid   ## make sure we're not reusing a stale value
+#      pid="${i%% *}"
+#      pidpgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
+#      (( verbose )) && printf 'pid=%s  pidpgid=%s  ourpgid=%s  cmd=%s\n' "$pid" "$pidpgid" "$pgid2" "$i"
+#
+#      ## if process is in a different pgid, assume it's an orphaned daemon
+#      if [[ "$pidpgid" && "$pidpgid" != "$pgid2" ]]; then
+#        pgreplines+=("$i")
+#      fi
+#    done
+#
+#    ## show filtered lines if any
+#    (( verbose )) && { printf -- --\\n; printf '%s\n' "${pgreplines[@]}"; printf -- --\\n; }
+#
+#    ## if we found any suspicious candidates, prompt user
+#    if (( ${#pgreplines[@]} )); then
+#      printf '\n[%sWARN%s] A pid for mpdlinger was identified without a corresponding %s!\n' "$yellow" "$tput0" "$pidfile"
+#      printf '[%sWARN%s] This indicates that the pidfile has been somehow misplaced...\n\n' "$yellow" "$tput0"
+#      ## display all the viable candidates
+#      printf 'Output of '\''%spgrep mpdlinger -a|grep -Ev -- "$$|--edit"%s'\'':\n' "$blue" "$tput0"
+#      printf '%s' "$blue"
+#
+#      ## use gum if more than one line, otherwise just print
+#      if (( ${#pgreplines[@]} > 1 )); then
+#        mpdlingerpid="$(printf '%s\n' "${pgreplines[@]}" | gum choose)"
+#        mpdlingerpid="${mpdlingerpid%% *}"
+#      else
+#        printf '%s\n' "${pgreplines[0]}"
+#        mpdlingerpid="${pgreplines[0]%% *}"
+#      fi
+#      printf '%s' "$tput0"
+#
+#      printf \\n
+#
+#      ## prompt before writing to file, and get pgid again
+#      confirm -Y "${red}Write pid $mpdlingerpid to $pidfile?${tput0}" &&
+#        { printf '%s\n' "$mpdlingerpid" > "$pidfile"
+#          export mpdlingerpid="$mpdlingerpid"
+#          pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; } ||
+#        ## bail out if confirmation fails
+#        { printf '\nFailed to determine a pid for the daemon. Investigate. (exit 1)\n\n'; exit 1; }
+#    fi
+#  fi
+
+  ## this was the start of the old startupcheck() and shouldn't be run when an ipc command is passed
+  if ! (( ipc )); then
+    ## compact pids array excluding --edit processes
+    readarray -t pids < <(pgrep mpdlinger)
+    for i in "${!pids[@]}"; do
+      (( verbose )) && printf 'i=%s\n' "$i"
+      (( verbose )) && ps -p "${pids[i]}" -o command --no-header
+      [[ "$(ps -p "${pids[i]}" -o command --no-header)" = *\ --edit* ]] && unset 'pids[i]'
+    done
+    pids=("${pids[@]}")
+
+    (( verbose )) && printf 'Array compacted, ${#pids[@]}: %s\n' "${#pids[@]}"
+    (( verbose )) && printf '${pids[@]} = %s\n' "${pids[@]}"
+    (( verbose )) && printf '$mpdlingerpid = %s\n' "$mpdlingerpid"
+    (( verbose )) && (( mpdlingerpid )) &&
+                     printf 'ps -p %s = %s\n' "$mpdlingerpid" "$(ps -p $mpdlingerpid)"
+    (( verbose )) && printf 'ls %s:\n%s\n' "$pidfile" "$(ls "$pidfile" 2>/dev/null)"
+    (( verbose )) && printf 'cat %s:\n%s\n' "$pidfile" "$(cat "$pidfile" 2>/dev/null)"
+    (( verbose )) && pause "Pause in ${FUNCNAME[0]}..."
+
+    ## check if an existing mpdlinger screen session is running and try to resume it (skip if we're the same process)
+    if (( mpdlingerpid )) && (( mpdlingerpid != $$ )) && ps -p "$mpdlingerpid" >/dev/null && screenpid="$(screen -ls | grep -m1 mpdlinger)"; then
+      printf '\nAn instance of mpdlinger is already running in a screen process:\n%s\n' "$screenpid"
+      printf '\nAttempting to resume screen...\n\n'
+      (( verbose )) && read -rp 'exec screen -r "$(awk '\''{print $1}'\'' <<< "$screenpid")"'
+      exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
+      printf 'Unable to reattach to the screen that mpdlinger is running on.\n'
+      confirm -Y 'Try to reattach with "screen -x" to attempt attaching to a non-detached screen?' &&
+        exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
+      printf 'Reattachment to screen aborted or failed.\nExiting (exit 1)\n.'
+      (( verbose )) && read -rp pause\ before\ exit\ 1
+      exit 1
+
+    ## check if an mpdlinger process is running outside screen, error out so user can handle it
+    elif (( mpdlingerpid )) && (( mpdlingerpid != $$ )) && ps -p "$mpdlingerpid" >/dev/null; then
+      [[ "$(ps -o stat= -p "$mpdlingerpid")" = "S" ]] && background=1
+      printf 'An instance of mpdlinger is already running (not in a named screen process):\n'
+      ! (( background )) && printf 'You will need to chase it down in another window or kill it (pid=%s).\nExiting (exit 1)\n.' "$mpdlingerpid"
+      (( background )) && printf 'You will need to chase it down somewhere in the background or kill it (pid=%s).\nExiting (exit 1)\n.' "$mpdlingerpid"
+      (( verbose )) && read -rp pause\ before\ exit\ 2
+      exit 1
+
+    ## if multiple mpdlinger pids found, error out for manual cleanup
+    elif (( "${#pids[@]}" > 1 )); then
+      printf 'There is more than one instance of mpdlinger running:\n%s\n\n' "$(read -rp "$(pgrep mpdlinger -a)")"
+      printf 'Exiting. (exit 1)'
+      (( verbose )) && read -rp pause\ before\ exit\ 3
+      exit 1
+
+    ## finally, set mpdlingerpid to us and write pidfile if none of above apply
+    else
+      mpdlingerpid="$$"
+      printf %s\\n "$mpdlingerpid" > "$pidfile"
+      export mpdlingerpid="$mpdlingerpid"
+    fi
+
+  ## in the case ipc=1, process the validaded ipccommand
+  ## HOWEVER, WE STILL NEED TO LAUNCH A DAEMON IF ONE DOESN'T EXIST YET!!!
+  ## i.e., if there's no $pidfile or $mpdlingerpid and we feel that is accurate, try launching the daemon to screen.  if that fails, then exit?
+  else # (( ipc ))
+    if [[ ! "$mpdlingerpid" ]]; then
+      printf 'No running mpdlinger daemon found. Would you like to launch one in screen?'
+      confirm -Y 'Launch mpdlinger now?' && {
+        # screen -S mpdlinger -dm bash -c 'exec ~/bin/mpdlinger'
+        ## maybe don't pass "$@" here?
+        mpdlinger -s  #"$@"
+        sleep 1
+        if [[ -f "$pidfile" ]]; then
+          mpdlingerpid="$(< "$pidfile")"
+          pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"
+          export mpdlingerpid pgid
+        else
+          printf 'Failed to launch mpdlinger daemon or pidfile not created. (exit 1)\n'
+          exit 1
+        fi
+      } || {
+        printf 'Cannot send IPC command without running daemon. (exit 1)\n'
+        exit 1
+      }
+    fi
+    (( verbose )) && printf 'kill -USR2 %s\n' "$mpdlingerpid"
+    [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
+    kill -USR2 "$mpdlingerpid"
+    pkill -g "$pgid" mpc
+    pkill -g "$pgid" lolcat
+    [[ "$ipccmd" = next ]] && mpctitle
+    exit 0
+  fi ## if ! (( ipc ))
+
+  (( verbose )) && printf 'Leaving %s...' "startupcheck block"
+
+fi # for if [[ "$1" != --exec ]]; then
+
 while (( "$#" > 0 )); do
   if [[ "$1" = @(-s|--screen@(|ed)) ]]; then
     screenname="mpdlinger-$(date -Im)"
+    screenname="${screenname:0:26}"
     shift
   elif [[ "$1" = @(-a|-as|-sa) ]]; then
     screenname="mpdlinger-$(date -Im)"
+    screenname="${screenname:0:26}"
     attached=1
     shift
   elif [[ "$1" = --exec ]]; then
@@ -815,10 +912,10 @@ while (( "$#" > 0 )); do
     verbose=1
     args+=("$1")
     shift
-  elif [[ "$1" = -p ]]; then
-    args+=("$1")
-    paused=1
-    shift
+#  elif [[ "$1" = -p ]]; then
+#    args+=("$1")
+#    paused=1
+#    shift
   elif [[ "$1" =~ ^(-h|--help|help)$ ]]; then
     showhelp
     exit 0
@@ -827,7 +924,6 @@ while (( "$#" > 0 )); do
     initrand="${1#--}"
     shift
   elif [[ "$1" =~ ^-c([0-9]+)$ || "$1" = -c ]]; then
-#    if [[ "$1" =~ ^-c([0-9]+)$ ]]; then
     if [[ "${BASH_REMATCH[1]}" ]]; then
       args+=("$1")
       count="${BASH_REMATCH[1]}"
@@ -849,7 +945,6 @@ while (( "$#" > 0 )); do
 #      (( verbose )) && echo "count: $count"
 #    fi
   elif [[ "$1" =~ ^-l([0-9]+)$ || "$1" = -l ]]; then
-#    if [[ "$1" =~ ^-l([0-9]+)$ ]]; then
     if [[ "${BASH_REMATCH[1]}" ]]; then
       args+=("$1")
       limit="${BASH_REMATCH[1]}"
@@ -865,7 +960,6 @@ while (( "$#" > 0 )); do
       fi
     fi
   elif [[ "$1" =~ ^-b[0-9]+$ || "$1" = -b ]]; then
-#    if [[ "$1" =~ ^-b([0-9]+)$ ]]; then
     if [[ "${BASH_REMATCH[1]}" ]]; then
       args+=("$1")
       blocklimit="${BASH_REMATCH[1]}"
@@ -880,6 +974,11 @@ while (( "$#" > 0 )); do
         exit 1
       fi
     fi
+  elif [[ " ${ipcargs[*]} " = *" $1 "* ]];
+    printf %s "$1"
+    shift
+    [[ "$1" =~ ^[0-9]+$ ]] && { printf \ %s\\n "$1"; shift; } #ipcval="$1" && shift
+    read -rp 'An IPC command has been removed from the flag processing block.'
   else
     echo "Unknown option: $1"
     shift
@@ -903,10 +1002,10 @@ if [[ "$screenname" ]]; then
       { printf 'Warning: %s already exists. Aborting to avoid PID confusion.\n' "$pidfile"
       exit 1; }
 
-    exec screen -S "${screenname:0:26}" bash -c 'echo $$ > /tmp/mpdlinger.pid
+    exec screen -S "$screenname" bash -c 'echo $$ > /tmp/mpdlinger.pid
                                           exec env attached=1 mpdlinger '"${args[@]}"' '
   else
-    screen -dmS "${screenname:0:26}" mpdlinger "${args[@]}"
+    screen -dmS "$screenname" mpdlinger "${args[@]}"
   # "${screenargs[@]}"
   fi
 
