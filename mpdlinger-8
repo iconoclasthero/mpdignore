@@ -8,11 +8,30 @@ shopt -s extglob nullglob
 pidfile='/tmp/mpdlinger.pid'
 cmdfile='/tmp/mpdlinger.cmd'
 countfile='/tmp/mpdlinger.count'
-
+#outstamp="$(date -Is|cut -c1-19)"
+#vtag="ℹ️  $outstamp: "
+#wtag="⚠️  $outstamp: "
 #verbose=1
 
-{ (( verbose )) || [[ "$1" != --exec ]] ; } && printf '%s has started.\n' "$0"
-(( verbose )) && printf '\n           0 = %s\n   prevlimit = %s\n  blocklimit = %s\n       limit = %s\n       count = %s\n          $* = %s\n\n' "$0" "$prevlimit" "$blocklimit" "$limit" "$count" "$*"
+timestamp(){ date -Is | cut -c1-19; }
+vtag(){ printf 'ℹ️  %s: ' "$(timestamp)"; }
+wtag(){ printf '⚠️  %s: ' "$(timestamp)"; }
+itag(){ printf '👉 %s: ' "$(timestamp)"; }
+indent="                        "
+
+
+{ (( verbose )) || [[ "$1" != --exec ]] ; } && printf '%s%s has started.\n' "$(vtag)" "$0"
+(( verbose )) && {
+  printf '\n'
+  printf '%s' "$(vtag)"
+  printf '        $0 = %s\n' "$0"
+  printf '%s prevlimit = %s\n' "$indent" "$prevlimit"
+  printf '%sblocklimit = %s\n' "$indent" "$blocklimit"
+  printf '%s     limit = %s\n' "$indent" "$limit"
+  printf '%s     count = %s\n' "$indent" "$count"
+  printf '%s   verbose = %s\n' "$indent" "$verbose"
+  printf '%s        $* = %s\n' "$indent" "$*"
+  printf '\n'; }
 
 # Signal traps
 ## If you want the variables like $count and $(...) to be evaluated when the trap is triggered, not when it's defined, you should use single quotes.
@@ -27,213 +46,14 @@ trap '
   ipchandler
 ' USR2
 
-startupcheck(){
-  (( verbose )) && printf 'In %s.\n' "${FUNCNAME[0]}"
-
-## first determine if there's an ipc command passed
-
-if [[ " ${ipcargs[*]} " = *" $1 "* ]]; then
-  ipccmd="$1"
-  shift
-  [[ "$1" =~ ^[0-9]+$ ]] && ipcval="$1" && shift
-
-  if (( $# )); then
-    printf 'The IPC wrapper accepts EXACTLY ONE of the following cli arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipcargs[*]}")" "$*"
-    set --
-  elif [[ " ${ipc1args[*]} " = *" $ipccmd " ]] && [[ "$ipcval" ]]; then
-    printf 'These IPC wrapper commands do not accept numeric arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipc1args[*]}")" "$ipcval"
-    unset ipcval
-  elif [[ " ${ipc2args[*]} " = *" $ipccmd " ]] && [[ ! "$ipcval" ]]; then
-    printf 'These IPC wrapper commands require a numeric argument:\n%s' "$(IFS=\|; printf '%s' "${ipc2args[*]}")"
-    exit 1
-  fi
-
-  printf '%s%s\n' "$ipccmd" "${ipcval:+ $ipcval}" > "$cmdfile"
-
-## run balance of startupcheck() after validating the ipc commands to get "$mpdlingerpid"
-#  startupcheck "ipc"
-  ipc=1
-
-fi
-
-
-
-
-
-
-  ## if pidfile exists, check if pid still running; if stale remove pidfile and unset mpdlingerpid
-  if [[ -f "$pidfile" ]]; then
-    mpdlingerpid="$(< "$pidfile")"
-    (( verbose )) && read -rp "$mpdlingerpid"
-    if ! ps -p "$mpdlingerpid" > /dev/null; then
-      printf 'Stale pidfile found, removing: %s\n' "$pidfile"
-      rm -f "$pidfile"
-      unset mpdlingerpid
-    else
-      pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"
-      export mpdlingerpid="$mpdlingerpid"
-    fi
-  fi
-
-  ## if no valid pidfile found, try to find running mpdlinger processes excluding this shell and edits
-  if [[ ! -f "$pidfile" ]] || [[ ! "$mpdlingerpid" ]]; then
-    (( verbose )) && printf 'pid of this process: $$ = %s\n' "$$"
-
-    readarray -t pgrepout < <(pgrep mpdlinger -a | grep -Ev -- "$$|--edit")
-
-    ## get our process group id for comparison
-    pgid2=$(ps -o pgid= -p $$ | tr -d ' ')
-    (( verbose )) && printf '%s\n' "$pgid2"
-
-    ## filter out any pids in same pgid as us (screen or exec children)
-    for i in "${pgrepout[@]}"; do
-      unset pidpgid   ## make sure we're not reusing a stale value
-      pid="${i%% *}"
-      pidpgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
-      (( verbose )) && printf 'pid=%s  pidpgid=%s  ourpgid=%s  cmd=%s\n' "$pid" "$pidpgid" "$pgid2" "$i"
-
-      ## if process is in a different pgid, assume it's an orphaned daemon
-      if [[ "$pidpgid" && "$pidpgid" != "$pgid2" ]]; then
-        pgreplines+=("$i")
-      fi
-    done
-
-    ## show filtered lines if any
-    (( verbose )) && { printf -- --\\n; printf '%s\n' "${pgreplines[@]}"; printf -- --\\n; }
-
-    ## if we found any suspicious candidates, prompt user
-    if (( ${#pgreplines[@]} )); then
-      printf '\n[%sWARN%s] A pid for mpdlinger was identified without a corresponding %s!\n' "$yellow" "$tput0" "$pidfile"
-      printf '[%sWARN%s] This indicates that the pidfile has been somehow misplaced...\n\n' "$yellow" "$tput0"
-      ## display all the viable candidates
-      printf 'Output of '\''%spgrep mpdlinger -a|grep -Ev -- "$$|--edit"%s'\'':\n' "$blue" "$tput0"
-      printf '%s' "$blue"
-
-      ## use gum if more than one line, otherwise just print
-      if (( ${#pgreplines[@]} > 1 )); then
-        mpdlingerpid="$(printf '%s\n' "${pgreplines[@]}" | gum choose)"
-        mpdlingerpid="${mpdlingerpid%% *}"
-      else
-        printf '%s\n' "${pgreplines[0]}"
-        mpdlingerpid="${pgreplines[0]%% *}"
-      fi
-      printf '%s' "$tput0"
-
-      printf \\n
-
-      ## prompt before writing to file, and get pgid again
-      confirm -Y "${red}Write pid $mpdlingerpid to $pidfile?${tput0}" &&
-        { printf '%s\n' "$mpdlingerpid" > "$pidfile"
-          export mpdlingerpid="$mpdlingerpid"
-          pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; } ||
-        ## bail out if confirmation fails
-        { printf '\nFailed to determine a pid for the daemon. Investigate. (exit 1)\n\n'; exit 1; }
-    fi
-  fi
-
-## this was the start of the old startupcheck() and shouldn't be run when an ipc command is passed
-  if ! (( ipc )); then
-    ## compact pids array excluding --edit processes
-    readarray -t pids < <(pgrep mpdlinger)
-    for i in "${!pids[@]}"; do
-      (( verbose )) && printf 'i=%s\n' "$i"
-      (( verbose )) && ps -p "${pids[i]}" -o command --no-header
-      [[ "$(ps -p "${pids[i]}" -o command --no-header)" = *\ --edit* ]] && unset 'pids[i]'
-    done
-    pids=("${pids[@]}")
-
-    (( verbose )) && printf 'Array compacted, ${#pids[@]}: %s\n' "${#pids[@]}"
-    (( verbose )) && printf '${pids[@]} = %s\n' "${pids[@]}"
-    (( verbose )) && printf '$mpdlingerpid = %s\n' "$mpdlingerpid"
-    (( verbose )) && (( mpdlingerpid )) &&
-                     printf 'ps -p %s = %s\n' "$mpdlingerpid" "$(ps -p $mpdlingerpid)"
-    (( verbose )) && printf 'ls %s:\n%s\n' "$pidfile" "$(ls "$pidfile" 2>/dev/null)"
-    (( verbose )) && printf 'cat %s:\n%s\n' "$pidfile" "$(cat "$pidfile" 2>/dev/null)"
-    (( verbose )) && pause "Pause in ${FUNCNAME[0]}..."
-
-    ## check if an existing mpdlinger screen session is running and try to resume it (skip if we're the same process)
-    if (( mpdlingerpid )) && (( mpdlingerpid != $$ )) && ps -p "$mpdlingerpid" >/dev/null && screenpid="$(screen -ls | \grep -m1 mpdlinger)"; then
-      screenpid="${screenpid#"${screenpid%%[! $'\t ']*}"}"
-      screenpid="${screenpid%%.*}"
-      printf '\nAn instance of mpdlinger is already running in a screen process:\n%s\n' "$screenpid"
-      printf '\nAttempting to resume screen...\n\n'
-      (( verbose )) && printf '$screenpid = %s\n' "$screenpid"
-      (( verbose )) && read -rp "exec screen -r $screenpid"
-      exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
-      printf 'Unable to reattach to the screen that mpdlinger is running on.\n'
-      confirm -Y 'Try to reattach with "screen -x" to attempt attaching to a non-detached screen?' &&
-        exec screen -r "$(awk '{print $1}' <<< "$screenpid")"
-      printf 'Reattachment to screen aborted or failed.\nExiting (exit 1)\n.'
-      (( verbose )) && read -rp pause\ before\ exit\ 1
-      exit 1
-
-    ## check if an mpdlinger process is running outside screen, error out so user can handle it
-    elif (( mpdlingerpid )) && (( mpdlingerpid != $$ )) && ps -p "$mpdlingerpid" >/dev/null; then
-      [[ "$(ps -o stat= -p "$mpdlingerpid")" = "S" ]] && background=1
-      printf 'An instance of mpdlinger is already running (not in a named screen process):\n'
-      ! (( background )) && printf 'You will need to chase it down in another window or kill it (pid=%s).\nExiting (exit 1)\n.' "$mpdlingerpid"
-      (( background )) && printf 'You will need to chase it down somewhere in the background or kill it (pid=%s).\nExiting (exit 1)\n.' "$mpdlingerpid"
-      (( verbose )) && read -rp pause\ before\ exit\ 2
-      exit 1
-
-    ## if multiple mpdlinger pids found, error out for manual cleanup
-    elif (( "${#pids[@]}" > 1 )); then
-      printf 'There is more than one instance of mpdlinger running:\n%s\n\n' "$(read -rp "$(pgrep mpdlinger -a)")"
-      printf 'Exiting. (exit 1)'
-      (( verbose )) && read -rp pause\ before\ exit\ 3
-      exit 1
-
-    ## finally, set mpdlingerpid to us and write pidfile if none of above apply
-    else
-      mpdlingerpid="$$"
-      printf %s\\n "$mpdlingerpid" > "$pidfile"
-      export mpdlingerpid="$mpdlingerpid"
-   #   [[ -f "$cmdfile" ]] && rm "$cmdfile"
-    fi
-
-## in the case ipc=1, process the validaded ipccommand
-  else
-if [[ ! "$mpdlingerpid" ]]; then
-  printf 'No running mpdlinger daemon found. Would you like to launch one in screen?'
-  confirm -Y 'Launch mpdlinger now?' && {
-#    screen -S mpdlinger -dm bash -c 'exec ~/bin/mpdlinger'
-    mpdlinger -s
-    sleep 1
-    if [[ -f "$pidfile" ]]; then
-      mpdlingerpid="$(< "$pidfile")"
-      pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"
-      export mpdlingerpid pgid
-    else
-      printf 'Failed to launch mpdlinger daemon or pidfile not created. (exit 1)\n'
-      exit 1
-    fi
-  } || {
-    printf 'Cannot send IPC command without running daemon. (exit 1)\n'
-    exit 1
-  }
-fi
-    (( verbose )) && printf 'kill -USR2 %s\n' "$mpdlingerpid"
-    [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
-    kill -USR2 "$mpdlingerpid"
-    pkill -g "$pgid" mpc
-    pkill -g "$pgid" lolcat
-    [[ "$ipccmd" = next ]] && mpctitle
-    exit 0
-  fi
-
-  (( verbose )) && printf 'Leaving %s...' "${FUNCNAME[0]}"
-}
-##--> startupcheck() <--#######################################################################
-
-
 checkpid(){
   ## Try reading from pidfile
   if [[ -f "$pidfile" ]]; then
     mpdlingerpid="$(< "$pidfile")"
-    (( verbose )) && read -rp "\$mpdlingerpid (from $pidfile): $mpdlingerpid"
+    (( verbose )) && read -rp "$(vtag) \$mpdlingerpid (from $pidfile): $mpdlingerpid"
 
     if ! ps -p "$mpdlingerpid" > /dev/null; then
-      printf 'Stale pidfile found, removing: %s\n' "$pidfile"
+      printf '%sStale pidfile found, removing: %s\n' "$(wtag)" "$pidfile"
       rm -f "$pidfile"
       unset mpdlingerpid
     else
@@ -337,32 +157,6 @@ ipchandler() {
       cleanupexit
       ;;
 
-#    skip)
-#      echo "Skipping song..."
-#      if (( count < limit )); then
-#        next >/dev/null
-#        (( count++ ))
-#      else
-#        mpcp -q random on
-#        next >/dev/null
-#        mpcp -q random off
-#        count=1
-#      fi
-#      unset blocklimit
-#      (( verbose )) && pause "Resuming after skip with count=$count"
-#      exec env count="$count" mpdlinger --exec
-#      ;;
-#
-#    next)
-#      mpcp -q random on
-#      next >/dev/null
-#      mpcp -q random off
-#      (( blocklimit )) && limit="$prevlimit"
-#      unset blocklimit
-#      (( verbose )) && printf 'next) prevlimit=%s limit=%s\n' "$prevlimit" "$limit"
-#      exec env limit="$limit" mpdlinger --exec
-#      ;;
-
     skip)
       echo "Skipping song..."
       if (( count < limit )); then
@@ -404,6 +198,10 @@ ipchandler() {
       ;;
 
     blocklimit\ *)
+      ## in the event that count=0 when blocklimit is changed,
+      ## it should be reset to the previous count so that the blocklimit
+      ## doesn't start at zero (relevant when blocklimit is changed at limit
+      ! (( count )) && count="$blockcount"
       blocklimit="${cmd#blocklimit }"
       prevlimit="${prevlimit:-$limit}"
       echo "Block limit set to $blocklimit (prev=$prevlimit)"
@@ -518,7 +316,7 @@ mainmenu(){
          while true; do
            read -p "Change the current blocklimit (${blocklimit:-$limit}) to: " blocklimit
            # if user return is empty, set blocklimit to current limit
-           [[ ! "$blocklimit" ]] && : "${blocklimit:=$limit}"
+           : "${blocklimit:=$limit}"
            (( blocklimit )) && { printf blocklimit\ %s\\n "$blocklimit" > /tmp/mpdlinger.cmd;
                                  break; }
            printf '\n[ERROR] Invalid entry for blocklimit: "%s". Please enter a number.\n\n' "${blocklimit:-invalid entry}"
@@ -530,10 +328,12 @@ mainmenu(){
       "Change count")
          while true; do
            read -p "Change the count ($count) to: " ncount
-           # if user return is empty, set blocklimit to current limit
-           [[ ! "$ncount" ]] && : "${ncount:=$count}"
-           (( ncount || ncount == 0 )) && { printf count\ %s\\n "$ncount" > /tmp/mpdlinger.cmd;
-                                 break; }
+           ## if user return is empty, set blocklimit to current limit
+           : "${ncount:=$count}"
+           ## this does not work because (( var == 0 )) doesn't work!
+           ## (( ncount || ncount == 0 )) &&
+           [[ "$count" =~ ^[+-]?[0-9]+$ ]] &&
+              { printf count\ %s\\n "$ncount" > /tmp/mpdlinger.cmd; break; }
            printf '\n[ERROR] Invalid entry for count: "%s". Please enter a number.\n\n' "${ncount:-invalid entry}"
            unset ncount
          done
@@ -720,138 +520,42 @@ unset paused    #probably can remove
 #limit=4
 limit="${limit:-4}" #probably need to define a default limit somewhere.  should i use prevlimit though?
 unset current  #probably can remove
-(( verbose )) && printf 'This is the initial count assignment in the main code:\n$count = %s\n' "$count"
+(( verbose )) && printf '%sThis is the initial count assignment in the main code:\n%s$count = %s\n' "$(vtag)" "$indent" "$count"
 : "${count:=1}"        #since i'm not zero indexed, i need to fix that before removing this.
 #getpids        #need to decide if this is redudnant/problematic
                #it isn't, only insofar as NOTHING in the script uses it anymore.
-(( verbose )) && printf '": ${count:=1}"\n$count = %s\n' "$count"
+(( verbose )) && printf '%s": ${count:=1}"\n%s$count = %s\n' "$(vtag)" "$indent" "$count"
 
 if [[ "$1" != --exec ]]; then
-  (( verbose )) && printf 'In startupcheck block.\n'
-
-#  ## first determine if there's an ipc command passed
-#  if [[ " ${ipcargs[*]} " = *" $1 "* ]]; then
-#    ipccmd="$1"
-#    shift
-#    [[ "$1" =~ ^[0-9]+$ ]] && ipcval="$1" && shift
-#
-#    if (( $# )); then
-#      printf 'The IPC wrapper accepts EXACTLY ONE of the following cli arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipcargs[*]}")" "$*"
-#      set --
-#    elif [[ " ${ipc1args[*]} " = *" $ipccmd " ]] && [[ "$ipcval" ]]; then
-#      printf 'These IPC wrapper commands do not accept numeric arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipc1args[*]}")" "$ipcval"
-#      unset ipcval
-#    elif [[ " ${ipc2args[*]} " = *" $ipccmd " ]] && [[ ! "$ipcval" ]]; then
-#      printf 'These IPC wrapper commands require a numeric argument:\n%s' "$(IFS=\|; printf '%s' "${ipc2args[*]}")"
-#      exit 1
-#    fi
-#
-#    printf '%s%s\n' "$ipccmd" "${ipcval:+ $ipcval}" > "$cmdfile"
-#
-#    ## run balance of startupcheck() after validating the ipc commands to get "$mpdlingerpid"
-#    #  startupcheck "ipc"
-#    ipc=1
-#  fi
+  (( verbose )) && printf '%sIn startupcheck block.\n' "$(vtag)"
 
   if [[ " ${ipcargs[*]} " = *" $1 "* ]]; then
     ipcparse "$@"
     set --
   fi
 
-## if pidfile exists, check if pid still running; if stale remove pidfile and unset mpdlingerpid
-## replacing with checkpid()
-
-#  if [[ -f "$pidfile" ]]; then
-#    mpdlingerpid="$(< "$pidfile")"
-#    (( verbose )) && read -rp "$mpdlingerpid"
-#    if ! ps -p "$mpdlingerpid" > /dev/null; then
-#      printf 'Stale pidfile found, removing: %s\n' "$pidfile"
-#      rm -f "$pidfile"
-#      unset mpdlingerpid
-#    else
-#      pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"
-#      export mpdlingerpid="$mpdlingerpid"
-#    fi
-#  fi
-#
-#  ## if no valid pidfile found, try to find running mpdlinger processes excluding this shell and edits
-#  if [[ ! -f "$pidfile" ]] || [[ ! "$mpdlingerpid" ]]; then
-#    (( verbose )) && printf 'pid of this process: $$ = %s\n' "$$"
-#
-#    readarray -t pgrepout < <(pgrep mpdlinger -a | grep -Ev -- "$$|--edit")
-#
-#    ## get our process group id for comparison
-#    pgid2=$(ps -o pgid= -p $$ | tr -d ' ')
-#    (( verbose )) && printf '%s\n' "$pgid2"
-#
-#    ## filter out any pids in same pgid as us (screen or exec children)
-#    for i in "${pgrepout[@]}"; do
-#      unset pidpgid   ## make sure we're not reusing a stale value
-#      pid="${i%% *}"
-#      pidpgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
-#      (( verbose )) && printf 'pid=%s  pidpgid=%s  ourpgid=%s  cmd=%s\n' "$pid" "$pidpgid" "$pgid2" "$i"
-#
-#      ## if process is in a different pgid, assume it's an orphaned daemon
-#      if [[ "$pidpgid" && "$pidpgid" != "$pgid2" ]]; then
-#        pgreplines+=("$i")
-#      fi
-#    done
-#
-#    ## show filtered lines if any
-#    (( verbose )) && { printf -- --\\n; printf '%s\n' "${pgreplines[@]}"; printf -- --\\n; }
-#
-#    ## if we found any suspicious candidates, prompt user
-#    if (( ${#pgreplines[@]} )); then
-#      printf '\n[%sWARN%s] A pid for mpdlinger was identified without a corresponding %s!\n' "$yellow" "$tput0" "$pidfile"
-#      printf '[%sWARN%s] This indicates that the pidfile has been somehow misplaced...\n\n' "$yellow" "$tput0"
-#      ## display all the viable candidates
-#      printf 'Output of '\''%spgrep mpdlinger -a|grep -Ev -- "$$|--edit"%s'\'':\n' "$blue" "$tput0"
-#      printf '%s' "$blue"
-#
-#      ## use gum if more than one line, otherwise just print
-#      if (( ${#pgreplines[@]} > 1 )); then
-#        mpdlingerpid="$(printf '%s\n' "${pgreplines[@]}" | gum choose)"
-#        mpdlingerpid="${mpdlingerpid%% *}"
-#      else
-#        printf '%s\n' "${pgreplines[0]}"
-#        mpdlingerpid="${pgreplines[0]%% *}"
-#      fi
-#      printf '%s' "$tput0"
-#
-#      printf \\n
-#
-#      ## prompt before writing to file, and get pgid again
-#      confirm -Y "${red}Write pid $mpdlingerpid to $pidfile?${tput0}" &&
-#        { printf '%s\n' "$mpdlingerpid" > "$pidfile"
-#          export mpdlingerpid="$mpdlingerpid"
-#          pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; } ||
-#        ## bail out if confirmation fails
-#        { printf '\nFailed to determine a pid for the daemon. Investigate. (exit 1)\n\n'; exit 1; }
-#    fi
-#  fi
-## end of replaced section
   checkpid
-
 
   ## this was the start of the old startupcheck() and shouldn't be run when an ipc command is passed
   if ! (( ipc )); then
     ## compact pids array excluding --edit processes
     readarray -t pids < <(pgrep mpdlinger)
     for i in "${!pids[@]}"; do
-      (( verbose )) && printf 'i=%s\nps -p "${pids[i]}" -o command --no-header:\n' "$i"
-      (( verbose )) && ps -p "${pids[i]}" -o command --no-header
+#      (( verbose )) && printf '%sps -p "${pids[%s]}" -o command --no-header:\n' "$(vtag)" "$i"
+      ! (( i )) && (( verbose )) && printf '%sps -p "${pids[@]}" -o command --no-header:\n' "$(vtag)"
+      (( verbose )) && printf '%s%s\n' "$indent" "$(ps -p "${pids[i]}" -o command --no-header)"
       [[ "$(ps -p "${pids[i]}" -o command --no-header)" = *\ --edit* ]] && unset 'pids[i]'
     done
     pids=("${pids[@]}")
 
-    (( verbose )) && printf 'Array compacted, ${#pids[@]}: %s\n' "${#pids[@]}"
-    (( verbose )) && printf '${pids[@]} = %s\n' "${pids[@]}"
-    (( verbose )) && printf '$mpdlingerpid = %s\n' "$mpdlingerpid"
+    (( verbose )) && printf '%sArray compacted, ${#pids[@]}: %s\n' "$(vtag)" "${#pids[@]}"
+    (( verbose )) && printf '%s%s\n' "$(vtag)" "$(printf '${pids[@]} = %s\n' "${pids[@]}")"
+    (( verbose )) && printf '%s$mpdlingerpid = %s\n' "$(vtag)" "$mpdlingerpid"
     (( verbose )) && (( mpdlingerpid )) &&
-                     printf 'ps -p %s = %s\n' "$mpdlingerpid" "$(ps -p $mpdlingerpid --no-header)"
-    (( verbose )) && printf 'ls %s:\n%s\n' "$pidfile" "$(ls "$pidfile" 2>/dev/null)"
-    (( verbose )) && printf 'cat %s:\n%s\n' "$pidfile" "$(cat "$pidfile" 2>/dev/null)"
-    (( verbose )) && pause "Pause in startupcheck block"
+                     printf '%sps -p %s = %s\n' "$(vtag)" "$mpdlingerpid" "$(ps -p $mpdlingerpid --no-header)"
+    (( verbose )) && printf '%sls %s:\n%s\n' "$(vtag)" "$pidfile" "$(ls "$pidfile" 2>/dev/null)"
+    (( verbose )) && printf '%scat %s:\n%s\n' "$(vtag)" "$pidfile" "$(cat "$pidfile" 2>/dev/null)"
+    (( verbose )) && pause "$(vtag)Pause in startupcheck block"
 
     ## check if an existing mpdlinger screen session is running and try to resume it (skip if we're the same process)
     if (( mpdlingerpid )) && (( mpdlingerpid != $$ )) && ps -p "$mpdlingerpid" >/dev/null && screenpid="$(screen -ls | grep -m1 mpdlinger)"; then
@@ -859,14 +563,6 @@ if [[ "$1" != --exec ]]; then
       screenpid="${screenpid%%.*}"
       printf '\nAn instance of mpdlinger is already running in a screen process:\n%s\n' "$screenpid"
       printf '\nAttempting to resume screen...\n\n'
-#      (( verbose )) && read -rp "exec screen -r \"$screenpid\""
-#      exec screen -r "$screenpid"
-#      printf 'Unable to reattach to the screen that mpdlinger is running on.\n'
-#      confirm -Y 'Try to reattach with "screen -x" to attempt attaching to a non-detached screen?' &&
-#        exec screen -r "$screenpid"
-#      printf 'Reattachment to screen aborted or failed.\nExiting (exit 1)\n.'
-#      (( verbose )) && read -rp pause\ before\ exit\ 1
-#      exit 1
 
       ## Start background killer: after 10s, kill this shell if still running
       (sleep 10 && kill $$) & killerpid=$!
@@ -943,7 +639,7 @@ if [[ "$1" != --exec ]]; then
     exit 0
   fi ## if ! (( ipc ))
 
-  (( verbose )) && printf 'Leaving %s...' "startupcheck block"
+  (( verbose )) && printf '%sLeaving startupcheck block...\n' "$(vtag)"
 
 fi # for if [[ "$1" != --exec ]]; then
 
@@ -1039,6 +735,9 @@ while (( "$#" > 0 )); do
 done
 
 
+(( verbose )) && printf '%sAfter flag processing block\n' "$(vtag)"
+
+
 if [[ "$screenname" ]]; then
   (( verbose )) && pause "$screenname"
   hr2 "$bold Calling mpdlinger in GNU screen $tput0"
@@ -1081,11 +780,21 @@ fi
 
 # check to make sure random is off when $0 starts:
 if [[ "$initrand" = off ]] || { [[ "$random" = '✅' ]] && (( count < limit )); }; then
-  echo "[WARN] Turning random off."
+  printf '%sTurning random off.\n' "$(wtag)"
   mpcp -q random off
 elif [[ "$initrand" = on ]] || { [[ "$random" = '❌' ]] && (( count >= limit )); }; then
-  echo "[WARN] Turning random on."
+  printf '%sTurning random on.\n' "$(wtag)"
   mpcp -q random on
+  transition=1
+  prevcount="$count"
+  count=0
+#elif [[ "$random" = '❌' ]] && (( count >= limit )); }; then
+elif (( count >= limit )); then
+  printf '%sStarting with count >= limit (%s >= %s); turning random on.\n' "$(wtag)" "$count" "$limit"
+  mpcp -q random on
+  transition=1
+  prevcount="$count"
+  count=0
 fi
 
 
@@ -1093,16 +802,123 @@ clear -x
 printf '%s \n%s \n%s \n \n%s\n%s\n' \
        "$(toilet -tf "$font1" "$artist / $title")" \
        "$(toilet -tf "$font1" "$album:")" \
-       "$(toilet -tf "$font1" "${blocklimit:+Blocklimit: }$count/$limit")" \
+       "$(toilet -tf "$font1" "${blocklimit:+Blocklimit: }${prevcount:-$count}/$limit")" \
        "$(mpctitle)" \
        "$(date)" |
    "${lolargs[@]}" &
 
+unset prevcount
+
 # oneline this with: printf '%s \n%s \n%s \n \n%s\n ' "$(toilet -tf "$font1" "$artist")" "$(toilet -tf "$font1" "$album:")" "$(toilet -tf "$font1" "$count/$limit")" "$(mpctitle)"
 
 
+verbose=1
+#transition=0
+
+(( verbose )) && printf '%sBefore main while loop.\n' "$(vtag)"
+
+############################################################################
 
 while output=( $(\mpc idle playlist player) ); do
+  (( verbose )) && printf '\n%sStarting while loop...\n' "$(vtag)"
+  (( verbose )) && printf '\n%soutput of mpc idle playlist player = %s\n' "$(vtag)" "${output[*]}"
+  (( verbose )) && printf '%srandomst at top of loop = %s\n\n' "$(vtag)" "${randomst:-$(\mpc status %random%)}"
+  if [[ "${output[@]}" = playlist\ player ]]; then
+    if (( paused )); then
+      printf 'mpdlinger paused. Waiting to be resumed...\n'
+      pauseloop
+    fi
+
+    . <(mpd-current.py)
+
+    if (( current != song_id )); then
+      current="$song_id"
+
+#      (( count > limit )) && transition=1
+
+      if (( transition )); then
+        # Just came from random ON — starting new block
+        (( verbose )) && printf '%sTransition song played — turning random OFF.\n' "$(vtag)"
+        randomst=off && \mpc random "$randomst" > /dev/null
+        count=1
+        transition=0
+      else
+        ((count++))
+      fi
+    fi
+
+    (( verbose )) && printf '%stransition = %s\n' "$(vtag)" "$transition"
+    (( verbose )) && printf '%scount = %s\n' "$(vtag)" "$count"
+
+    wait
+    clear -x
+
+#    printf '%s \n%s \n%s \n\n%s\n%s\n' \
+#      "$(toilet -tf "$font1" "$artist / $title")" \
+#      "$(toilet -tf "$font1" "$album:")" \
+#      "$(toilet -tf "$font1" "${blocklimit:+Blocklimit: }$count/$limit")" \
+#      "$(mpctitle random "$randomst")" \
+#      "$(date)" |
+#      "${lolargs[@]}" &
+##      "$(printf 'Random mode: %s\n' "$(\mpc status %random%)")" \
+#
+#    (( verbose )) && { printf '%sTurning wait on...\n' "$(vtag)"; wait; printf '%s...wait done.\n' "$(vtag)"; }
+    if (( count >= limit )); then
+      (( verbose )) && printf '%s🎯 Block complete: count=%s → resetting.\n' "$(vtag)" "$count"
+      prevcount="$count"
+      blockcount="$count"
+      count=0
+      transition=1
+      (( verbose )) && printf '%sTurning random ON to start next block...\n%scount = %s\n' "$(vtag)" "$(vtag)" "$count"
+      if (( blocklimit )); then
+        limit="$prevlimit"
+        unset blocklimit
+        printf '%sTemporary block limit reached; restoring limit to %s.\nEnjoy the next rock block coming up right after %s!\n' "$(itag)" "$limit" "$title"
+      fi
+      randomst=on
+#      \mpc random "$randomst" >/dev/null
+    fi
+
+    (( verbose )) &&
+     { printf '%s  randomst = %s\n' "$(vtag)" "$randomst"
+       printf '%s prevcount = %s\n' "$indent" "$prevcount"
+       printf '%sblockcount = %s\n' "$indent" "$blockcount"
+       printf '%s     count = %s\n' "$indent" "$count"
+       printf '%stransition = %s\n' "$indent" "$transition"
+       printf '%sblocklimit = %s\n' "$indent" "$blocklimit"
+       printf '%s     limit = %s\n' "$indent" "$limit"
+       printf '%s prevlimit = %s\n' "$indent" "$prevlimit"; }
+
+
+    printf '%s \n%s \n%s \n\n%s\n%s\n' \
+      "$(toilet -tf "$font1" "$artist / $title")" \
+      "$(toilet -tf "$font1" "$album:")" \
+      "$(toilet -tf "$font1" "${blocklimit:+Blocklimit: }${prevcount:-$count}/$limit")" \
+      "$(mpctitle random "$randomst")" \
+      "$(date)" |
+      "${lolargs[@]}" &
+#      "$(printf 'Random mode: %s\n' "$(\mpc status %random%)")" \
+    unset prevcount
+    (( verbose )) && { printf '%sTurning wait on...\n' "$(vtag)"; wait; printf '%s...wait done.\n' "$(vtag)"; }
+
+
+  fi
+  (( verbose )) && printf '%srandomst at bottom of loop = %s\n\n' "$(vtag)" "${randomst:-$(\mpc status %random%)}"
+  (( verbose )) && printf '%stransition at bottom of loop = %s\n\n' "$(vtag)" "$transition"
+done
+
+
+
+
+
+
+
+
+exit
+
+while output=( $(\mpc idle playlist player) ); do
+  (( verbose )) && printf '\noutput of mpc idle playlist player = %s\n' "$output"
+  (( verbose )) && printf 'randomst at top of loop = %s\n\n' "$randomst"
   if [[ "${output[@]}" = playlist\ player ]]; then
     if (( paused )); then
       echo "mpdlinger paused. Waiting to be resumed..."
@@ -1129,7 +945,10 @@ while output=( $(\mpc idle playlist player) ); do
            "$(date)" |
       "${lolargs[@]}" &
     if (( count >= "$limit" )); then
+      (( verbose )) && printf 'Resetting count from %s to ' "$count"
+      prevcount="$count"
       count=0
+      (( verbose )) && printf '%s\n.' "$count"
       if (( blocklimit )); then
         limit="$prevlimit"
         unset blocklimit
@@ -1137,6 +956,7 @@ while output=( $(\mpc idle playlist player) ); do
       fi
     fi
   fi
+  (( verbose )) && printf 'randomst at bottom of loop = %s\n\n' "$randomst"
 done
 
 
