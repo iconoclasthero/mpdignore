@@ -244,10 +244,13 @@ date = escape_quotes(currentsong.get("date", ""))  # Escape since it's a text fi
 # Format state
 if state == "play":
 #    state = f"{Colors.green}{Colors.bold}{state}{Colors.tput0}"
-    state = f"{Colors.green}{Colors.bold}playing{Colors.white}"
+#    state = f"{Colors.green}{Colors.bold}playing{Colors.white}"
+    state = f"{Colors.green}{Colors.bold}playing{Colors.tput0}"
 elif state == "pause":
 #    state = f"{Colors.red}{state}{Colors.tput0}"
-    state = f"{Colors.red}paused{Colors.white}{Colors.itl}"
+#    state = f"{Colors.red}paused{Colors.white}{Colors.itl}"
+#    state = f"{Colors.red}paused{Colors.white}"
+    state = f"{Colors.red}paused{Colors.tput0}"
 
 # Get the next song's details
 nextsongid = status.get("nextsongid", "")

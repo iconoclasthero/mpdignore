@@ -397,7 +397,7 @@ get-current-json(){
 #  printmpcjson
 }
 
-sec2sex() {
+sec2sex(){
   local h m s
   local input="${1%.*}"
   local dec="${1#*.}"; dec="${dec:0:1}"
@@ -413,6 +413,8 @@ sec2sex() {
     printf "%d:%02d" "$m" "$s"
   fi
 }
+##--> sec2sex() <--##########################################################
+
 
 hr2(){
   local width="$(tput -T $TERM cols)"
