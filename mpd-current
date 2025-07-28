@@ -22,19 +22,19 @@ readarray -t songstat < <( mpdc 'status\ncurrentsong' )
 unset label mbartistid
 
 for i in "${songstat[@]}"; do
-  [[ "$i" =         songid:\ * ]] && { songid="${i#*: }"; song_id="$songid"; } ##legacy
+  [[ "$i" =         songid:\ * ]] && songid="${i#*: }" ##legacy ; song_id="$songid"; }
   [[ "$i" =          state:\ * ]] && { u_state="${i#*: }"; [[ "$u_state" = play ]] && state="${green}playing${tput0}" || state="${red}paused$tput0"; }
-  [[ "$i" =           song:\ * ]] && { songpos="${i#*: }"; (( songpos++ )); song_position="$songpos"; } ##legacy
-  [[ "$i" = playlistlength:\ * ]] && { pllength="${i#*: }"; song_length="$pllength"; } ##legacy
+  [[ "$i" =           song:\ * ]] && { songpos="${i#*: }"; (( songpos++ )); } ##legacy song_position="$songpos"; }
+  [[ "$i" = playlistlength:\ * ]] && pllength="${i#*: }" ##legacy ; song_length="$pllength"; }
 #  [[ "$i" =        elapsed:\ * ]] && { elapsed="${i#*: }"; elapsed="$(sec2sex "$elapsed")"; }
 #  [[ "$i" =       duration:\ * ]] && { duration="${i#*: }"; duration="$(sec2sex "$duration")"; total_time="$duration"; } ##legacy
   [[ "$i" =        elapsed:\ * ]] && { elapsed="${i#*: }"; }
-  [[ "$i" =       duration:\ * ]] && { duration="${i#*: }"; total_time="$duration"; } ##legacy
-  [[ "$i" =           time:\ * ]] && { percent="${i#*: }"; IFS=':' read -r elap dur <<< "$percent"; percent=$(( (100*elap)/dur )); percent_time="$percent"; } ##legacy
+  [[ "$i" =       duration:\ * ]] && duration="${i#*: }" ##legacy ; total_time="$duration"; }
+  [[ "$i" =           time:\ * ]] && { percent="${i#*: }"; IFS=':' read -r elap dur <<< "$percent"; percent=$(( (100*elap)/dur )); } ##legacy percent_time="$percent"; }
   [[ "$i" =           file:\ * ]] && filepath="${i#*: }"
   [[ "$i" =          Title:\ * ]] && title="${i#*: }"
   [[ "$i" =         Artist:\ * ]] && artist="${i#*: }"
-  [[ "$i" =    AlbumArtist:\ * ]] && { albumartist="${i#*: }"; album_artist="$albumartist"; } ##legacy
+  [[ "$i" =    AlbumArtist:\ * ]] && albumartist="${i#*: }" ##legacy ; album_artist="$albumartist"; }
   [[ "$i" =          Album:\ * ]] && album="${i#*: }"
   [[ "$i" =           Year:\ * ]] && year="${i#*: }"  ##issue
   [[ "$i" =         volume:\ * ]] && volume="${i#*: }"
@@ -84,7 +84,7 @@ for i in "${nextsong[@]}"; do
   [[ "$i" =           file:\ * ]] && next_filepath="${i#*: }"
   [[ "$i" =          Title:\ * ]] && next_title="${i#*: }"
   [[ "$i" =         Artist:\ * ]] && next_artist="${i#*: }"
-  [[ "$i" =    AlbumArtist:\ * ]] && { next_albumartist="${i#*: }"; next_album_artist="$next_albumartist"; } ##legacy
+  [[ "$i" =    AlbumArtist:\ * ]] && next_albumartist="${i#*: }" ##legacy ; next_album_artist="$next_albumartist"; }
   [[ "$i" =          Album:\ * ]] && next_album="${i#*: }"
 # [[ "$i" =           Year:\ * ]] && year="${i#*: }"  ##issue
   [[ "$i" =           Disc:\ * ]] && next_disc="${i#*: }"

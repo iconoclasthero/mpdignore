@@ -38,10 +38,18 @@ local tput0="$(tput sgr0)"
 local red="$(tput setaf 9)"
 
 
-mpdc()
-{ local command=$1;
-  echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPD_SOCK"; }
-#  printf '%s\n' "$command" | socat - UNIX-CONNECT:"$MPD_SOCK"; } #doesn't work for some reason
+#mpdc()
+#{ local command=$1;
+#  echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPD_SOCK"; }
+##  printf '%s\n' "$command" | socat - UNIX-CONNECT:"$MPD_SOCK"; } #doesn't work for some reason
+mpdc() {
+  local cmd=$1
+  if [[ "$mpdhost" == "localhost" || -z "$mpdhost" ]]; then
+    echo -ne "$cmd\n" | socat - UNIX-CONNECT:"$MPD_SOCK"
+  else
+    echo -ne "password \"$mpdpass\"\n$cmd\n" | socat - TCP:"$mpchost:$mpdport"
+  fi
+}
 
 readarray -t songstat < <( mpdc 'status\ncurrentsong' )
 (( verbose )) && [[ "$hr2out" != "mpdlinger"* ]] && printf %s\\n "${songstat[@]}"
@@ -49,19 +57,19 @@ readarray -t songstat < <( mpdc 'status\ncurrentsong' )
 unset label mbartistid
 
 for i in "${songstat[@]}"; do
-  [[ "$i" =         songid:\ * ]] && { songid="${i#*: }"; song_id="$songid"; } ##legacy
+  [[ "$i" =         songid:\ * ]] && songid="${i#*: }"
   [[ "$i" =          state:\ * ]] && { u_state="${i#*: }"; [[ "$u_state" = play ]] && state="${green}playing${tput0}" || state="${red}paused$tput0"; }
-  [[ "$i" =           song:\ * ]] && { songpos="${i#*: }"; (( songpos++ )); song_position="$songpos"; } ##legacy
-  [[ "$i" = playlistlength:\ * ]] && { pllength="${i#*: }"; song_length="$pllength"; } ##legacy
-#  [[ "$i" =        elapsed:\ * ]] && { elapsed="${i#*: }"; elapsed="$(sec2sex "$elapsed")"; }
-#  [[ "$i" =       duration:\ * ]] && { duration="${i#*: }"; duration="$(sec2sex "$duration")"; total_time="$duration"; } ##legacy
-  [[ "$i" =        elapsed:\ * ]] && { elapsed="${i#*: }"; }
-  [[ "$i" =       duration:\ * ]] && { duration="${i#*: }"; total_time="$duration"; } ##legacy
-  [[ "$i" =           time:\ * ]] && { percent="${i#*: }"; IFS=':' read -r elap dur <<< "$percent"; percent=$(( (100*elap)/dur )); percent_time="$percent"; } ##legacy
+  [[ "$i" =           song:\ * ]] && { songpos="${i#*: }"; (( songpos++ )); }
+  [[ "$i" = playlistlength:\ * ]] && pllength="${i#*: }"
+# [[ "$i" =        elapsed:\ * ]] && { elapsed="${i#*: }"; elapsed="$(sec2sex "$elapsed")"; }
+# [[ "$i" =       duration:\ * ]] && { duration="${i#*: }"; duration="$(sec2sex "$duration")"; }
+  [[ "$i" =        elapsed:\ * ]] && elapsed="${i#*: }"
+  [[ "$i" =       duration:\ * ]] && duration="${i#*: }"
+  [[ "$i" =           time:\ * ]] && { percent="${i#*: }"; IFS=':' read -r elap dur <<< "$percent"; (( dur )) && percent=$(( (100*elap)/dur )); }
   [[ "$i" =           file:\ * ]] && filepath="${i#*: }"
   [[ "$i" =          Title:\ * ]] && title="${i#*: }"
   [[ "$i" =         Artist:\ * ]] && artist="${i#*: }"
-  [[ "$i" =    AlbumArtist:\ * ]] && { albumartist="${i#*: }"; album_artist="$albumartist"; } ##legacy
+  [[ "$i" =    AlbumArtist:\ * ]] && albumartist="${i#*: }"
   [[ "$i" =          Album:\ * ]] && album="${i#*: }"
   [[ "$i" =           Year:\ * ]] && year="${i#*: }"  ##issue
   [[ "$i" =         volume:\ * ]] && volume="${i#*: }"
@@ -105,13 +113,12 @@ readarray -t nextsong < <(mpdc "playlistid ${nextid}" )
 unset next_label next_mbartistid
 
 for i in "${nextsong[@]}"; do
-##  [[ "$i" =           song:\ * ]] && songpos="${i#*: }" && (( songpos++ )) && song_position="$songpos" ##legacy
 #  [[ "$i" =       duration:\ * ]] && { next_duration="${i#*: }"; next_duration="$(sec2sex "$next_duration")"; } ##issue
   [[ "$i" =       duration:\ * ]] && { next_duration="${i#*: }"; } ##issue
   [[ "$i" =           file:\ * ]] && next_filepath="${i#*: }"
   [[ "$i" =          Title:\ * ]] && next_title="${i#*: }"
   [[ "$i" =         Artist:\ * ]] && next_artist="${i#*: }"
-  [[ "$i" =    AlbumArtist:\ * ]] && { next_albumartist="${i#*: }"; next_album_artist="$next_albumartist"; } ##legacy
+  [[ "$i" =    AlbumArtist:\ * ]] && next_albumartist="${i#*: }"
   [[ "$i" =          Album:\ * ]] && next_album="${i#*: }"
 # [[ "$i" =           Year:\ * ]] && year="${i#*: }"  ##issue
   [[ "$i" =           Disc:\ * ]] && next_disc="${i#*: }"
@@ -201,18 +208,29 @@ notify(){
 #  lastfilepath="$lastfullpath"
 #}
 
-getlast() {
+getlast(){
+  local logstream mpdlog
   va=false
-  local logstream
+  [[ "$1" = mpd.log.? ]] && mpdlog="$1"
+  mpdlog="${mpdlog:=mpd.log}"
 
   if [[ "$mpdhost" = "localhost" ]]; then
-    logstream="tac /var/log/mpd/mpd.log"
+    logstream="tac /var/log/mpd/$mpdlog 2>&1"
+#   to silence:
+#   "tac: failed to open '/var/log/mpd/mpd.log' for reading: No such file or directory"
+#   if log file is missing:
+#   logstream="tac /var/log/mpd/$mpdlog 2>/dev/null"
+#   or handle with logstream="tac /var/log/mpd/$mpdlog &>"
   else
-    logstream="ssh -p \"$sshport\" \"$mpdhost\" 'tac /var/log/mpd/mpd.log'"
+#    logstream="ssh -p \"$sshport\" \"$mpdhost\" 'tac /var/log/mpd/mpd.log'"
+    logstream="ssh -p \"$sshport\" \"$mpdhost\" \"tac '/var/log/mpd/$mpdlog'\""
   fi
 
   while read -r logline; do
-    if [[ "$logline" =~ .+\ :\ player:\ (played|skipped)\ \"(((.+\/)?.+\ --\ (.+))\/([0-9]{1,3}?-?[0-9]{1,3}\ -\ (.+)\ --\ (.+)\..+))\" ]]; then
+    if [[ "$logline" = "tac: failed to open '/var/log/mpd/mpd.log"*"for reading: No such file or directory" ]]; then
+      printf 'MPD logfile /var/log/mpd/%s missing.\n' "$mpdlog"
+      break
+    elif [[ "$logline" =~ .+\ :\ player:\ (played|skipped)\ \"(((.+\/)?.+\ --\ (.+))\/([0-9]{1,3}?-?[0-9]{1,3}\ -\ (.+)\ --\ (.+)\..+))\" ]]; then
       lastfullpath="$musicdir/${BASH_REMATCH[2]}"
       lastpath="${BASH_REMATCH[2]}"
       lastartist="${BASH_REMATCH[-2]}"
@@ -244,6 +262,10 @@ getlast() {
       lasttitle="${BASH_REMATCH[-1]%.*}"
       lastalbum="${BASH_REMATCH[2]}"
       break
+    elif [[ "$logline" = tac\:\ * ]]; then
+      [[ "$logline" != "$tacwarn" ]] &&
+        { printf 'Investigate unknown error with tac:\n%s\n' "$logline";
+          tacwarn="$logline"; }
     fi
   done < <(eval "$logstream" 2>/tmp/lastpath.err)
 
@@ -264,15 +286,21 @@ getlast() {
 
   # Final fallbacks (in case no match was found)
   if [[ -z "$lastfile" ]]; then
-    lastartist="NO MATCH FOUND"
-    lasttitle="NO MATCH FOUND"
-    lastalbum="NO MATCH FOUND"
-    lastfullpath=""
-    lastpath=""
+    if [[ "$mpdlog" = mpd.log.* ]]; then
+      lastartist="Log file empty \ No match found"
+      lasttitle="Log file empty \ No match found"
+      lastalbum="Log file empty \ No match found"
+      lastfullpath=""
+      lastpath="Log file empty \ No match found/"
+      return 1
+    else
+      getlast mpd.log.1
+      return "$?"
+    fi
   fi
 
 }
-
+##--> getlast() <--#############################################################################
 
 mpcq(){
  if "$qq"; then
@@ -501,11 +529,11 @@ output+=( "$(printf '          %s%s[%s%s%s%s%s%s] #%s%s%s/%s  %s/%s (%s%%)\n' \
   "$bold" \
   "$tput0" \
   "${paused:+$italics}" \
-  "$song_position" \
-  "$song_length" \
+  "$songpos" \
+  "$pllength" \
   "$(sec2sex "$elapsed")" \
-  "$(sec2sex "$total_time")" \
-  "${percent_time%.*}" )" )
+  "$(sec2sex "$duration")" \
+  "${percent%.*}" )" )
 
 #printf "volume: %s%%   repeat: %s   random: %s   consume: %s   %s\n\n" \
 

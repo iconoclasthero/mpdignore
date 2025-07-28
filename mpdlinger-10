@@ -919,7 +919,7 @@ fi
 #. <(mpd-current.py)
 . mpd-current
 
-! [[ "$current" ]] && current="$song_id"
+! [[ "$current" ]] && current="$songid"
 
 #! [[ "$current" ]] && . <(mpd-current.py) && current="$song_id"
 
@@ -993,37 +993,37 @@ unset prevcount
        printf \\n; } >&"$logfd"
 
 
-prntprog(){
-    printf '\r\033[K%s'  "$(mpc status '         \[%state%\] ##%songpos%/%length%  %currenttime%/%totaltime% %percenttime%')"|"${lolargs[@]}"
-}
-
-
-prntprog(){
-  mapfile -t mpclines < <(\mpc)
-
-  line3regex='^volume:\ +?([0-9]+%)\ +repeat:\ +(on|off)\ +random:\ +(on|off)\ +.+consume:\ +(on|off)\ +$'
-  ## regex patterns cannot be quoted in [[ =~ ]]!!!
-
-  if [[ "${mpclines[2]}" =~ $line3regex ]]; then
-    volume="${BASH_REMATCH[1]}"
-    random="${BASH_REMATCH[3]}"
-    consume="${BASH_REMATCH[4]}"
-  fi
-
-  # Output with emoji mapping for on/off
-  on="✅"
-  off="❌"
-
-  repeat=$([[ $repeat = on ]] && echo "$on" || echo "$off")
-  random=$([[ $random = on ]] && echo "$on" || echo "$off")
-  consume=$([[ $consume = on ]] && echo "$on" || echo "$off")
-
-  { printf '\r\033[K         %s\n' "${mpclines[@]:0:2}"
-    printf '\r\033[K         volume: %s ⟳   random: %s consume: %s' "$volume" "$random" "$consume"; }|
-  "${lolargs[@]}"
-
-  tput cuu 2; tput cr
-}
+#prntprog(){
+#    printf '\r\033[K%s'  "$(mpc status '         \[%state%\] ##%songpos%/%length%  %currenttime%/%totaltime% %percenttime%')"|"${lolargs[@]}"
+#}
+#
+#
+#prntprog(){
+#  mapfile -t mpclines < <(\mpc)
+#
+#  line3regex='^volume:\ +?([0-9]+%)\ +repeat:\ +(on|off)\ +random:\ +(on|off)\ +.+consume:\ +(on|off)\ +$'
+#  ## regex patterns cannot be quoted in [[ =~ ]]!!!
+#
+#  if [[ "${mpclines[2]}" =~ $line3regex ]]; then
+#    volume="${BASH_REMATCH[1]}"
+#    random="${BASH_REMATCH[3]}"
+#    consume="${BASH_REMATCH[4]}"
+#  fi
+#
+#  # Output with emoji mapping for on/off
+#  on="✅"
+#  off="❌"
+#
+#  repeat=$([[ $repeat = on ]] && echo "$on" || echo "$off")
+#  random=$([[ $random = on ]] && echo "$on" || echo "$off")
+#  consume=$([[ $consume = on ]] && echo "$on" || echo "$off")
+#
+#  { printf '\r\033[K         %s\n' "${mpclines[@]:0:2}"
+#    printf '\r\033[K         volume: %s ⟳   random: %s consume: %s' "$volume" "$random" "$consume"; }|
+#  "${lolargs[@]}"
+#
+#  tput cuu 2; tput cr
+#}
 
 
 sourcefn -l /usr/local/bin/mpdignore.functions -f sec2sex
@@ -1065,19 +1065,19 @@ progloop(){
     local artist title state pos length elapsed duration percent volume repeat random consume
     readarray -t mpdcout < <(mpdc 'currentsong\nstatus')
     for i in "${mpdcout[@]}"; do
-      [[ "$i" = Artist:\ * ]] && artist="${i#*: }"
-      [[ "$i" = Title:\ * ]] && title="${i#*: }"
-      [[ "$i" = state:\ * ]] && state="${i#*: }"
-      [[ "$i" = Pos:\ * ]] && { pos="${i#*: }"; (( pos++ )); }
-      [[ "$i" = playlistlength:\ * ]] && length="${i#*: }"
-      [[ "$i" = time:\ * ]] && { elapsed="${i#*: }"; elapsed="${elapsed%\:*}"; duration="${i##*\:}";
-    percent="$(( (100 * elapsed)/duration ))"; elapsed="$(sec2sex "$elapsed")"; duration="$(sec2sex "$duration")"; }
-      [[ "$i" = volume:\ * ]] && vol="${i#*: }"
-      [[ "$i" = repeat:\ * ]] && repeat="${i#*: }"
-      [[ "$i" = random:\ * ]] && { random="${i#*: }"; (( random )) && random='✅' || random='❌'; }
-      [[ "$i" = consume:\ * ]] && { consume="${i#*: }"; (( consume )) && consume='✅' ||
-    consume='❌'; }
-      [[ "$i" = single:\ * ]] && { u_single="${i#*: }"; (( u_single )) && single='✅' || unset single; }
+                 [[ "$i" = Pos:\ * ]] && { pos="${i#*: }"; (( pos++ )); }
+               [[ "$i" = Title:\ * ]] &&   title="${i#*: }"
+               [[ "$i" = state:\ * ]] &&   state="${i#*: }"
+              [[ "$i" = Artist:\ * ]] &&   artist="${i#*: }"
+              [[ "$i" = volume:\ * ]] &&   vol="${i#*: }"
+              [[ "$i" = repeat:\ * ]] &&   repeat="${i#*: }"
+              [[ "$i" = random:\ * ]] && { random="${i#*: }"; (( random )) && random='✅' || random='❌'; }
+              [[ "$i" = single:\ * ]] && { u_single="${i#*: }"; (( u_single )) && single='✅' || unset single; }
+             [[ "$i" = consume:\ * ]] && { consume="${i#*: }"; (( consume )) && consume='✅' || consume='❌'; }
+      [[ "$i" = playlistlength:\ * ]] &&   length="${i#*: }"
+                [[ "$i" = time:\ * ]] && { elapsed="${i#*: }"; elapsed="${elapsed%\:*}"; duration="${i##*\:}";
+                                           percent="$(( (100 * elapsed)/duration ))";
+                                           elapsed="$(sec2sex "$elapsed")"; duration="$(sec2sex "$duration")"; }
     done
     [[ "$state" = play ]] && state="playing"
     [[ "$state" = pause ]] && state="paused"
@@ -1134,10 +1134,10 @@ while output=( $(\mpc idle playlist player) ); do
 
     sleep 1
 
-    if (( current != song_id )); then
-      current="$song_id"
+    if (( current != songid )); then
+      current="$songid"
 
-      (( verbose )) && printf '%sSong changed to %s.\n' "$(vtag)" "$title" >&"$logfd"
+      (( verbose )) && printf '%sSong changed to %s -- %s.\n' "$(vtag)" "$artist" "$title" >&"$logfd"
 
 #     (( count > limit )) && transition=1
 
