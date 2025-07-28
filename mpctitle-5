@@ -223,7 +223,7 @@ getlast(){
 #   or handle with logstream="tac /var/log/mpd/$mpdlog &>"
   else
 #    logstream="ssh -p \"$sshport\" \"$mpdhost\" 'tac /var/log/mpd/mpd.log'"
-    logstream="ssh -p \"$sshport\" \"$mpdhost\" \"tac '/var/log/mpd/$mpdlog'\""
+    logstream="ssh -p \"$sshport\" \"$mpchost\" \"tac '/var/log/mpd/$mpdlog'\""
   fi
 
   while read -r logline; do
