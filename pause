@@ -22,7 +22,7 @@ notify(){
 
 mpcp -q toggle &
 if "$mpcnotify"; then
-  source <(mpd-current.py)
+  source <(mpd-current)
   notify
   exit "$?"
 fi

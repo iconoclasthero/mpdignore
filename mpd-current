@@ -9,10 +9,19 @@ tput0="$(tput sgr0)"
 red="$(tput setaf 9)"
 
 
-mpdc()
-{ local command=$1;
-  echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPD_SOCK"; }
-#  printf '%s\n' "$command" | socat - UNIX-CONNECT:"$MPD_SOCK"; } #doesn't work for some reason
+#mpdc()
+#{ local command=$1;
+#  echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPD_SOCK"; }
+##  printf '%s\n' "$command" | socat - UNIX-CONNECT:"$MPD_SOCK"; } #doesn't work for some reason
+
+mpdc() {
+  local cmd=$1
+  if [[ "$mpdhost" == "localhost" || -z "$mpdhost" ]]; then
+    echo -ne "$cmd\n" | socat - UNIX-CONNECT:"$MPD_SOCK"
+  else
+    echo -ne "password \"$mpdpass\"\n$cmd\n" | socat - TCP:"$mpchost:$mpdport"
+  fi
+}
 
 readarray -t songstat < <( mpdc 'status\ncurrentsong' )
 
