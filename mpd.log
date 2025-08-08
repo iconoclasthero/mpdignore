@@ -3,6 +3,7 @@
 
 . /usr/local/bin/editscript
 
+   color=1
     bold=$(tput bold)
    tput0=$(tput sgr0)
      red=$(tput setaf 1)
@@ -133,10 +134,14 @@ function reverse_path(path) {
 echo -e "\033[48;5;4m\033[2J"
 tail1=40
 [[ "$1" = --long ]] && tail1=100
-[[ "$1" =~ (--color|-c) ]] && color=true
+[[ "$1" = --fzf ]] && { tail1=500; fzfon=1; color=0; }
+[[ "$1" =~ (--color|-c) ]] && color=1
 
-if "${color:=false}"; then
+if (( color )); then
   playlist
+elif (( fzfon )); then
+#  grep \:\ player\: /var/log/mpd/mpd.log|tail -n "$tail1"|fzf
+  playlist|fzf --ansi --color=dark --header="Search with fzf..."
 else
   grep \:\ player\: /var/log/mpd/mpd.log|tail -n "$tail1"
 fi

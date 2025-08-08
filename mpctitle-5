@@ -1,4 +1,5 @@
 #!/bin/bash
+[[ ! -d "$(pwd 2>/dev/null)" ]] && { cd "$(dirname "$0")" 2>/dev/null || cd / 2>/dev/null; }
 [[ "$TERM" = dumb || -z "$TERM" ]] && TERM="xterm-256color"
 export TERM
 
@@ -88,9 +89,9 @@ for i in "${songstat[@]}"; do
 # [[ "$i" =       playlist:\ * ]] && playlistid="${i#*: }"
 # [[ "$i" =      mixrampdb:\ * ]] && mixrampdb="${i#*: }"
 # [[ "$i" =   mixrampdelay:\ * ]] && mixrampdelay="${i#*: }"
-# [[ "$i" =        bitrate:\ * ]] && bitrate="${i#*: }"
+  [[ "$i" =        bitrate:\ * ]] && bitrate="${i#*: }"
 # [[ "$i" =       nextsong:\ * ]] && nextsong="${i#*: }"
-# [[ "$i" =         Format:\ * ]] && format="${i#*: }"
+  [[ "$i" =         Format:\ * ]] && format="${i#*: }"
 # [[ "$i" =    AlbumArtist:\ * ]] && albumartist="${i#*: }"
 # [[ "$i" =     ArtistSort:\ * ]] && artistsort="${i#*: }"
 # [[ "$i" =   OriginalDate:\ * ]] && originaldate="${i#*: }"

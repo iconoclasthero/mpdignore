@@ -18,6 +18,8 @@ skcolor="$(tput setaf 1)"
 crcolor="$(tput setaf 27)"
 qucolor="$(tput setaf 3)"
 
+count=1
+
 xdgconfigset="$( . "$XDG_CONFIG_HOME/mpd-local.conf" 2>&1 >/dev/null )" || . "/home/$USER/.config/mpd-local.conf"
 [[ "$xdgconfigset" =~ .+\ \/mpd-local.conf\:\ No\ such\ file\ or\ directory ]] &&
   printf '\n%s[%sWARN%s] %s%s%s: check the definition of "$XDG_CONFIG_HOME"\n' \
@@ -36,7 +38,8 @@ skip(){
 }
 
 notify(){
-  source <(mpd-current.py)
+#  source <(mpd-current.py)
+#  source <(mpd-current)  ## this is probably not needed as it's below?
   output="$(notify-send -a "mpctitle next" -i audio-x-generic "Song Skipped!" "<b>$title</b> by <b>$artist</b>" 2>&1 )"
   nserr="$?"
   if [[ "$nserr" -ne 0 ]] && ! echo "$output" | grep -q "GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.Notifications was not provided by any .service files"; then
@@ -44,23 +47,33 @@ notify(){
     fi
 }
 
-[[ "$1" = --set@(|-on) ]] && set -x && shift
+(( verbose )) && pause "$@=$(printf %s "$*")"
 
-[[ "$1" =~ ^x[[:digit:]]{1,2}$ ]] && count="${1#x}" && shift || count=1
+while (( $# > 0 )); do
+  (( i++ )); echo "$i"
+  [[ "$1" = --set@(|-on) ]] && { set -x; shift; continue; }
+  [[ "$1" =~ ^x[[:digit:]]{1,2}$ ]] && { count="${1#x}" && shift || count=1; continue; }
+  [[ "$1" =  @(-v|--verbose) ]] && { args+=("$1"); verbose=1; shift; continue; }
+  [[ "$1" = "" ]] && { shift; continue; }
+  { printf '"%s" is unrecognized.\n' "$1"; shift; confirm -y 'Proceed with script?' && continue || exit 1; }
+done
 
 for ((i=0; i<count; i++)); do
-  #get-current-json
-  source <(mpd-current.py)
+  # get-current-json
+  # source <(mpd-current.py)
+  source <(mpd-current -p)
 
   # mpctitleout="$(/usr/local/bin/mpctitle "$@" &)"
   logsong "skipped"&
 
-
+  (( verbose )) && pause "$filepath"
   hr2 "SKIPPED"
   title skipped
   notify
   mpcp -q next &
 done
+
+(( verbose )) && pause "before mpctitle"
 
 /usr/local/bin/mpctitle --fromnext "$@"
 
