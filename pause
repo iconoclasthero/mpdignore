@@ -12,7 +12,8 @@ mpcnotify=false
 
 
 notify(){
-  notify-send -a "mpctitle toggle" -i audio-x-generic "MPD $state" "<b>$title</b> by <b>$artist</b>"
+#  notify-send -a "mpctitle toggle" -i audio-x-generic "MPD $state" "<b>$title</b> by <b>$artist</b>"
+  notify-send -a "mpctitle toggle" -i audio-x-generic "MPD $state" "$title by $artist"
 }
 
 [[ "$1" = @(edit|e|-e) ]] && editscript
