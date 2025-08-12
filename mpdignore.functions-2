@@ -118,7 +118,7 @@ mpcp() {
  \mpc ${mpchost:+-h ${mpdpass:+"${mpdpass}@"}"${mpchost}"} "$@"
 
 }
-
+##--> mpcp() <--####################################################################################
 
 mediaduration(){
   printf "\nDuration of .mp3 files : "
