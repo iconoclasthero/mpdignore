@@ -26,6 +26,6 @@ pause(){ read -rp "$*" < /dev/tty; }
 #mpdlocal=false
 #[[ "${localssids[@]}" == *"$ssid"* ]] && mpdlocal=true
 
-mpc -h "$mpdpass@$mpdhost" "$@"
+mpc -h "$mpdpass@$mpdhostfqdn" "$@"
 
 
