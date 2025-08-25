@@ -54,6 +54,7 @@ while (( $# > 0 )); do
   [[ "$1" = --set@(|-on) ]] && { set -x; shift; continue; }
   [[ "$1" =~ ^x[[:digit:]]{1,2}$ ]] && { count="${1#x}" && shift || count=1; continue; }
   [[ "$1" =  @(-v|--verbose) ]] && { args+=("$1"); verbose=1; shift; continue; }
+  [[ "$1" = notify ]] && { notify="$1"; shift; continue; }
   [[ "$1" = "" ]] && { shift; continue; }
   { printf '"%s" is unrecognized.\n' "$1"; shift; confirm -y 'Proceed with script?' && continue || exit 1; }
 done
@@ -69,7 +70,7 @@ for ((i=0; i<count; i++)); do
   (( verbose )) && pause "$filepath"
   hr2 "SKIPPED"
   title skipped
-  notify
+  (( notify )) && notify
   mpcp -q next &
 done
 
