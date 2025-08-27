@@ -15,7 +15,7 @@ notify(){
 }
 
 [[ "$1" = @(edit|e|-e) ]] && editscript
-[[ "$1" = notify ]] && mpcnotify=1 && shift
+[[ "$1" = @(|--)notify ]] && mpcnotify=1 && shift
 
 . mpdignore.functions
 
