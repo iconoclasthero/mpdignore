@@ -1,0 +1,35 @@
+#!/bin/bash
+# nb: the swp file that editscript relies on is provided by nano
+
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+
+pause(){ read -rp "$*" < /dev/tty; }
+
+
+notify(){
+  notify-send -a "mpc seek 0" -i audio-x-generic "MPD restarting" "<b>$title</b> by <b>$artist</b>"
+#  notify-send -a "mpctitle toggle" -i audio-x-generic "MPD $state" "$title by $artist"
+}
+
+[[ "$1" = @(edit|e|-e) ]] && editscript
+[[ "$1" = notify ]] && mpcnotify=1 && shift
+
+. mpdignore.functions
+
+ source mpd-current &
+
+! mpcp -q seek 0|grep '\[playing\]' && mpcp -q toggle
+
+wait
+
+if (( mpcnotify )); then
+#  source <(mpd-current)
+  notify
+  exit "$?"
+fi
+
+! (( mpcnotify )) && mpctitle "$@"
+
