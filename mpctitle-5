@@ -158,6 +158,9 @@ notify(){
   fi
 }
 
+notify(){
+exec notify-send -a "mpctitle" -i audio-x-generic "$(mpctitle | perl -pe 's/\x1b(\[[0-9;?]*[ -\/]*[@-~]|\(B)//g')"
+}
 
 #getlast(){
 #  va=false
