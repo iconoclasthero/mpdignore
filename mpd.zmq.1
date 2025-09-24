@@ -332,7 +332,7 @@ connectBT(){
       (( verbose )) && printf %s\\n "${btctlout[@]}"
       (( verbose )) && printf \\n
       if [[ "$connected" = yes ]]; then
-        (( verbose )) && printf 'BLUETOOTH DEVICE %s CONNECTED!\n' "$s"
+        (( verbose )) && printf '%sBLUETOOTH DEVICE %s CONNECTED!\n%s' "$blue" "$s" "$tput0"
         sinkname="$s"
         sinkMAC="$ID"
         sinkPAID="$(pulsemixer --list-sinks|awk -v sn="$sinkname" '$0 ~ sn {sub(/,$/,"",$3); print $3}')"
@@ -429,7 +429,7 @@ for s in "${sinkorder[@]}"; do
 #    printf 'Checking %s for BT connection... ' "$s"
     connected=$(bluetoothctl info "$ID"|awk '$1=="Connected:" {print $2}')
     if [[ "$connected" = yes ]]; then
-      printf '  %s%s%s connected!\n' "$blue" "$s" "$tput0"
+      printf '  %s%s connected!\n%s' "$blue" "$s" "$tput0"
       sinkname="$s"
       sinkMAC="$ID"
       sinkPAID="$(pulsemixer --list-sinks|awk -v sn="$sinkname" '$0 ~ sn {sub(/,$/,"",$3); print $3}')"
