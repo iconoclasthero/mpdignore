@@ -31,7 +31,9 @@ sinkname01='LG SOUND BAR'
   sinkID02='C8:2B:6B:49:A6:A3'
 sinkname02='JBL TUNE510BT'
   sinkID03='sink-59'
-sinkname03='Built-in Audio Analog Stero'
+sinkname03='Built-in Audio Analog Stero (latitude)'
+  sinkID04='sink-48'
+sinkname04='Built-in Audio Analog Stero (compaq)'
 
 mksinkarray(){
   ## this function creates an assoc. array of [sinkname]=sinkID pairs
@@ -312,34 +314,34 @@ connectBT(){
 }
 
 connectBT(){
-  local connected verbose=0
+  local connected
   for s in "${sinkorder[@]}"; do
     ID="${sinkarray[$s]}"
     if [[ "$ID" =~ ^[A-F0-9]{2}(:[A-F0-9]{2}){5} ]]; then
-      (( verbose )) && printf 'Attempting to connect to BT device %s...\n' "$s"
+      (( verbose == 2 )) && printf 'Attempting to connect to BT device %s...\n' "$s"
       btctlout=("$(bluetoothctl list)")
-      (( verbose )) && printf 'btctlout=("$(bluetoothctl list)")\n'
-      (( verbose )) && printf 'btctlout=("%s")\n' "$(bluetoothctl list)"
+      (( verbose == 2 )) && printf 'btctlout=("$(bluetoothctl list)")\n'
+      (( verbose == 2 )) && printf 'btctlout=("%s")\n' "$(bluetoothctl list)"
       btctlout+=("$(bluetoothctl connect "$ID" 2>&1)") &&
         connected=yes || connected=no
-      (( verbose )) && printf 'btctlout+=("$(bluetoothctl connect "$sinkID00" 2>&1)") &&\n  connected=yes || connected=no\n'
-      (( verbose )) && printf 'btctlout+=("%s") &&\n' "$(bluetoothctl connect "$ID" 2>&1)"
-      (( verbose )) && printf 'connected=%s\n' "$connected"
+      (( verbose == 2 )) && printf 'btctlout+=("$(bluetoothctl connect "$sinkID00" 2>&1)") &&\n  connected=yes || connected=no\n'
+      (( verbose == 2 )) && printf 'btctlout+=("%s") &&\n' "$(bluetoothctl connect "$ID" 2>&1)"
+      (( verbose == 2 )) && printf 'connected=%s\n' "$connected"
       btctlout+=("$(bluetoothctl info "$ID")")
-      (( verbose )) && printf 'btctlout+=("$(bluetoothctl info "$sinkID00")")\n'
-      (( verbose )) && printf 'btctlout+=("%s")\n' "$(bluetoothctl info "$ID")"
-      (( verbose )) && printf '\n\nconnected=%s\n' "$connected"
-      (( verbose )) && printf %s\\n "${btctlout[@]}"
-      (( verbose )) && printf \\n
+      (( verbose == 2 )) && printf 'btctlout+=("$(bluetoothctl info "$sinkID00")")\n'
+      (( verbose == 2 )) && printf 'btctlout+=("%s")\n' "$(bluetoothctl info "$ID")"
+      (( verbose == 2 )) && printf '\n\nconnected=%s\n' "$connected"
+      (( verbose == 2 )) && printf %s\\n "${btctlout[@]}"
+      (( verbose == 2 )) && printf \\n
       if [[ "$connected" = yes ]]; then
-        (( verbose )) && printf '%sBLUETOOTH DEVICE %s CONNECTED!\n%s' "$blue" "$s" "$tput0"
+        (( verbose == 2 )) && printf '%sBLUETOOTH DEVICE %s CONNECTED!\n%s' "$blue" "$s" "$tput0"
         sinkname="$s"
         sinkMAC="$ID"
         sinkPAID="$(pulsemixer --list-sinks|awk -v sn="$sinkname" '$0 ~ sn {sub(/,$/,"",$3); print $3}')"
-        (( verbose )) && printf ' $sinkname = %s\n' "$sinkname"
-        (( verbose )) && printf '  $sinkMAC = %s\n' "$sinkMAC"
-        (( verbose )) && printf ' $sinkPAID = %s\n' "$sinkPAID"
-        (( verbose )) && printf '$connected = %s\n' "$connected"
+        (( verbose == 2 )) && printf ' $sinkname = %s\n' "$sinkname"
+        (( verbose == 2 )) && printf '  $sinkMAC = %s\n' "$sinkMAC"
+        (( verbose == 2 )) && printf ' $sinkPAID = %s\n' "$sinkPAID"
+        (( verbose == 2 )) && printf '$connected = %s\n' "$connected"
         break
       fi
     fi
