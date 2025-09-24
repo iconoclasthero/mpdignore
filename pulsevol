@@ -14,6 +14,25 @@ scriptname=$(realpath "$0")
 
 #pactl load-module module-native-protocol-tcp auth-ip-acl="127.0.0.1;192.168.0.0/16" auth-anonymous=1
 
+
+notifier(){
+  local state="$1"
+  (( verbose )) && printf '$state=%s\n' "$state"
+#  notify-send -a "pulsemixer" -i audio-x-generic "$state" "<b>$title</b> by <b>$artist</b>"
+  notify-send -a "pulsemixer" -i audio-x-generic "$state"
+}
+
+volstatus(){
+#  pulsemixer --server="$ip" --id="$sink" --get-volume | awk '{print "Volume:", "Left " $1 "% —", "Right " $2 "%"}'
+  volout="$(pulsemixer --server="$ip" --id="$sink" --get-volume | awk '{ if ($1 != $2)
+                                                                 print "Volume:", "Left " $1 "% —", "Right " $2 "%"
+                                                               else
+                                                                 print "Volume:", $1 "%"
+                                                             }')"
+
+  muteout="$(pulsemixer --server="$ip" --id="$sink" --get-mute | awk '{print " Muted:", ($1 == 1 ? "yes" : "no")}')"
+}
+
 checktcpmodule(){
   checktcp="$(ssh "$ip" pactl list short modules|grep module-native-protocol-tcp)"
   checktcperr="$?"
@@ -31,16 +50,15 @@ checktcpmodule(){
 #  exit 0
 #fi
 
-sink=""
-
 while [[ "$#" -gt 0 ]]; do
   case $1 in
     --compaq) ip="$compaq"; shift ;;
     --optiplex|--opti) ip="$optiplex"; shift;;
     --gig|--gigabyte) ip="$gigabyte"; shift ;;
-    --mute|mute) cmd="--toggle-mute"; shift ;;
+    --mute|--toggle-mute|mute) cmd="--toggle-mute"; shift ;;
     --sink) sink="$2"; shift 2 ;;
     --mixer) cmd='mixer'; shift ;;
+    --notify) notify=1; shift ;;
     *)
       if [[ "$1" =~ ^(-|\+)?[0-9]{1,3}$ ]]; then
         if [[ "$1" =~ ^[0-9]+$ ]]; then
@@ -57,18 +75,36 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-[[ ! "$ip" ]] && ip="$defaultpulse"
+: "${ip:="$defaultpulse"}"
+: "${sinkname:="$defsinkname"}"
 
 #checktcpmodule
 
+## this hardcodes something that shouldn't be. genearlized it to what's in mpd-local.conf (which itself is hardcoded)
+## but since by this point it should be determined and thus never run, I suppose it won't hurt to leave it in.
+
 if [[ -z "$sink" ]]; then
-  sink="$(pulsemixer --server="$ip" --list-sinks | grep JBL | awk '{print $3}')"
-  sink="${sink%,}"
+#  sink="$(pulsemixer --server="$ip" --list-sinks | grep JBL | awk '{print $3}')"
+#  sink="${sink%,}"
+  mapfile -t sinks < <(pulsemixer --server="$ip" --list-sinks |
+    awk -v name="$defsinkname" '$0 ~ name {sub(/,$/,"",$3); print $3}')
+
+  if (( ${#sinks[@]} == 0 )); then
+    echo "Error: no sink matches '$defsinkname'" >&2
+    exit 1
+  elif (( ${#sinks[@]} > 1 )); then
+    echo "Error: multiple sinks match '$defsinkname': ${sinks[*]}" >&2
+    exit 1
+  else
+    sink="${sinks[0]}"
+  fi
 fi
+
+(( verbose )) && read -rp "[verbose] \$sink=$sink"
 
 if [[ "$cmd" = 'mixer' ]]; then
   pulsemixer "--server=$ip"
-elif [[ -n "$cmd" ]]; then
+elif [[ "$cmd" ]]; then
   pulsemixer "--server=$ip" "--id=$sink" "$cmd"
 # args=( "--server=$ip" "--id=$sink" "$cmd" )
 # pulsemixer "${args[@]}"
@@ -78,19 +114,30 @@ else
   printf '\nNo volume command provided.\n\nUsage: %s --compaq|--gig|--mute|<volume_change>\n\n' "$0"
   printf 'Current sink status:\n'
 
-  pulsemixer --server="$ip" --id="$sink" --get-volume | awk '{print "Volume:", $2 "%"}'
-  pulsemixer --server="$ip" --id="$sink" --get-mute | awk '{print "Muted:", ($2 == 1 ? "yes" : "no")}'
+  volstatus
+  printf '  %s\n  %s\n' "$volout" "$muteout"
 
 #  printf '\nAvailable sinks:\n'
 #  pulsemixer --server="$ip" --list-sinks | awk '{print "- ID:", $3, "| Name:", $4}' | sed 's/,$//'
 
-(( db )) &&  pause "$ip"
+(( verbose )) && pause "[verbose] $ip"
   printf '\nAvailable sinks:\n'
   pulsemixer --server="$ip" --list-sinks |
     grep '^Sink:' |
     sed -E 's/^Sink:[[:space:]]+ID: ([^,]+), Name: ([^,]+),.*/- ID: \1 | Name: \2/'
 
   printf \\n\\n
-
-  exit 0
 fi
+
+(( verbose )) && printf '[verbose] $cmd=%s\n' "$cmd"
+(( verbose )) && printf '[verbose] $notify=%s\n' "$notify"
+if (( notify)); then
+  (( verbose )) && printf '[verbose] In notify loop.\n'
+  volstatus
+  (( verbose )) && printf '[verbose] $volout=%s\n' "$volout"
+  (( verbose )) && printf '[verbose] $muteout=%s\n' "$muteout"
+  [[ "$cmd" = "--toggle-mute" ]] && notifier "$volout \n $muteout"
+#{ muteout="$(pulsemixer --server="$ip" --id="$sink" --get-mute | awk '{print " Muted:", ($1 == 1 ? "yes" : "no")}')"; notifier "$volout $muteout"; }
+
+fi
+

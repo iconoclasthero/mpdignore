@@ -9,25 +9,25 @@ editscript(){
 pause(){ read -rp "$*" < /dev/tty; }
 
 
-notify(){
+notifier(){
   notify-send -a "mpctitle toggle" -i audio-x-generic "MPD $state" "<b>$title</b> by <b>$artist</b>"
 #  notify-send -a "mpctitle toggle" -i audio-x-generic "MPD $state" "$title by $artist"
 }
 
 [[ "$1" = @(edit|e|-e) ]] && editscript
-[[ "$1" = notify ]] && mpcnotify=1 && shift
+[[ "$1" = notify ]] && notify=1 && shift
 
 . mpdignore.functions
 
 mpcp -q toggle
 
-if (( mpcnotify )); then
+if (( notify )); then
 #  source <(mpd-current)
   source mpd-current
   [[ "$u_state" = play ]] && state="playing" || state="paused"
-  notify
+  notifier
   exit "$?"
 fi
 
-! (( mpcnotify )) && mpctitle "$@"
+! (( notify )) && mpctitle "$@"
 

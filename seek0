@@ -19,14 +19,13 @@ notify(){
 
 . mpdignore.functions
 
- source mpd-current &
-
 ! mpcp -q seek 0|grep '\[playing\]' && mpcp -q play
 
-wait
+#wait
 
 if (( mpcnotify )); then
 #  source <(mpd-current)
+  source mpd-current
   notify
   exit "$?"
 fi
