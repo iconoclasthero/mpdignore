@@ -23,6 +23,7 @@ export TERM
    retport="$mpdzmqretport"
 autosshpid="/tmp/autossh_${tunport}.pid"
 ffplaypidf="/tmp/ffplayzmq-$(date -Im).pid"
+mpdzmqvarf="/tmp/mpdzmqvar-$(date -Im).tmp"
   sinkID00='00:42:79:D9:B6:AF'
 sinkname00='JBL Xtreme 2'
   sinkID01='00:1F:47:9F:8C:57'
@@ -78,7 +79,7 @@ hr(){
   printf -- '%.0s—' $(seq 1 "$width"); echo; }
 
 resetzmq(){
-  btctlout="$(bluetoothctl disconnect "$sinkID00"|grep -v "Attempting to disconnect from $sinkID00")"
+  btctlout+="$(bluetoothctl disconnect "$sinkID00"|grep -v "Attempting to disconnect from $sinkID00")"
   printf '\n%s%sAttempting to disconnect %s%s/%s%s:%s\n%s\n' \
     "$yellow" \
     "$bold" \
@@ -244,7 +245,7 @@ stopmpdzmq(){
       echo
       confirm "Are the mpd.zmq screens closed? " && stopzmqscreen=true
       ffplaypidf=( /tmp/ffplayzmq-*.pid )
-      ffplaypid=$(< "${ffplaypid[-1]}" )
+      ffplaypid=$(< "${ffplaypidf[-1]}" )
     else
       printf '%s%sThe ffplay and the mpd.zmq screen are closed.\n%s' "$bold" "$yellow" "$tput0"
       hr
@@ -266,14 +267,27 @@ stopmpdzmq(){
     fi
   done
 
-  echo
+  ## load variables:
+  ## choosesink
+  ## sinkin
+  ## onsink
+  ## sinkout
+  ## sinkMAC
+  ## sinkname
+  ## sinkPAID
+  ## ffplaypid
+
+  . "$mpdzmqvarf"
+
+  printf \\n
 
   ## someday this will need to be addressed with a temp file!
 
-  if confirm "${yellow}${bold}Disconnect bluetooth speaker $sinkname00? $tput0"; then
+  if [[ "$sinkMAC" =~ ^[A-F0-9]{2}(:[A-F0-9]{2}){5} ]] &&
+     confirm "${yellow}${bold}Disconnect bluetooth speaker $sinkname ($sinkMAC)? $tput0"; then
     echo
-    btctlout="$(bluetoothctl disconnect "$sinkID00")"
-    printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkID00"\|Successful\ disconnected
+    btctlout="$(bluetoothctl disconnect "$sinkMAC")"
+    printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC"\|Successful\ disconnected
     echo
   fi
 
@@ -337,10 +351,10 @@ connectBT(){
         (( verbose == 2 )) && printf '%sBLUETOOTH DEVICE %s CONNECTED!\n%s' "$blue" "$s" "$tput0"
         sinkname="$s"
         sinkMAC="$ID"
-        for _ in {1..5}; do
+        for (( c=0; c<20; c++ )); do # for c in {1..5}; do
           sinkPAID="$(pulsemixer --list-sinks|awk -v sn="$sinkname" '$0 ~ sn {sub(/,$/,"",$3); print $3}')"
           [[ "$sinkPAID" =~ ^sink-[0-9]+$ ]] && break
-          sleep 1
+          sleep 0.5s
         done
         (( verbose == 2 )) && printf ' $sinkname = %s\n' "$sinkname"
         (( verbose == 2 )) && printf '  $sinkMAC = %s\n' "$sinkMAC"
@@ -534,6 +548,8 @@ fi
 #fi
 
 
+
+
 ## this might need to be generalized more since it isn't necessarily choosing the right sink?
 
 if (( choosesink )); then
@@ -542,13 +558,13 @@ if (( choosesink )); then
   (( verbose )) && printf 'ffplaypid: %s\n' "$ffplaypid"
 
   i=0
-  until (( onsink || i > 5 )); do
+  until (( onsink || i > 10 )); do
     while read -r line; do
       [[ "$line" = "Sink Input #"* ]] && sinkin="${line#*#}"
       [[ "$line" = *Sink:\ * ]] && onsink="${line#*: }"
       [[ "$line" = *application.process.id* && "${line##* }" = "$ffplaypid" ]] && break 2
     done < <(pactl list sink-inputs)
-    sleep 1s
+    sleep 0.5s
     (( i++ ))
   done
 
@@ -567,6 +583,18 @@ if (( choosesink )); then
       printf '        Value of $sinkout=%s\n' "$sinkout"
   fi
 fi
+
+{
+  printf choosesink=%s\\n   "${choosesink:=0}"
+  printf sinkin=%s\\n        "${sinkin:=null}"
+  printf onsink=%s\\n        "${onsink:=null}"
+  printf sinkout=%s\\n      "${sinkout:=null}"
+  printf sinkMAC=%s\\n      "${sinkMAC:=null}"
+  printf sinkname=%s\\n    "${sinkname:=null}"
+  printf sinkPAID=%s\\n    "${sinkPAID:=null}"
+  printf ffplaypid=%s\\n  "${ffplaypid:=null}"
+} >> "$mpdzmqvarf"
+
 
 
 (( verbose==2 )) && printf btctlout\:\ %s\\n "${btctlout[@]}"
