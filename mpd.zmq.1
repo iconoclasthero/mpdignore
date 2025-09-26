@@ -13,27 +13,29 @@ export TERM
 . mpdignore.functions
 
 [[ "$mpdhost" = "$(hostname)" ]] && exit 1
+shopt -s nullglob
 
-      bold="$(tput bold)"
-     tput0="$(tput sgr0)"
-    yellow="$(tput setaf 214)"
-      blue="$(tput setaf 33)"
-   boldred="$(tput bold setaf 9)"
-   tunport="$mpdzmqtunport"
-   retport="$mpdzmqretport"
-autosshpid="/tmp/autossh_${tunport}.pid"
-ffplaypidf="/tmp/ffplayzmq-$(date -Im).pid"
-mpdzmqvarf="/tmp/mpdzmqvar-$(date -Im).tmp"
-  sinkID00='00:42:79:D9:B6:AF'
-sinkname00='JBL Xtreme 2'
-  sinkID01='00:1F:47:9F:8C:57'
-sinkname01='LG SOUND BAR'
-  sinkID02='C8:2B:6B:49:A6:A3'
-sinkname02='JBL TUNE510BT'
-  sinkID03='sink-59'
-sinkname03='Built-in Audio Analog Stero (latitude)'
-  sinkID04='sink-48'
-sinkname04='Built-in Audio Analog Stero (compaq)'
+       bold="$(tput bold)"
+      tput0="$(tput sgr0)"
+     yellow="$(tput setaf 214)"
+       blue="$(tput setaf 33)"
+    boldred="$(tput bold setaf 9)"
+    tunport="$mpdzmqtunport"
+    retport="$mpdzmqretport"
+ autosshpid="/tmp/autossh_${tunport}.pid"
+ ffplaypidf="/tmp/ffplayzmq-$(date -Im).pid"
+ mpdzmqvarf="/tmp/mpdzmqvar-$(date -Im).tmp"
+   sinkID00='00:42:79:D9:B6:AF'
+ sinkname00='JBL Xtreme 2'
+   sinkID01='00:1F:47:9F:8C:57'
+ sinkname01='LG SOUND BAR'
+   sinkID02='C8:2B:6B:49:A6:A3'
+ sinkname02='JBL TUNE510BT'
+   sinkID03='sink-59'
+ sinkname03='Built-in Audio Analog Stero (latitude)'
+   sinkID04='sink-48'
+ sinkname04='Built-in Audio Analog Stero (compaq)'
+export GREP_COLORS='mt=38;5;33'
 
 mksinkarray(){
   ## this function creates an assoc. array of [sinkname]=sinkID pairs
@@ -190,14 +192,14 @@ startffplay(){
 
 stopffplay(){
   local screenls found
-  (( verbose )) && { printf '%sLooking for open mpd.zmq screens...\n%s' "$yellow" "$tput0"; hr; }
+  (( verbose )) && { printf '\n%sLooking for open mpd.zmq screens...\n%s' "$yellow" "$tput0"; hr; }
   while screenls="$(screen -ls | grep -E '[[:digit:]]+\.mpd\.zmq')"; do
     (( verbose )) && printf 'Resetting matching screen:\n%s\n' "$screenls"
     screen -S mpd.zmq -X quit &>/dev/null
     screen -wipe &>/dev/null
     found=1
   done
-  [[ ! "$screenls" ]] && (( verbose && ! found )) && printf 'No matching screens found.\n'
+  [[ ! "$screenls" ]] && (( verbose && ! found )) && printf '%sNo matching screens found.%s\n' "${blue}" "$tput0"
   (( verbose )) && hr
 }
 ##--> stopffplay() <--################################################################################
@@ -219,9 +221,25 @@ stopmpdzmq(){
   local stopautossh=false
   local stopzmqscreen=false
   local nine ffplaypid ffplaypidf ffnine mpdzmqvarf mpdzmqvarfiles
+
+  mpdzmqvarfiles=( /tmp/mpdzmqvar-*.tmp )
+  (( "${#mpdzmqvarfiles[@]}" )) && mpdzmqvarf=( "${mpdzmqvarfiles[-1]}" )
+
+  [[ -f "$mpdzmqvarf" ]] && . "$mpdzmqvarf" &&
+     { echo "sinkname=${sinkname:-null}"
+       printf 'cat of $mpdzmqvarf (source succeeded):\n'
+       while read -r line; do
+         printf '  %s\n' "$line"
+       done < "$mpdzmqvarf"
+       printf \\n; }
+
+
   while ! "$stopautossh" || ! "$stopzmqscreen" ; do
+    (( verbose )) && printf '$stopautossh=%s\n' "$stopautossh"
+    (( verbose )) && printf '$stopzmqscreen=%s\n' "$stopzmqscreen"
     stopffplay
-    local autossh_pid="$(cat "$autosshpid")"
+    local autossh_pid
+    [[ -f "$autosshpid" ]] && autossh_pid="$(cat "$autosshpid")"
     if (( autossh_pid )) 2>/dev/null; then
       killcmd=( kill )
       [[ "$nine" ]] && killcmd+=( "$nine" )
@@ -229,12 +247,14 @@ stopmpdzmq(){
       "${killcmd[@]}"
       echo
     fi
-    screenlsout="$(screen -ls|grep --color=always mpd.zmq)"
-    if [[ "$screenlsout" && ! "$stopzmqscreen" ]]; then
+#    screenlsout="$(screen -ls|grep --color=always mpd.zmq)"
+#    if [[ "$screenlsout" && ! "$stopzmqscreen" ]]; then
+    if screenlsout="$(screen -ls|grep --color=always mpd.zmq)" && [[ ! "$stopzmqscreen" ]]; then
       if [[ "$ffplaypid" ]]; then
         ffkillcmd=( kill )
         [[ "$ffnine" ]] && ffkillcmd+=( "$ffnine" )
         ffkillcmd+=( "$ffplaypid" )
+        (( verbose )) && printf 'Running kill ffmpeg command: %s\n' "${ffkillcmd[@]}"
         "${ffkillcmd[@]}"
         ffnine='-9'
       fi
@@ -244,10 +264,10 @@ stopmpdzmq(){
       hr
       echo
       confirm "Are the mpd.zmq screens closed? " && stopzmqscreen=true
-      ffplaypidf=( /tmp/ffplayzmq-*.pid )
-      ffplaypid=$(< "${ffplaypidf[-1]}" )
+#      ffplaypidf=( /tmp/ffplayzmq-*.pid )
+#      ffplaypid=$(< "${ffplaypidf[-1]}" )
     else
-      printf '%s%sThe ffplay and the mpd.zmq screen are closed.\n%s' "$bold" "$yellow" "$tput0"
+      printf '\n%s%sThe ffplay and the mpd.zmq screen are closed.\n%s' "$bold" "$yellow" "$tput0"
       hr
       stopzmqscreen=true
     fi
@@ -261,7 +281,7 @@ stopmpdzmq(){
       confirm "${yellow}${bold}Are ffplay and autossh closed? $tput0" && stopautossh=true
       nine='-9'
     else
-      printf '%s%s\nThe autossh tunnel is closed.\n%s' "$bold" "$yellow" "$tput0"
+      printf '%s%s\nNo mpd.zmq autossh tunnel is open.\n%s' "$bold" "$yellow" "$tput0"
       hr
       stopautossh=true
     fi
@@ -276,18 +296,11 @@ stopmpdzmq(){
   ## sinkname
   ## sinkPAID
   ## ffplaypid
-  mpdzmqvarfiles=( /tmp/mpdzmqvar-*.tmp )
-  mpdzmqvarf=( "${mpdzmqvarfiles[-1]}" )
-
-  . "$mpdzmqvarf"
-  echo "sinkname=$sinkname"
-  read -rp "$(cat $mpdzmqvarf)"
-  printf \\n
-
-  ## someday this will need to be addressed with a temp file!
 
   if [[ "$sinkMAC" =~ ^[A-F0-9]{2}(:[A-F0-9]{2}){5} ]] &&
-     confirm "${yellow}${bold}Disconnect Bluetooth speaker $sinkname ($sinkMAC)? $tput0"; then
+        confirm "${blue}${bold}Disconnect Bluetooth speaker $sinkname ($sinkMAC)? $tput0"; then
+    (( verbose )) && printf '$sinkMAC=%s\n' "${sinkMAC:-null}"
+    hr
     printf \\n
     { btctlout="$(bluetoothctl disconnect "$sinkMAC")" &&
       printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC"\|Successful\ disconnected; } ||
@@ -296,13 +309,12 @@ stopmpdzmq(){
   fi
 
   echo
-  confirm "${yellow}${bold}Pause mpd on $mpdhost? $tput0" && mpctitle pause
-  hr
+  confirm "${blue}${bold}Pause mpd on $mpdhost? $tput0" && { hr;  mpctitle pause; }
   rm -- "${ffplaypidf[@]}" 2>/dev/null || rm -f -- /tmp/ffplayzmq-*.pid
   rm -f -- /tmp/autossh_5555.pid
   (( "${#mpdzmqvarfiles[@]}" )) && rm -- "${mpdzmqvarfiles[@]}"
   ## won't work because glob does not expand:  rm -- "${ffplaypidf[@]:-/tmp/ffplayzmq-*.pid}"
-
+  exit 0
 }
 ##--> stopmpdzmq() <--###################################################################################
 
@@ -418,17 +430,22 @@ while (( "$#" )); do
   [[ "$1" =               --ip ]] && { remote="$2"; remote-zmq "$remote" "$@"; shift 2; continue; }
   [[ "$1" = --@(reset|restart) ]] && { resetzmq; shift; continue; }
   [[ "$1" =    @(--verbose|-v) ]] && { verbose=1; shift; continue; }
-  [[ "$1" = @(--quit|q@(|uit)) ]] && { stopmpdzmq; exit; }
+  [[ "$1" = @(--quit|q@(|uit)) ]] && { quit=1; shift; continue; }
   [[ "$1" =              pause ]] && { pkill -19 ffplay; exit; }  # -SIGSTOP
   [[ "$1" =               play ]] && { pkill -18 ffplay; exit; }   # -SIGCONT
   [[ "$1" = @(--choose|--sink) ]] && { choosesink=1; shift; continue; }
+  { printf '%s is unrecognized.\n' "$1"; shift
+     { confirm -y 'Proceed with script?' && continue; } || exit 1; }
 done
+
+(( quit )) && {	stopmpdzmq; exit; }
+
 
 mksinkarray                                     ## call function to create the sink array
 
 if (( choosesink )); then
   printf \\n
-  sinknamesel="$(gum choose --header="Choose a bluetooth device/sink from list:" "${sinkorder[@]}")" ||
+  sinknamesel="$(gum choose --cursor.foreground="33"  --header.foreground="214" --selected.foreground="33" --header="Choose a bluetooth device/sink from list:" "${sinkorder[@]}")" ||
    { printf 'User aborted. (exit 130)\n' ; exit 130; }
   sinksel="${sinkarray[$sinknamesel]}"
   printf '%sBluetooth/sink device %s = %s chosen.%s\n' "$blue" "$sinknamesel" "$sinksel" "$tput0"
@@ -515,9 +532,12 @@ startautosshout=( "$(startautossh&)" )
 stopffplay
 
 if (( verbose )); then
-  screenout=$(screen -ls)
-  printf '\n%s%sNo mpd.zmq screens should be open:%s \n%s%s' "$yellow" "$bold" "$tput0" "$(hr)" "$screenout"
-  printf %s\\n "$(hr)"
+  if screenout=$(screen -ls mpd.zmq); then
+    printf '\n[%sError%s] %s%smpd.zmq screens are still open: \n%s%s%s%s' "$red" "$tput0" "$yellow" "$bold" "$tput0" "$(hr)" "$blue" "$screenout" "$tput0"
+  else
+    printf '\n%s%sNo mpd.zmq screens are open:%s \n%s%s%s%s' "$yellow" "$bold" "$tput0" "$(hr)" "$blue" "$screenout" "$tput0"
+  fi
+    printf %s\\n "$(hr)"
 fi
 #fg >/dev/null
 
@@ -680,7 +700,11 @@ if (( verbose )); then
 #  ps aux|grep --color=always [a]utossh
 	  (( verbose )) &&
     { printf -- 'Tunnel status (ss -tlnp):\n%s\n\n' "$(ss -tlnp | grep --color=always -E "LISTEN.+:${tunport}.*users:\(\(\"(ssh|autossh)\",pid=[[:digit:]]+,fd=[[:digit:]]{1,2}\){2}")"
-      screen -ls|grep -E There\ is\ a\ screen\ on\|mpd.zmq\|Socket\ in
+      if screenout="$(screen -ls mpd.zmq)"; then
+        printf %s\\n%s\\n%s\\n "$blue" "$screenout" "$tput0"
+      else
+        printf '[%sError%s] %sNo screen for mpd.zmq found!%s\n%s%s\n' "$red" "$tput0" "$yellow" "$red" "$tput0"
+      fi
       printf %s\\n
  #     psaux 5555
       psaux ffplay || psaux autossh
@@ -730,7 +754,7 @@ patterns=(
 printf %s\\n "${btctlout[@]}" |
 #  GREP_COLORS='mt=1;33' \
 #  GREP_COLORS='mt=01;38;5;33' \
-  GREP_COLORS='mt=38;5;33' \
+#  GREP_COLORS='mt=38;5;33' \
   grep --color=always -Ei "$(IFS='|'; echo "${patterns[*]}")"
   hr
 #  printf %s\\n "${btctlout[@]%,}"|grep --color=always -Ei 'Controller|Attempting|Connection|not available|"$sinkID"|Device|Name:|Paired:|Connected:|PulseAudio sink|Channels:|Volumes:|Default|Sink ID:|Sink codec:|Sink codec description:'
