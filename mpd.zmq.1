@@ -218,7 +218,7 @@ confirm(){
 stopmpdzmq(){
   local stopautossh=false
   local stopzmqscreen=false
-  local nine ffplaypid ffnine
+  local nine ffplaypid ffplaypidf ffnine mpdzmqvarf mpdzmqvarfiles
   while ! "$stopautossh" || ! "$stopzmqscreen" ; do
     stopffplay
     local autossh_pid="$(cat "$autosshpid")"
@@ -276,19 +276,23 @@ stopmpdzmq(){
   ## sinkname
   ## sinkPAID
   ## ffplaypid
+  mpdzmqvarfiles=( /tmp/mpdzmqvar-*.tmp )
+  mpdzmqvarf=( "${mpdzmqvarfiles[-1]}" )
 
   . "$mpdzmqvarf"
-
+  echo "sinkname=$sinkname"
+  read -rp "$(cat $mpdzmqvarf)"
   printf \\n
 
   ## someday this will need to be addressed with a temp file!
 
   if [[ "$sinkMAC" =~ ^[A-F0-9]{2}(:[A-F0-9]{2}){5} ]] &&
-     confirm "${yellow}${bold}Disconnect bluetooth speaker $sinkname ($sinkMAC)? $tput0"; then
-    echo
-    btctlout="$(bluetoothctl disconnect "$sinkMAC")"
-    printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC"\|Successful\ disconnected
-    echo
+     confirm "${yellow}${bold}Disconnect Bluetooth speaker $sinkname ($sinkMAC)? $tput0"; then
+    printf \\n
+    { btctlout="$(bluetoothctl disconnect "$sinkMAC")" &&
+      printf "$btctlout"|grep --color=always -E Attempting\ to\ disconnect\ from\ "$sinkMAC"\|Successful\ disconnected; } ||
+      printf '[ERROR] Disconnect from Bluetooth speaker unsuccessful. Investigate:\n\n%s\n' "$(printf \ \ %s\\n "${btctlout[@]}")"
+    printf \\n
   fi
 
   echo
@@ -296,6 +300,7 @@ stopmpdzmq(){
   hr
   rm -- "${ffplaypidf[@]}" 2>/dev/null || rm -f -- /tmp/ffplayzmq-*.pid
   rm -f -- /tmp/autossh_5555.pid
+  (( "${#mpdzmqvarfiles[@]}" )) && rm -- "${mpdzmqvarfiles[@]}"
   ## won't work because glob does not expand:  rm -- "${ffplaypidf[@]:-/tmp/ffplayzmq-*.pid}"
 
 }
@@ -426,35 +431,35 @@ if (( choosesink )); then
   sinknamesel="$(gum choose --header="Choose a bluetooth device/sink from list:" "${sinkorder[@]}")" ||
    { printf 'User aborted. (exit 130)\n' ; exit 130; }
   sinksel="${sinkarray[$sinknamesel]}"
-  printf 'Bluetooth/sink device %s = %s chosen.\n' "$sinknamesel" "$sinksel"
+  printf '%sBluetooth/sink device %s = %s chosen.%s\n' "$blue" "$sinknamesel" "$sinksel" "$tput0"
   read -rp "Any key to continue (Control-C exits)..."
   sinkorder=( "$sinknamesel" )
 fi
 
-(( verbose )) && printf '\nCreating btctlfifo with mkfifo...\n'
+(( verbose == 2 )) && printf '\n%sCreating btctlfifo with mkfifo...$s\n%s\n' "$yellow" "$tput0" "$(hr)"
 tmpdir=$(mktemp -d)
 btctlfifo=$(mktemp -u "$tmpdir/fifo_XXXX")
 mkfifo "$btctlfifo"
-(( verbose )) && printf '  btctlfifo=%s\n' "$btctlfifo"
+(( verbose == 2)) && printf '  btctlfifo=%s\n%s\n' "$btctlfifo" "$hr"
 
 ## instead of looking just for the BT connections, we should go through the sinks in order of what is in the mpd.zmq.conf file but we'll need to determine if they're known BT sinks.  this will be obviated by selecting a sink first, but then that requires user input to guide it.
 
 ## this for loop will look to see if any of the BT devices (as determined by if 'sinkID??' is a MAC address)
 ##  are connected, in order of sinkarray[@]
 
-printf '\n%sChecking for a connected Bluetooth device or PulseAudio sink...\n%s' "$yellow" "$tput0"
+printf '\n%sChecking for a connected Bluetooth device or PulseAudio sink...%s\n%s' "$yellow" "$tput0" "$(hr)"
 for s in "${sinkorder[@]}"; do
   ID="${sinkarray[$s]}"
-  (( verbose )) && printf 'ID=%s\n' "${sinkarray[$s]}"
-  (( verbose )) && printf '$ID=%s\n' "$ID"
+  (( verbose == 2 )) && printf 'ID=%s\n' "${sinkarray[$s]}"
+  (( verbose == 2 )) && printf '$ID=%s\n' "$ID"
 
   if [[ "$ID" =~ ^[A-F0-9]{2}(:[A-F0-9]{2}){5} ]]; then
-    (( verbose )) && printf '$ID = %s is validated as a MAC address.\n' "$ID"
+    (( verbose == 2 )) && printf '$ID = %s is validated as a MAC address.\n' "$ID"
     connected=$(bluetoothctl info "$ID"|awk '$1=="Connected:" {print $2}')
     sinkname="$s"
     sinkMAC="$ID"
     if [[ "$connected" = yes ]]; then
-      printf '  %s%s connected!\n%s' "$blue" "$s" "$tput0"
+      printf '  %s%s already connected!\n%s' "$blue" "$s" "$tput0"
       sinkPAID="$(pulsemixer --list-sinks|awk -v sn="$sinkname" '$0 ~ sn {sub(/,$/,"",$3); print $3}')"
       break
     else
@@ -481,6 +486,8 @@ for s in "${sinkorder[@]}"; do
   fi
 done
 
+hr
+
 printf \\n
 
 
@@ -494,13 +501,14 @@ elif (( verbose )) && [[ "$sinkMAC" ]]; then
 #  echo "entered else portion... are you stuck?"
 #  btctlout="$(echo "$sinkname/$sinkID was already connected."; bluetoothctl list; bluetoothctl info "$sinkID")"
   btctlout=( "$sinkname00/$sinkMAC was already connected." "$(bluetoothctl list)" "$(bluetoothctl info $sinkID)" )
-  printf %s\\n "${btctlout[@]}"
+  (( verbose == 2 )) && printf %s\\n "${btctlout[@]}"
 elif (( verbose == 2 )) && [[ ! "$sinkMAC" ]]; then
   printf 'In the if block to connectBT() but this is a non-BT device.\n\n'
 fi
 
-(( verbose )) && printf '%sCheck/start autossh...%s\n\n' "$yellow" "$tput0"
+(( verbose )) && printf '%sCheck/start autossh...%s\n%s\n' "$yellow" "$tput0" "$(hr)"
 startautosshout=( "$(startautossh&)" )
+(( verbose )) && printf 'Need to figure out what should go here if the autossh is already running?  Remove?\n%s\n\n' "$(hr)"
 
 #pause "$(printf '%srestarting ffplay screen%s\n\n' "$bold" "$tput0")"
 #pause "${bold}restarting ffplay screen$tput0"
@@ -537,7 +545,7 @@ fi
     if ! (( i )); then
       btctlout+=( " Sink ID: ${arr[$i]#*ID: }" )
       :
-    elif [[ "${arr[$i]}" != \ Volumes* ]]; then
+    elif [[ "${arr[$i]}" != \ Volumes* || "${arr[$i]}" = \ Volumes*\] ]]; then
       btctlout+=( "${arr[$i]}" )
     else
       btctlout+=( "${arr[$i]}${arr[$i+1]}" )
@@ -547,15 +555,65 @@ fi
 
 #fi
 
+#(( verbose == 2 )) && printf 'sinkPAID=%s\n' "${sinkPAID#sink-}"
+#unset active
+#while read -r line; do
+# [[ "$line" = Card\ \#* ]] && sinkcard="$line"
+# [[ "$line" = "Name: bluez_card.${sinkMAC//:/_}" ]] && active=1 && (( verbose == 2 )) &&
+#   { sinkcardname="$line"; printf %s\\n%s\\n "$sinkcard" "$sinkcardname"; }
+# (( active )) && [[ "$line" =~ Active\ Profile\:\ (.*) ]] &&
+#    { (( verbose == 2 )) && printf %s\\n "$line"
+#      sinkcodec="${BASH_REMATCH[1]}"; btctlout+=( " Sink codec: $sinkcodec" ); break; }
+#done < <(pactl list cards)
+#unset active
+#(( verbose == 2 )) && printf %s\\n "btctlout[-1]=${btctlout[-1]}"
 
 
+
+
+(( verbose == 2 )) && printf 'sinkPAID=%s\n' "${sinkPAID#sink-}"
+unset found
+namematch="Name: bluez_card.${sinkMAC//:/_}"
+while IFS= read -r line; do
+  if [[ "$line" = Card\ \#* ]]; then
+    (( found )) && break                    ## stop when next card starts
+    cardinfo=( "$line" )                    ## reset cardinfo at new card
+    sinkcard="${line#*#}"
+  elif [[ "$line" = *"$namematch" ]]; then
+    found=1
+    cardinfo+=("$line" )
+    sinkcardname="${line#*: }"
+#  elif (( found )); then
+   else
+    cardinfo+=( "$line" )
+    if [[ "$line" =~ Active\ Profile:\ (.*) ]]; then
+      sinkcodec="${BASH_REMATCH[1]}"        ## capture codec
+    fi
+  fi
+done < <(pactl list cards)
+unset found
+
+btctlout+=( " Sink codec: $sinkcodec" ) # add codec to downstream output
+
+(( verbose == 2 )) && printf '$found=%s\n' "$found"
+(( verbose == 2 )) && printf '$namematch=%s\n' "$namematch"
+(( verbose == 2 )) && printf '$sinkMAC=%s\n' "$sinkMAC"
+(( verbose == 2 )) && printf '${sinkMAC//:/_}=%s\n' "${sinkMAC//:/_}"
+(( verbose == 2 )) && printf '$sinkcard=%s\nsinkcardname=%s\n' "$sinkcard" "$sinkcardname"
+(( verbose == 2 )) && printf '$sinkcodec=%s\n' "$sinkcodec"
+(( verbose == 2 )) && printf '${btctlout[-1]}=%s\n' "${btctlout[-1]}"
+for i in "${cardinfo[@]}"; do
+  [[ "$i" = *"$sinkcodec: "* ]] && sinkcodecdesc="${i#*$sinkcodec: }" && break
+done
+(( verbose == 2 )) && printf '$sinkcodecdesc=%s\n' "$sinkcodecdesc"
+btctlout+=( " Sink codec description: $sinkcodecdesc" )
 
 ## this might need to be generalized more since it isn't necessarily choosing the right sink?
 
 if (( choosesink )); then
   ## get the new PA input sink:
   ffplaypid="$(< "$ffplaypidf" )"
-  (( verbose )) && printf 'ffplaypid: %s\n' "$ffplaypid"
+  (( verbose == 2 )) && printf 'ffplaypid: %s\n' "$ffplaypid"
 
   i=0
   until (( onsink || i > 10 )); do
@@ -568,7 +626,8 @@ if (( choosesink )); then
     (( i++ ))
   done
 
-  (( verbose )) && printf 'ffplay is on sink input: %s playing on output %s.\n' "$sinkin" "$onsink"
+  (( verbose )) && { printf '\n%sffplay sink input/output:%s\n' "$yellow" "$tput0"; hr;
+                     printf 'ffplay is on sink input %s playing on output %s.\n' "$sinkin" "$onsink"; hr; }
 
 #  if [[ "$onsink" != "$sinkPAID" && "$sinkPAID" =~ ^sink-[0-9]+$ ]]; then
 #    sinkout="${sinkPAID#sink-}"
@@ -585,14 +644,14 @@ if (( choosesink )); then
 fi
 
 {
-  printf choosesink=%s\\n   "${choosesink:=0}"
-  printf sinkin=%s\\n        "${sinkin:=null}"
-  printf onsink=%s\\n        "${onsink:=null}"
-  printf sinkout=%s\\n      "${sinkout:=null}"
-  printf sinkMAC=%s\\n      "${sinkMAC:=null}"
-  printf sinkname=%s\\n    "${sinkname:=null}"
-  printf sinkPAID=%s\\n    "${sinkPAID:=null}"
-  printf ffplaypid=%s\\n  "${ffplaypid:=null}"
+  printf 'choosesink="%s"\n'   "${choosesink:=0}"
+  printf 'sinkin="%s"\n'        "${sinkin:=null}"
+  printf 'onsink="%s"\n'        "${onsink:=null}"
+  printf 'sinkout="%s"\n'      "${sinkout:=null}"
+  printf 'sinkMAC="%s"\n'      "${sinkMAC:=null}"
+  printf 'sinkname="%s"\n'    "${sinkname:=null@Q}"
+  printf 'sinkPAID="%s"\n'    "${sinkPAID:=null}"
+  printf 'ffplaypid="%s"\n'  "${ffplaypid:=null}"
 } >> "$mpdzmqvarf"
 
 
@@ -626,7 +685,7 @@ if (( verbose )); then
  #     psaux 5555
       psaux ffplay || psaux autossh
     }
-
+  hr
 
  \sleep 1.25s
   printf '\n%s%sProcess pid info:%s\n' "$bold" "$yellow" "$tput0"
@@ -634,6 +693,7 @@ if (( verbose )); then
   printf %s\ %s\\n "$autosshpid" "$(cat "$autosshpid")"
  \sleep 1.25s
   printf \\n%s\ %s\\n "$ffplaypidf" "$(cat "$ffplaypidf")"
+  hr
 # [[ "$connected" = no ]] && btctlout="$btctlout $({ bluetoothctl list; bluetoothctl info; }|grep -E 'Controller|Device|Name:|Paired:|Connected:')"
 # btctlout="$btctlout $(echo; bluetoothctl info)"
 
@@ -647,13 +707,39 @@ if (( verbose )); then
     "$yellow" \
     "$tput0"
   hr
-####
-  printf %s\\n "${btctlout[@]%,}"|grep --color=always -Ei 'Controller|Attempting|Connection|not\ available|"$sinkID"|Device|Name:|Paired:|Connected:|PulseAudio sink|Channels:|Volumes:|Default|Sink ID:'
-  printf \\n
-  printf ' $sinkname = %s\n' "$sinkname"
-  printf '  $sinkMAC = %s\n' "$sinkMAC"
-  printf ' $sinkPAID = %s\n' "$sinkPAID"
-  printf '$connected = %s\n' "$connected"
+
+patterns=(
+  'Controller'
+  'Attempting'
+  'Connection'
+  'not available'
+#  "$sinkID"
+  'Device'
+  'Name:'
+  'Paired:'
+  'Connected:'
+  'PulseAudio sink'
+  'Channels:'
+  'Volumes:'
+  'Default'
+  'Sink ID:'
+  'Sink codec:'
+  'Sink codec description:'
+)
+
+printf %s\\n "${btctlout[@]}" |
+#  GREP_COLORS='mt=1;33' \
+#  GREP_COLORS='mt=01;38;5;33' \
+  GREP_COLORS='mt=38;5;33' \
+  grep --color=always -Ei "$(IFS='|'; echo "${patterns[*]}")"
+  hr
+#  printf %s\\n "${btctlout[@]%,}"|grep --color=always -Ei 'Controller|Attempting|Connection|not available|"$sinkID"|Device|Name:|Paired:|Connected:|PulseAudio sink|Channels:|Volumes:|Default|Sink ID:|Sink codec:|Sink codec description:'
+  (( verbose == 2 )) && printf ' $sinkname = %s\n' "$sinkname"
+  (( verbose == 2 )) && printf '  $sinkMAC = %s\n' "$sinkMAC"
+  (( verbose == 2 )) && printf ' $sinkPAID = %s\n' "$sinkPAID"
+  (( verbose == 2 )) && printf '$connected = %s\n' "$connected"
+
+  hr
 
 ####
 
@@ -661,6 +747,7 @@ if (( verbose )); then
   printf '\n%s%sMPD enable fmpeg/zmq output:%s\n' "$bold" "$yellow" "$tput0"
   hr
   printf %s\\n "$(echo "$enableout"|grep --color=always ffmpeg\/zmq)"
+  hr
  \sleep 1s
 #  printf '\n%s%sPlay mpd: %s' "$bold" "$yellow" "$tput0"
 #  printf %s\\n\\n "$playout"
