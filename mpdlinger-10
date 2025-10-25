@@ -625,18 +625,22 @@ ipc2args=(limit count blocklimit)
 #[[ "$1" != @(--edit|--exec|--help|-h|help) && startupcheck "$@"
 
 [[ "$STY" ]] && unset COLORTERM
-lolargs=(lolcat)
-[[ "$STY" ]] && lolargs+=(-ap 2) || lolargs+=(-tap 2)
+if (( lolon )); then
+  lolargs=(lolcat)
+  [[ "$STY" ]] && lolargs+=(-ap 2) || lolargs+=(-tap 2)
 ##  -F, --freq=<f>        Rainbow frequency (default: 0.1)
 ##  -d, --duration=<i>    Animation duration (default: 12)
 ##  -s, --speed=<f>       Animation speed (default: 20.0)
-lolargs+=(-d 04) #lolargs+=(-d 08)
-lolargs+=(-s 15) #lolargs+=(-s 15)
-lolargs+=(-F 0.075)
-#fonts are in /usr/share/figlet
-font1=future
-font2=pagga
-font2="$font1"
+  lolargs+=(-d 04) #lolargs+=(-d 08)
+  lolargs+=(-s 15) #lolargs+=(-s 15)
+  lolargs+=(-F 0.075)
+else
+  lolargs=(cat)
+fi
+## fonts are in /usr/share/figlet
+  font1=future
+  font2=pagga
+  font2="$font1"
 #filter=metal
 
 unset initrand  #probably can remove

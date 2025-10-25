@@ -9,7 +9,16 @@ mpccmd=( mpc -h "$mpdpass@$mpchost" )
 
 #[[ "$1" = . || "$1" = .\/* && "$1" != *\** ]] && set -- "$(realpath --relative-to "$musicdir" "$1")" "${@:2:}"
 
+## read from stdin:
+(( $# == 0 )) && mapfile -t arr && set -- "${arr[@]}" || arr=( "$@" )
+
 pause "$(printf %s\\n "$@")"
+
+for i in "${!arr[@]}"; do
+  [[ "${arr[i]}" = /library/music/* ]] && arr[i]="${arr[i]#/library/music/}"
+done
+
+
 startlength="$("${mpccmd[@]}" status %length%)"
 addout="$("${mpccmd[@]}" add "$@")"; ec="$?"
 
