@@ -577,7 +577,8 @@ for s in "${sinkorder[@]}"; do
     (( verbose )) && printf '   $sinkMAC = %s\n' "$sinkMAC"
     (( verbose )) && printf '  $sinkPAID = %s\n' "${sinkPAID:=null}"
     (( verbose )) && printf ' $connected = %s\n' "$connected"
-  elif [[ "$ID" =~ ^sink-[0-9]+$ ]]; then
+  elif [[ "$ID" =~ ^sink-[0-9]+$ ]] && (( choosesink )); then  ## if a non-BT sink was chosen then connect now.
+    choosesink=2                                               ## PA should automatically fallback to an existing sink
     pulsemixer --list-sinks |\grep -q "$ID" &&
       connected='yes' || connected='no'
     ! (( verbose )) && printf 'Device chosen is a non-Bluetooth PulseAudio sink.\n'
@@ -585,8 +586,8 @@ for s in "${sinkorder[@]}"; do
     unset sinkMAC
     sinkPAID="$ID"
     [[ "$connected" = yes ]] && printf '\nPulseAudio sink connected: %s = %s\n' "$sinkname" "$sinkPAID"
-#    [[ "$connected" = no ]] && { printf 'Invalid pulse sink selected. Investigate. (exit 1)\n'; exit 1; }
-    [[ "$connected" = no ]] && { printf 'Invalid pulse sink selected. Investigate. (exit 1)\n'; }
+#   [[ "$connected" = no ]] && { printf 'Invalid pulse sink selected. Investigate. (exit 1)\n'; exit 1; }
+    [[ "$connected" = no ]] && { printf 'Invalid pulse sink selected. Investigate.\n'; }
     (( verbose )) && printf ' $sinkname = %s\n' "$sinkname"
     (( verbose )) && printf '  $sinkMAC = %s\n' "$sinkMAC"
     (( verbose )) && printf ' $sinkPAID = %s\n' "$sinkPAID"
@@ -598,16 +599,11 @@ hr
 
 printf \\n
 
-
-if [[ "$connected" = no && "$sinkMAC" ]]; then
+#if [[ "$connected" = no && "$sinkMAC" ]]; then
+if [[ "$connected" = no ]] && (( choosesink < 2 )); then  ## try connect first available BT device if a PA sink wasn't chosen
  (( verbose || logging )) && { printf 'Calling connectBT&\n' | { (( logging )) && tee -a /tmp/mpd.zmq/log || cat; }; }
   connectBT&
-## moving these till after the wait below
-#  IFS= read -r connected < "$btctlfifo"  # this should grab just one line (no while)
-#  . "$btctlfifo" # rest of FIFO
 elif (( verbose )) && [[ "$sinkMAC" ]]; then
-#  echo "entered else portion... are you stuck?"
-#  btctlout="$(echo "$sinkname/$sinkID was already connected."; bluetoothctl list; bluetoothctl info "$sinkID")"
   btctlout=( "$sinkname00/$sinkMAC was already connected." "$(bluetoothctl list)" "$(bluetoothctl info $sinkID)" )
   (( verbose == 2 )) && printf %s\\n "${btctlout[@]}"
 elif (( verbose == 2 )) && [[ ! "$sinkMAC" ]]; then
