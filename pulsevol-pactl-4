@@ -1,0 +1,424 @@
+#!/bin/bash
+
+tmpbase="$(mktemp)"
+
+shopt -s extglob
+
+ip=127.0.0.1
+defaultconfig="$HOME/.config/mpd-local.conf"
+config="$defaultconfig"
+
+[[ ! -f "$config" ]] && { printf '\n[error] No default config file found. \nCreate: %s\n\n' "$config"; default=1; }
+
+gigabyte=192.168.1.2
+optiplex=192.168.12.222
+compaq=192.168.1.12
+latitude=192.168.1.3
+localhost=127.0.0.1
+
+port="${pulseport:-4713}"
+
+scriptname=$(realpath "$0")
+. /usr/local/bin/editscript
+
+notifier(){
+    local percent="$1"
+    local volume="$2"
+    local mute="$3"
+    local state="$@"
+    local timeout=1000
+    (( verbose )) && printf '$state=%s\n' "$state"
+#    notify-send -a "pactl" -i audio-x-generic -h int:value:"$percent" "$(for i in "$@"; do printf %s\\n "$i"; done)"
+  if [[ "$mute" = "Muted: yes" ]]; then
+    notify-send -t "$timeout" \
+                -a "pulsevol" \
+                -i audio-volume-muted \
+                -h string:category:volume \
+                -h int:value:"$percent" \
+                "$(for i in "$@"; do printf %s\\n "$i"; done)"
+
+  elif (( volume <= 25 )); then
+    notify-send -t "$timeout" -a "pulsevol" -i audio-volume-low -h int:value:"$percent" "$(for i in "$@"; do printf %s\\n "$i"; done)"
+  elif (( volume >= 75 )); then
+    notify-send -t "$timeout" -a "pulsevol" -i audio-volume-high -h int:value:"$percent" "$(for i in "$@"; do printf %s\\n "$i"; done)"
+  else
+    notify-send -t "$timeout" -a "pulsevol" -i audio-volume-medium -h int:value:"$percent" "$(for i in "$@"; do printf %s\\n "$i"; done)"
+  fi
+}
+
+#volstatus(){
+#    volout="$(ssh "$ip" pactl list sinks | awk -v sid="$sink" '
+#        $1=="Sink" && $2==sid {found=1}
+#        found && /Volume:/ {
+#            sub(/,/, "", $5); sub(/,/, "", $8)
+#            if($5!=$8) printf "Volume: Left %s%% — Right %s%%", $5, $8
+#            else printf "Volume: %s%%", $5
+#        }'
+#    )"
+#    muteout="$(ssh "$ip" pactl list sinks | awk -v sid="$sink" '
+#        $1=="Sink" && $2==sid {found=1}
+#        found && /Mute:/ {print " Muted:", ($2=="yes"?"yes":"no")}'
+#    )"
+#}
+
+volstatus(){
+  if ! (( usessh )); then
+    volout="$(
+      pactl --server="tcp:$ip:$port" get-sink-volume "$sinkid" | awk '
+        /mono:/ {print "Volume:", $5}
+        /front-left:/ {printf "Volume: Left %s%% — Right %s%%", $5, $9}'
+    )"
+
+    muteout="$(
+      pactl --server="tcp:$ip:$port" get-sink-mute "$sinkid" | awk '{print "Muted:", ($2=="yes"?"yes":"no")}'
+    )"
+  else
+    volout="$(
+      ssh "$ip" pactl get-sink-volume "$sinkid" | awk '
+        /mono:/ {print "Volume:", $5}
+        /front-left:/ {printf "Volume: Left %s%% — Right %s%%", $5, $9}'
+    )"
+
+    muteout="$(
+      ssh "$ip" pactl get-sink-mute "$sinkid" | awk '{print "Muted:", ($2=="yes"?"yes":"no")}'
+    )"
+  fi
+}
+
+checktcpmodule(){
+    checktcp="$(ssh "$ip" pactl list short modules | grep module-native-protocol-tcp)"
+    checktcperr="$?"
+    (( checktcperr != 0 )) && ssh "$ip" pactl unload-module module-native-protocol-tcp >/dev/null 2>&1
+    (( checktcperr != 0 )) && ssh "$ip" pactl load-module module-native-protocol-tcp auth-ip-acl='127.0.0.1\;192.168.0.0/16' auth-anonymous=1
+    (( checktcperr == 0 )) && echo "Module loaded: $checktcp"
+}
+
+fallbackmsg(){ printf 'Direct "pactl --server=tcp:%s:%s" command failed; falling back to ssh.\n' "$ip" "$port"; }
+
+
+selectsink(){
+  quitmsg="———— Quit ————"
+  [[ "$1" = --quitmsg ]] && { quitmsg="$2"; shift 2; }
+  displaytmp="$tmpbase.disp"
+  > "$displaytmp"
+
+  while IFS='|' read -r id arrline menuline; do
+    sinkarr["$id"]="$arrline"
+    chanarr["$id"]="$(awk -F'☢' '{print $4}' <<<"$arrline")"
+    volarr["$id"]="$(awk -F'☢' '{print $5}' <<<"$arrline")"
+    echo "$menuline" >>"$displaytmp"
+  done < <( jq -r '.[] |
+        "\(.index)|\(.index)☢\(.name)☢\(.description)☢\(.channel_map|@json)☢\({volume:.volume, mute:.mute}|@json)|\(.index) ⬢ \(.name) ⬢ \(.description)"' "$sinktmp" )
+#        "\(.index)|\(.index)☢\(.name)☢\(.description)☢\(.channel_map|@json)☢\(.volume|@json)\(.mute|@json)|\(.index) ⬢ \(.name) ⬢ \(.description)"' "$sinktmp" )
+
+  printf '0000⬢ %s\n' "$quitmsg" >>"$displaytmp"
+
+  choice="$(column -td -s'⬢' "$displaytmp" | gum choose --height=10)"
+#  choice2=$(awk '{print $2}' <<< "${choice}")
+#  choice3=$(awk '{print $3}' <<< "${choice}")
+#  choice="${choice%% *}"
+  read -r choice choice2 choice3 <<<"$choice"
+
+  rm -f "$displaytmp"
+}
+
+pactllistsinks(){
+  : "${sinktmp:=$tmpbase.sink}"
+  if ! pactl -s "tcp:$ip:$port" --format=json list sinks >"$sinktmp" 2>/dev/null; then
+    fallbackmsg
+    usessh=1
+    ssh "$ip" pactl --format=json list sinks >"$sinktmp"
+  fi
+}
+
+defaultfn(){
+  trap 'cancel=1' INT
+
+  local newserver sinkid sinkname sinkdescrip cancel
+  printf 'Current defaults:\n'
+  printf '  Default sink=%s\n' "$defsinkname"
+  printf '  Default pulse server=%s\n' "$defaultpulse"
+  printf '  Default pulse port=%s\n' "$pulseport"
+  printf \\n
+  ! (( cliconfig )) && printf 'Location of configuration file=%s\n' "$config"
+  ! (( cliconfig )) && printf \\n
+  ! (( cliconfig )) && printf 'Contents:\n'
+  ! (( cliconfig )) && cat "$config"
+  ! (( cliconfig )) && printf \\n
+  (( cliconfig )) && printf 'Location of configuration file=%s\n' "$config"
+  (( cliconfig )) && printf \\n
+  (( cliconfig )) && printf 'Contents:\n'
+  (( cliconfig )) && cat "$config"
+  (( cliconfig )) && printf \\n
+  read -rp "Enter default pulse server address (blank for $defaultpulse): " newserver
+  [[ "$newserver" = *\:* ]] && { newport="${newserver#*\:}" newserver="${newserver%\:*}"; }
+  if [[ "$newserver" && "$newserver" != "$defaultpulse" ]]; then
+    printf \\n
+    printf 'Previous default pulse server: %s\n' "$defaultpulse"
+    printf '     New default pulse server: %s\n' "$newserver"
+    printf '\nConfirm writing new default pulse server to file:\n`## [%s] added by %s via %s\ndefaultpulse="%s"`\n\n' \
+            "$(date -Is)" "$USER" "$0" "$newserver"
+    cancel=0; read -rp "Enter to confirm, ^C to cancel... "
+    ! (( cancel )) && { printf '\n## [%s] added by %s via %s:\ndefaultpulse="%s"\n' "$(date -Is)" "$USER" "$0" \
+                              "$newserver"  >> "$config"; ip="$newserver"; } || printf '\nCancelled.\n'
+  elif [[ "$newserver" && "$newserver" = "$defaultpulse" ]]; then
+    unset newserver
+  fi
+
+  if (( newport && newport != pulseport )); then
+    printf \\n
+    printf 'Previous default pulse port: %s\n' "$pulseport"
+    printf '     New default pulse port: %s\n' "$newport"
+    printf '\nConfirm writing new default pulse port to file:\n`## [%s] added by %s via %s:\npulesport="%s"`\n\n' \
+            "$(date -Is)" "$USER" "$0" "$newport"
+    cancel=0; read -rp "Enter to confirm, ^C to cancel... "
+    ! (( cancel )) && { printf '\n## [%s] added by %s via %s:\npulseport="%s"\n' "$(date -Is)" "$USER" \
+                              "$0" "$newport"  >> "$config"; port="${newport:-port}"; } || printf '\nCancelled.\n'
+  elif (( newport && newport == pulseport )); then
+    unset newport
+    printf '\nPort %s unchanged\n' "$port"
+  fi
+
+  [[ "$newserver" ]] || (( newport )) &&
+    printf 'Current default pulse server: defaultpulse:port=%s:%s\n' "${newserver:-$defaultpulse}" "${newport:-$port}" ||
+      printf 'Pulse server unchanged\n'
+
+  printf \\n
+  printf 'Current default sink: %s\n\n' "$defsinkname"
+  printf 'Choose default sink:\n'
+  ip="${newserver:=${defaultpulse:=ip}}"
+  pactllistsinks
+  selectsink --quitmsg "———— Return ————"
+  sinkid="$choice"
+  sinkname="$choice2"
+  sinkdescrip="$choice3"
+
+  if ! (( choice )); then
+    printf 'No choice made; leaving default sink in config file\n'
+  elif [[ "$sinkname" = "$defsinkname" || "$sinkdescrip" = "$defsinkname" ]]; then
+    printf 'Default sink unchanged.\n\n'
+  else
+    printf '\nSelected sink id / sink name / sink description:\n%s / %s / %s\n' "$sinkid" "$sinkname" "$sinkdescrip"
+    printf '\nConfirm writing new default sink to file:\n`## [%s] added by %s via %s:\ndefsinkname="%s"`\n' \
+            "$(date -Is)" "$USER" "$0" "$sinkname"
+    printf \\n
+    cancel=0; read -rp "Enter to confirm, ^C to cancel... "
+    ! (( cancel )) && printf '\n## [%s] added by %s via %s:\ndefsinkname="%s"\n' \
+                              "$(date -Is)" "$USER" "$0" "$sinkname" >> "$config" || printf '\nCancelled.\n'
+  fi
+  trap - INT  # restore default before leaving
+  printf 'exit 0\n\n'
+  exit 0
+}
+
+## Main block ############################################
+
+while (( "$#" )); do
+  [[ "$1" =                  --compaq ]] && { ip="$compaq";        shift 1; continue; }
+  [[ "$1" =               --localhost ]] && { ip="$localhost";     shift 1; continue; }
+  [[ "$1" =                --latitude ]] && { ip="$latitude";      shift 1; continue; }
+  [[ "$1" =      @(--optiplex|--opti) ]] && { ip="$optiplex";      shift 1; continue; }
+  [[ "$1" =       @(--gig|--gigabyte) ]] && { ip="$gigabyte";      shift 1; continue; }
+  [[ "$1" = @(|--)@(mute|toggle-mute) ]] && { cmd="--toggle-mute"; shift 1; continue; }
+  [[ "$1" =                  --notify ]] && { notify=1;            shift 1; continue; }
+  [[ "$1" =                 --verbose ]] && { verbose=1;           shift 1; continue; }
+  [[ "$1" =                   --mixer ]] && { cmd="mixer";         shift 1; continue; }
+  [[ "$1" =                    --menu ]] && { menu=1;              shift 1; continue; }
+  [[ "$1" =                    --sink ]] && { usersink="$2";       shift 2; continue; }
+  [[ "$1" =                  --sink=* ]] && { usersink="${1#*=}";  shift 1; continue; }
+  [[ "$1" =                 --default ]] && { default=1;           shift 1; continue; }
+  [[ "$1" =            --no-volstatus ]] && { novolstatus=1;       shift 1; continue; }
+  [[ "$1" =       --config && -f "$2" ]] && { config="$2"; cliconfig=1     shift 2; continue; }
+  [[ "$1" =                --config=* ]] && { config="${1#*=}"; cliconfig=1; shift; continue; }
+  if [[ "$1" =~ ^(-|\+)?[0-9]{1,3}$ ]]; then
+    if [[ "$1" =~ ^[0-9]+$ ]]; then
+      cmd=--set-volume="$1"
+    else
+      cmd=--change-volume="$1"
+    fi
+  else
+    printf 'Unknown or invalid parameter: %s' "$1"
+    [[ "$1" = --config* && ! -f "$2" ]] && printf  '%s\nConfig file not found.' "$2"
+    printf ' (exit 1)\n'
+    exit 1
+  fi
+  shift
+done
+
+[[ "$config" = ~* ]] && config="${config/\~/$HOME}"
+
+if (( cliconfig && ! default )); then
+  [[ ! -f "$config" ]] && { printf 'Config file not found: %s\n(exit 1)\n'; exit 1; }
+  printf 'Using config file specified with --config: %s\n' "$config"
+  printf 'Contents:\n'
+  cat "$config"
+fi
+
+[[ -f "$config" ]] && . "$config" || { printf '\n[error] Config file found. \nCreate: %s\n\n' "$config"; default=1; }
+
+(( default )) && defaultfn
+
+#: "${ip:=$defaultpulse}"
+ip="${defaultpulse:=ip}"  ## falls back to ip= at the top if defaultpulse is not assigned in $config or default()
+
+: "${sinkname:=${usersink:-$defsinkname}}"
+
+(( verbose )) && printf '[verbose] ip:port=%s:%s\n' "$ip" "$port"
+(( verbose )) && printf '[verbose] sinkname=%s\n' "$sinkname"
+(( verbose )) && printf '[verbose] cmd=%s\n' "$cmd"
+(( verbose )) && printf '[verbose] usersink=%s\n' "$usersink"
+(( verbose )) && printf '[verbose] defsinkname=%s\n' "$defsinkname"
+(( verbose )) && printf '[verbose] defaultpulse=%s\n' "$defaultpulse"
+
+##################
+## dump remote pactl data as JSON
+sinktmp="$tmpbase.sink"
+if ! pactl -s "tcp:$ip:$port" --format=json list sinks >"$sinktmp" 2>/dev/null; then
+  fallbackmsg
+  usessh=1
+  ssh "$ip" pactl --format=json list sinks >"$sinktmp"
+fi
+(( verbose )) && { printf '[verbose] JSON dump:\n'; jq . "$sinktmp"; }
+
+## normalize user input for matching (remove spaces, lowercase)
+sinknamenorm="${sinkname//[[:space:]]/}"
+sinknamenorm="${sinknamenorm,,}"
+
+## handle potential MAC address (bluetoothctl style)
+if [[ "$sinkname" =~ ^([0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}) ]]; then
+    mac="${BASH_REMATCH[0]//:/_}"
+    sinknamenorm="$mac"
+fi
+
+## collect matching sinks as base64 to preserve structure
+mapfile -t matched_sinks < <(
+jq -r --arg norm "$sinknamenorm" '
+  .[] |
+  .name_norm = ((.name // "") | tostring | gsub(" ";"") | ascii_downcase) |
+  .desc_norm = ((.description // "") | tostring | gsub(" ";"") | ascii_downcase) |
+  select(
+    ((.name_norm | type) == "string" and (.name_norm | test($norm; "i"))) or
+    ((.desc_norm | type) == "string" and (.desc_norm | test($norm; "i")))
+  ) |
+  @base64
+' "$sinktmp"
+)
+
+## handle matches
+if (( ${#matched_sinks[@]} != 1 || menu )); then
+  selectsink
+  ! (( choice )) && exit 130
+  sinkid="$choice"
+
+else
+    # Only one match
+    sinkid="$(base64 --decode <<<"${matched_sinks[0]}" | jq -r '.index')"
+    decoded="$(base64 --decode <<<"${matched_sinks[0]}")"
+    sinkarr["$sinkid"]=$(jq -r '"\(.index)☢\(.name)☢\(.description)☢\(.channel_map)☢\(.volume)☢\(.mute)"' <<<"$decoded")
+    chanarr["$sinkid"]=$(jq -c '.channel_map' <<<"$decoded")
+#    volarr["$sinkid"]=$(jq -c '.volume' <<<"$decoded")
+    volarr["$sinkid"]=$(jq -c '{volume: .volume, mute: .mute}' <<<"$decoded")
+
+fi
+
+(( verbose )) && read -rp "\$sinkid=$sinkid"
+
+
+## store info for later indexed by the sinkid/index:
+## sinkarr -A array for index, namne, description
+## chanarr -A array for the channel_map
+##  volarr -A array for the storage of the volume information
+#declare -A sinkarr volarr chanmap
+#decoded="$(base64 --decode <<<"${matched_sinks[0]}")"
+#sinkarr["$sinkid"]="$(jq -r '"\(.index)☢\(.name)☢\(.description)"' <<<"$decoded")"
+#chanarr["$sinkid"]="$(jq -c '.channel_map' <<<"$decoded")"
+#volarr["$sinkid"]="$(jq -c '.volume' <<<"$decoded")"
+
+(( verbose )) && {
+  printf '[verbose] Sink ID: %s\n' "$sinkid"
+  printf '[verbose] Sink Name: %s\n' "$sinkname"
+  printf '[verbose] Sink array: %s\n' "${sinkarr[$sinkid]}"
+  printf '[verbose] Volume array JSON: %s\n' "${volarr[$sinkid]}"
+  printf '[verbose] Channel Map JSON: %s\n' "${chanarr[$sinkid]}"
+}
+#########################
+
+rm -f "$sinktmp"
+
+(( verbose )) && read -rp "[verbose] \$sinkid=$sinkid"
+
+
+if [[ "$cmd" = 'mixer' ]]; then
+  ! (( usessh )) && pactl --server="tcp:$ip:$port" list sinks ||
+  {  fallbackmsg; usessh=1
+     ssh "$ip" pactl list sinks
+  }
+
+elif [[ "$cmd" = "--toggle-mute" ]]; then
+  ! (( usessh )) && pactl --server="tcp:$ip:$port" set-sink-mute "$sinkid" toggle ||
+  {  fallbackmsg; usessh=1
+     ssh "$ip" pactl set-sink-mute "$sinkid" toggle
+  }
+  volstatus
+
+elif [[ "$cmd" = --set-volume=* ]]; then
+  vol="${cmd#*=}"
+  ! (( usessh )) && pactl --server="tcp:$ip:$port" set-sink-volume "$sinkid" "$vol%" ||
+  {  fallbackmsg; usessh=1
+     ssh "$ip" pactl set-sink-volume "$sinkid" "$vol%"
+  }
+  volstatus
+
+elif [[ "$cmd" = --change-volume=* ]]; then
+  vol="${cmd#*=}"
+  ! (( usessh )) && pactl --server="tcp:$ip:$port" set-sink-volume "$sinkid" "$vol%" ||
+  {  fallbackmsg; usessh=1
+     ssh "$ip" pactl set-sink-volume "$sinkid" "$vol%"
+  }
+  [[ "$vol" = +* ]] && { ! (( usessh )) && pactl --server="tcp:$ip:$port" set-sink-mute "$sinkid" off ||
+                                           ssh "$ip" pactl set-sink-mute "$sinkid" off; }
+  volstatus
+
+else
+  printf '\nNo volume command provided.\n\nUsage: %s --compaq|--gig|--mute|<volume_change>\n\n' "$0"
+  printf '\nAvailable sinks:\n'
+#  ! (( usessh )) && pactl --server="tcp:$ip:$port" list sinks short |  awk '{printf "- ID: %s | Name: %s\n", $1, $2}' ||
+#  {  fallbackmsg
+#     ssh "$ip" pactl list sinks short | awk '{printf "- ID: %s | Name: %s\n", $1, $2}'
+#  }
+
+  ! (( usessh )) && readarray -t sinks < <(pactl --server="tcp:$ip:$port" list sinks | grep -E 'Description|Name|^Sink') ||
+  readarray -t sinks < <(ssh "$ip" pactl list sinks | grep -E 'Description|Name|^Sink')
+
+  printf '%s %s %s\n' "${sinks[@]// /⠀}" | column -t
+
+  printf 'Current sink status:\n'
+  volstatus
+  printf '  %s\n  %s\n' "$volout" "$muteout"
+
+fi
+
+drawbar() {
+  local percent=$1   # 0-100
+  [[ "$percent" = *% ]] && percent="${percent%\%}"
+  local width=${2:-30}  # default width of the bar
+  local filled=$(( percent * width / 100 ))
+  local empty=$(( width - filled ))
+
+  # build bar strings
+  local bar_filled=$(printf '–%.0s' $(seq 1 $filled))
+  local bar_empty=$(printf '░%.0s' $(seq 1 $empty))
+
+  printf '[%s%s] %d%%\n' "$bar_filled" "$bar_empty" "$percent"
+}
+
+
+if (( notify )); then
+  volstatus
+  volper="${volout#*: }"
+  drawbar "$volper"
+  [[ "$cmd" = "--toggle-mute" ]] && notifier "$volper" "$volout" "$muteout"    # "$(drawbar "$volper")"
+  [[ "$cmd" = *volume* ]] && notifier "$volper" "$volout" "$muteout" # "$(drawbar "$volper")"
+fi
+
+rm -f "$tmpbase".*
