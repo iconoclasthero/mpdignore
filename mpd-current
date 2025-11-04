@@ -120,7 +120,8 @@ done
 if [[ "$1" = @(--print|-p) ]]; then
   printf "songid='%s'\n" "$songid"
   printf "state='%s'\n" "$state"
-  printf "song_position='%s'\n" "$song_position"
+  printf "song_position='%s'\n" "$song_pos"
+  printf "songpos='%s'\n" "$songpos"
   printf "pllength='%s'\n" "$pllength"
   printf "song_length='%s'\n" "$song_length"
   printf "u_state='%s'\n" "$u_state"
