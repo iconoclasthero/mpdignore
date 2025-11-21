@@ -14,6 +14,10 @@ red="$(tput setaf 9)"
 #  echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPD_SOCK"; }
 ##  printf '%s\n' "$command" | socat - UNIX-CONNECT:"$MPD_SOCK"; } #doesn't work for some reason
 
+## only define mpdc if it does not already exist in the environment
+## for mpdlog  -- which is now using it's own mpd-current 
+##declare -F mpdc >/dev/null ||
+
 mpdc() {
   local cmd=$1
   if [[ "$mpdhost" == "localhost" || -z "$mpdhost" ]]; then
@@ -120,10 +124,11 @@ done
 if [[ "$1" = @(--print|-p) ]]; then
   printf "songid='%s'\n" "$songid"
   printf "state='%s'\n" "$state"
-  printf "song_position='%s'\n" "$song_pos"
+  printf "song_position='%s'\n" "$songpos"
   printf "songpos='%s'\n" "$songpos"
   printf "pllength='%s'\n" "$pllength"
   printf "song_length='%s'\n" "$song_length"
+  printf "song_length='%s'\n" "$pllength"
   printf "u_state='%s'\n" "$u_state"
   printf "volume='%s'\n" "$volume"
   printf "pllength='%s'\n" "$pllength"
@@ -131,13 +136,15 @@ if [[ "$1" = @(--print|-p) ]]; then
   printf "u_repeat='%s'\n" "$u_repeat"
   printf "percent='%s%%'\n" "$percent"
   printf 'percent_time=%s\n' "$percent_time"
+  printf 'percent_time=%s\n' "$percent"
   printf "elapsed='%s'\n" "$elapsed"
   printf "duration='%s'\n" "$duration"
   printf "total_time='%s'\n" "$total_time"
+  printf "total_time='%s'\n" "$duration"
   printf 'filepath=%s\n' "${filepath@Q}"
   printf 'title=%s\n' "${title@Q}"
   printf 'artist=%s\n' "${artist@Q}"
-  printf "albumartist='%s'\n" "$albumartist"
+  printf 'albumartist=%s\n' "${albumartist@Q}"
   printf 'album=%s\n' "${album@Q}"
   printf "year='%s'\n" "$year"
   printf "single='%s'\n" "$single"

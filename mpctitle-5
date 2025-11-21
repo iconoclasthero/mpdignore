@@ -414,7 +414,7 @@ elif [[ "$1" = update ]]; then
 elif [[ "$1" = add ]]; then
   shift
   startlength="$(\mpc -h "$mpdpass@$mpchost" status %length%)"
-  addout="$(\mpc -h "$mpdpass@$mpchost" add "$@")"; ec="$?"
+  addout="$(\mpc -h "$mpdpass@$mpchost" add "$@" 2>&1)"; ec="$?"
 #  printf \\n
 #  printf %s\\n "${addout[@]}"
   printf \\n
@@ -422,8 +422,8 @@ elif [[ "$1" = add ]]; then
     errorout="${addout##*: }"
     addfail="${addout%:*}"
     addfail="${addout#error adding }"
-    addout="Error adding \${boldred}$addfail\$tput0: $error"
-    mpctitle -t "$addout" -h "Error: Failed to add files..."
+    addout="Error adding ${boldred}${*%\/}$tput0: $errorout"
+    mpctitle -t "$addfail" "Error: Failed to add files..."
 #   mpctitle -h "Error: Failed to add files..."
   else
     printf 'Previos playlist lentgth: %s\nItem(s) added: %s\n' "$startlength" "${@:1:1}"

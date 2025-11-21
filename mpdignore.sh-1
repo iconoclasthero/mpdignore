@@ -1,0 +1,103 @@
+#!/bin/bash
+
+lockdir="/tmp/mpdignore.lock"
+
+if mkdir "$lockdir" 2>/dev/null; then
+    # Lock acquired
+    trap 'rm -rf "$lockdir"; exit' EXIT SIGINT SIGTERM
+else
+    printf '[warn] Another %s instance is already running; aborting. (exit 0)\n' "${0##*\/}"
+    exit 0
+fi
+
+
+scriptname=$(realpath "$0")
+
+[[ -r /usr/local/bin/editscript ]] && . /usr/local/bin/editscript
+
+. mpdignore.functions 2>/dev/null
+
+   watchfile=".mpdignore.m3u"            # defines the watched playlist; default = .mpdignore.m3u
+     mpdconf="/etc/mpd.conf"             # defines mpd.conf location; default = /etc/mpd.conf
+     mpduser="mpd"                       # defines the user mpd service runs as; default = mpd
+    mpdgroup="media"                     # defines the group mpd service runs as; default = media
+  ignoredm3u="mpdignored.m3u"            # defines the playlist of songs ignored by mpdignore; default = mpdignored.m3u
+
+unset watchfile
+
+while (( "$#" )); do
+  [[ "$1" = --config      && -r "$2"      ]] && {    config="$2"     ;  shift 2;   continue; }
+  [[ "$1" = --config=*    && -r "${1#*=}" ]] && {    config="${1#*=}";  shift  ;   continue; }
+  [[ "$1" = --music-dir   && -d "$2"      ]] && {  musicdir="$2"     ;  shift 2;   continue; }
+  [[ "$1" = --music-dir=* && -d "${1#*=}" ]] && {  musicdir="${1#*=}";  shift  ;   continue; }
+  [[ "$1" = --pl-dir      && -d "$2"      ]] && {  mpdpldir="$2"     ;  shift 2;   continue; }
+  [[ "$1" = --pl-dir=*    && -d "${1#*=}" ]] && {  mpdpldir="${1#*=}";  shift  ;   continue; }
+  [[ "$1" = --log         && -r "$2"      ]] && {    mpdlog="$2"     ;  shift 2;   continue; }
+  [[ "$1" = --log=*       && -r "${1#*=}" ]] && {    mpdlog="${1#*=}";  shift  ;   continue; }
+  [[ "$1" = --watchfile                   ]] && { watchfile="$2"     ;  shift 2;   continue; }
+  [[ "$1" = --watchfile=*                 ]] && { watchfile="${1#*=}";  shift  ;   continue; }
+  [[ "$1" = --watchpath                   ]] && { watchpath="$2"     ;  shift  ;   continue; }
+  [[ "$1" = --watchpath=*                 ]] && { watchpath="${1#*=}";  shift  ;   continue; }
+done
+
+[[ "$config" ]] && . "$config"
+
+if ! [[ "$musicdir" || "$mpdpldir" || "$mpdlog" ]]; then
+  [[ ! "$musicdir" ]] && getmpdmusicdir
+  [[ ! "$mpdpldir" ]] && getmpdpldir
+  [[ ! "$mpdlog"   ]] && getmpdlog
+fi
+
+if ! [[ -w "$musicdir" || -w "$mpdpldir" ]]; then
+  printf '[error] Cannot write to specified music directory or playlist directory. (exit 1)\n'
+  printf '[error] musicdir=%s\n' "$musicdir"
+  printf '[error] mpdpldir=%s\n' "$mpdpldir"
+  exit 1
+fi
+
+ignoredpath="$mpdpldir/$ignoredm3u"                               # sets full path of ignoredm3u
+if [[ "$watchfile" && "$watchpath" ]]; then
+  printf '[error] Cannot define both watchfile and watchpath. (exit 1)\n'; exit 1
+elif [[ "$watchfile" ]]; then
+  watchpath="$mpdpldir/$watchfile"		   # sets full path of watchfile
+fi
+
+
+[[ ! -r "$watchpath" && -f "$watchpath" ]] && { printf '[error] watchpath: %s exists but is not readable. (exit 1)\n\n' "$watchpath"; exit 1; }
+[[ ! -f "$watchpath" ]] && { printf '[warn] No file was found to read at %s; nothing to do. (exit 0)\n\n'; exit 0; }
+[[ ! -s "$watchpath" ]] && { printf '[warn] %s is empty; nothing to do. (exit 0)\n\n' "$watchpath"; exit 0; }
+
+
+
+while read -r line; do
+  song="${line##*/}"
+  songdir="${line%/*}"
+  ignoredir="$musicdir/$songdir"
+  if [[ -f "$ignoredir"/.mpdignore ]]; then
+    cp "$ignoredir"/.mpdignore "$ignoredir"/.mpdignore~
+  fi
+
+  if [[ "$song" =~ \[ ]] || [[ "$song" =~ \] ]] || [[ "$song" =~ \\ ]]; then
+    song=$(echo "$song" |  -e 's/\\\([^\\]\)/\\\\\1/g' sed -e 's/\[/\\[/g' -e 's/\]/\\]/g')
+  fi
+
+  printf "%s\n# added on %s\n" "$song" "$(date)" >> "$ignoredir"/.mpdignore
+  printf '%s has been added to .mpdignore in %s\n' "$song" "$ignoredir"
+  printf '%s\n' "$line" >> "$ignoredpath"
+  printf '%s\n' "$(date '+%b %d %H:%M : player: ignored ')\"$line\"" | cat >> "$mpdlog"
+done < "$watchpath"
+
+printf '#last run %s\n' "$(date)" >> "$ignoredpath"
+
+> "$watchpath"		                            # clears the watchfile after run
+
+read G U a < <(stat -c %G\ %U\ %a "$watchpath")
+[[ "$G" != "$mpdgroup" ]] && chgrp "$mpdgroup" "$watchpath"
+[[ "$U" != "$mpduser"  ]] && chown "$mpduser" "$watchpath"
+[[ "$a" != 66?         ]] && chmod ug+w "$watchpath"
+
+#chmod g+w "$ignoredir"/.mpdignore "$ignoredpath" "$watchpath"				# grants group access to the watchfile, ignoredm3u, and the created/updated .mpdignore file
+#chown "$mpduser":"$mpdgroup" "$ignoredir"/.mpdignore "$ignoredpath" "$watchpath"		# changes ownership of the above files to mpd and its goup (e.g., so the ignored playlist is readable by mpd)
+
+#rm "$watchpath"
+

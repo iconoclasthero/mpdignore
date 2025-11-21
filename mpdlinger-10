@@ -172,8 +172,10 @@ ipchandler(){
   local cmd execarray
    export -p > /tmp/mpdlinger.export
 #  (( verbose )) && printf '\n%sIn ipchandler().\n%sContents of %s: "%s"\n\n' "$(vtag)" "$(vtag)" "$cmdfile" "$(< "$cmdfile")" >&"$logfd"
-  (( verbose )) && printf '\n%b\n' "$(hr2 "$bold Starting ipchander() $tput0")" >&"$logfd"
-  (( verbose )) && printf '%sContents of %s: "%s"\n\n' "$(vtag)" "$cmdfile" "$(< "$cmdfile")" >&"$logfd"
+
+   # removing verbose to use with mpdignore:
+   printf '\n%b\n' "$(hr2 "$bold Starting ipchander() $tput0")" >&"$logfd"
+   printf '%sContents of %s: "%s"\n\n' "$(vtag)" "$cmdfile" "$(< "$cmdfile")" >&"$logfd"
 
   (( blocklimit )) && execarray=( blocklimit="$blocklimit" prevlimit="$prevlimit" )
   execarray+=( mpdlinger --exec )
@@ -195,11 +197,18 @@ ipchandler(){
         exec env paused=0 "${execarray[@]}"
       fi
       ;;
-    pause)
-      paused=1
-      echo "Paused via CLI"
+    pause)  ## this toggles pause when pause is sent regardless of the current state:
+      if (( paused )); then
+        paused=0
+        printf '\n%sResumed/toggled pause via CLI\n' "$(itag)" | tee >(cat >&"$logfd")
+        printf '\n%sTurning pause off.\n' "$(vtag)" >&"$logfd"
+      else
+        paused=1
+        printf '\n%sTurning pause on.\n' "$(vtag)" >&"$logfd"
+        printf 'Paused via CLI\n'
 #      exec env paused=1 mpdlinger --exec
-      exec env paused=1 "${execarray[@]}"
+      fi
+      exec env paused="$paused" "${execarray[@]}"
       ;;
 
     resume)
@@ -305,11 +314,13 @@ pauseloop(){
   if [[ "$1" = --out ]]; then
     clear -x
     mpcp -q random off
+    printf '\n%sTurning pause on.\n' "$(vtag)" >&"$logfd"
     pauseout 'mpdlinger will pause changing artists...'
   elif [[ "$1" = --in ]]; then
     toilet -tf "$font1" "Resuming rock blocks! $limit in a row!"|"${lolargs[@]}"
     sleep 2
     unset paused
+    printf '\n%sTurning pause off.\n\n' "$(vtag)" >&"$logfd"
     exec mpdlinger --exec -c"$count" --off -l"$limit"
   else
     while output=( $(\mpc idle playlist player) ) && (( paused )); do
@@ -317,6 +328,10 @@ pauseloop(){
         clear -x
         ((count++))
         pauseout 'Paused...'
+      { printf '%sStarting pause loop...\n' "$(vtag)"
+        printf '%s     count = %s\n' "$indent" "$count"
+        printf '%s     limit = %s\n' "$indent" "$limit"
+        printf '%s...Ending pause loop\n' "$(vtag)"; } >&"$logfd"
       fi
     done
   fi
@@ -1108,7 +1123,8 @@ progpid=$!
 
 while output=( $(\mpc idle playlist player) ); do
 
-  (( verbose )) && printf '\n%sStarting while loop...\n\n' "$(vtag)" >&"$logfd"
+  ## removing verbose conditon to use witn mpdlog
+                  printf '\n%sStarting while loop...\n\n' "$(vtag)" >&"$logfd"
   (( verbose )) && printf '%s   progpid = %s\n' "$(vtag)" "$progpid" >&"$logfd"
   kill "$progpid" &>/dev/null
   wait "$progpid" &>/dev/null
@@ -1122,7 +1138,7 @@ while output=( $(\mpc idle playlist player) ); do
 
   [[ "$(\mpc status %state%)" = "playing" ]] && state="${green}playing$tput0" || state="${red}paused$tput0"
   (( verbose )) && printf '%smpc output = %s\n' "$(vtag)" "${output[*]}" >&"$logfd"
-#  (( verbose )) && printf '%s  randomst = %s\n\n' "$(vtag)" "${randomst:-$(\mpc status %random%)}" >&"$logfd"
+# (( verbose )) && printf '%s  randomst = %s\n\n' "$(vtag)" "${randomst:-$(\mpc status %random%)}" >&"$logfd"
   (( verbose )) && printf '%s  randomst = %s\n\n' "$(vtag)" "$randomst" >&"$logfd"
   (( verbose )) && printf '%s mpd state = %s\n' "$(vtag)" "$state" >&"$logfd"
 
@@ -1209,6 +1225,10 @@ while output=( $(\mpc idle playlist player) ); do
        printf '%s     count = %s\n' "$indent" "$count"
        printf '%s     limit = %s\n' "$indent" "$limit"; } >&"$logfd"
 
+    (( ! verbose )) &&
+     { printf '%s     count = %s\n' "$indent" "$count"
+       printf '%s     limit = %s\n' "$indent" "$limit"; } >&"$logfd"
+
 
     if [[ "$endblklmt" ]]; then
       (( verbose )) && printf '\n%sIn endblklmt (%s) branch of display.\n' "$(vtag)" "$endblklmt" >&"$logfd"
@@ -1222,9 +1242,9 @@ while output=( $(\mpc idle playlist player) ); do
         "${lolargs[@]}" #&
       unset endblklmt
     else
-     wait "$progpid" 2>/dev/null
-     kill "$progpid" 2>/dev/null
-     wait "$progpid" 2>/dev/null
+      wait "$progpid" 2>/dev/null
+      kill "$progpid" 2>/dev/null
+      wait "$progpid" 2>/dev/null
       clear -x
       printf '%s \n%s \n%s \n\n%s\n%b%s\n' \
         "$(toilet -tf "$font1" "$artist / $title")" \
@@ -1259,6 +1279,24 @@ while output=( $(\mpc idle playlist player) ); do
     "$(date)" |
     "${lolargs[@]}" # &
 #    wait
+
+    (( verbose )) &&
+     { printf '%stransition = %s\n' "$(vtag)" "$transition"
+       printf '%sblocklimit = %s\n' "$indent" "$blocklimit"
+       printf '%sblockcount = %s\n' "$indent" "$blockcount"
+       printf '%s endblklmt = %s\n' "$indent" "$endblklmt"
+       printf '%s menucount = %s\n' "$indent" "$menucount"
+       printf '%s prevcount = %s\n' "$indent" "$prevcount"
+       printf '%s prevlimit = %s\n' "$indent" "$prevlimit"
+       printf '%s  randomst = %s\n' "$indent" "$randomst"
+       printf '%s     count = %s\n' "$indent" "$count"
+       printf '%s     limit = %s\n' "$indent" "$limit"; } >&"$logfd"
+
+   (( ! verbose )) &&
+     { printf '%s     count = %s\n' "$indent" "$count"
+       printf '%s     limit = %s\n' "$indent" "$limit"; } >&"$logfd"
+
+
   fi
 
   wait
@@ -1266,10 +1304,11 @@ while output=( $(\mpc idle playlist player) ); do
   ( progloop; ) &  # run in background
   progpid=$!
 
-  (( verbose )) && printf '%s...Ending while loop\n' "$(vtag)" >&"$logfd"
+  ## removing verbose to use logging for other mpdlog
+                   printf '%s...Ending while loop\n' "$(vtag)" >&"$logfd"
   (( verbose )) && printf '%s   progpid = %s\n' "$indent" "$progpid" >&"$logfd"
-  (( verbose )) && printf '%stransition = %s\n' "$indent" "${transition:-'\$transition unset'}" >&"$logfd"
   (( verbose )) && printf '%s  randomst = %s\n\n' "$indent" "${randomst:-'\$randomst unset'}" >&"$logfd"
+  (( verbose )) && printf '%stransition = %s\n' "$indent" "${transition:-'\$transition unset'}" >&"$logfd"
 
 ## these look for zombie processes which, as it turns out, this script isn't generating
 #  (( verbose )) && ps -eo pid,ppid,state,cmd | awk '$3 == "Z"' >&"$logfd"

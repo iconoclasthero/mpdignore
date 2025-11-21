@@ -1,12 +1,17 @@
 [Unit]
 Description=Watch for changes to .mpdignore.m3u as part if the mpdignore service package.  Once files are added to this playlist, the service starts a script which creates .mpdignore files for the ignored tracks.
+After=network.target
 
 [Path]
 PathChanged=/library/music/mpdplaylists/.mpdignore.m3u
 PathModified=/library/music/mpdplaylists/.mpdignore.m3u
 
+PathChanged=/var/www/cgi-bin/mpdplaylists/.mpdignore.m3u
+PathModified=/var/www/cgi-bin/mpdplaylists/.mpdignore.m3u
+
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
+#WantedBy=default.target
 
 
 #[Install]

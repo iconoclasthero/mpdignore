@@ -3,6 +3,9 @@
 . /usr/local/bin/editscript
 . "$HOME/.config/mpd-local.conf"
 
+boldred=$(tput bold setaf 9)
+tput0=$(tput sgr0)
+
 mpccmd=( mpc -h "$mpdpass@$mpchost" )
 
 #. <(mpd-current.py) #using mpc instead.
@@ -20,7 +23,7 @@ done
 
 
 startlength="$("${mpccmd[@]}" status %length%)"
-addout="$("${mpccmd[@]}" add "$@")"; ec="$?"
+addout="$("${mpccmd[@]}" add "$@" 2>&1)"; ec="$?"
 
 printf \\n
 printf %s\\n "${addout[@]}"
@@ -30,7 +33,7 @@ if (( ec )); then
   errorout="${addout##*: }"
   addfail="${addout%:*}"
   addfail="${addout#error adding }"
-  addout="Error adding \${boldred}$addfail\$tput0: $error"
+  addout="Error adding $boldred$*$tput0: $addout"
   mpctitle -t "$addout" -h "Error: Failed to add files..."
 #  mpctitle -h "Error: Failed to add files..."
 else

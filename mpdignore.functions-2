@@ -9,7 +9,8 @@ fi
 export TERM
 # TERM=screen.xterm-256color  #default screen TERM value when calling from cli
 
-. /usr/local/bin/editscript
+[[ -r /usr/local/bin/editscript ]] && . /usr/local/bin/editscript
+
 
 #usermpdpw=  #manually define mpd password here
 #usermpdmd=  #maunally define mpd music directory here
@@ -17,9 +18,9 @@ export TERM
 #usermpdlf=  #manually define mpd logfile path here
 
 [[ "$XDG_CONFIG_HOME" ]] &&
-    . "$XDG_CONFIG_HOME/mpd-local.conf" ||
-    . /home/"$USER"/.config/mpd-local.conf ||
-    . /etc/default/mpd-local.conf
+    { config="$XDG_CONFIG_HOME/mpd-local.conf"; [[ -r "$config" ]] && . "$config"; } ||
+    { config="$HOME/.config/mpd-local.conf";    [[ -r "$config" ]] && . "$config"; } ||
+    { config="/etc/default/mpd-local.conf";     [[ -r "$config" ]] && . "$config"; }
 
    watchfile=".mpdignore.m3u"            # defines the watched playlist; default = .mpdignore.m3u
      mpdconf="/etc/mpd.conf"             # defines mpd.conf location; default = /etc/mpd.conf
