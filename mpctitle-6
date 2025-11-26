@@ -1,0 +1,531 @@
+#!/bin/bash
+[[ ! -d "$(pwd 2>/dev/null)" ]] && { cd "$(dirname "$0")" 2>/dev/null || cd / 2>/dev/null; }
+[[ "$TERM" = dumb || -z "$TERM" ]] && TERM="xterm-256color"
+export TERM
+
+#editscript(){
+#  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+#  [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+#  printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ; }
+#
+#[[ "$1" == @(edit|e|-e) ]] && editscript
+
+. /usr/local/bin/editscript
+. mpdignore.functions
+[[ -r "$HOME/.config/mpd-local.conf" ]] && config="$HOME/.config/mpd-local.conf"
+
+# [[ ! "$mpdhost" ]] && mpdhost=[—redacted—]
+
+c_path_cur=$(tput sitm; tput setaf 7) # pale whiute path
+c_path_que=$(tput sitm; tput setaf 7) # pale white
+
+#c_aa=$(tput sitm; tput setaf 4) # Blue for artist and album
+c_aa_cur=$(tput sitm; tput setaf 33) # Blue for artist and album
+c_aa_que=$(tput sitm; tput setaf 12) # Blue for artist and album
+
+#c_title_cur=$(tput sitm; tput setaf 11) # Magenta for the song file name
+#c_title_cur=$(tput sitm; tput setaf 178) # Magenta for the song file name
+c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
+c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
+
+boldred="$(tput setaf 9 bold)"
+
+
+mpdcurrent(){
+local green="$(tput setaf 2)"
+local tput0="$(tput sgr0)"
+local red="$(tput setaf 9)"
+
+
+#mpdc()
+#{ local command=$1;
+#  echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPD_SOCK"; }
+##  printf '%s\n' "$command" | socat - UNIX-CONNECT:"$MPD_SOCK"; } #doesn't work for some reason
+mpdc() {
+  local cmd=$1
+  if [[ "$mpdhost" == "localhost" || -z "$mpdhost" ]]; then
+    echo -ne "$cmd\n" | socat - UNIX-CONNECT:"$MPD_SOCK"
+  else
+    echo -ne "password \"$mpdpass\"\n$cmd\n" | socat - TCP:"$mpchost:$mpdport"
+  fi
+}
+
+readarray -t songstat < <( mpdc 'status\ncurrentsong' )
+(( verbose )) && [[ "$hr2out" != "mpdlinger"* ]] && printf %s\\n "${songstat[@]}"
+
+unset label mbartistid
+
+for i in "${songstat[@]}"; do
+  [[ "$i" =         songid:\ * ]] && songid="${i#*: }"
+  [[ "$i" =          state:\ * ]] && { u_state="${i#*: }"; [[ "$u_state" = play ]] && state="${green}playing${tput0}" || state="${red}paused$tput0"; }
+  [[ "$i" =           song:\ * ]] && { songpos="${i#*: }"; (( songpos++ )); }
+  [[ "$i" = playlistlength:\ * ]] && pllength="${i#*: }"
+# [[ "$i" =        elapsed:\ * ]] && { elapsed="${i#*: }"; elapsed="$(sec2sex "$elapsed")"; }
+# [[ "$i" =       duration:\ * ]] && { duration="${i#*: }"; duration="$(sec2sex "$duration")"; }
+  [[ "$i" =        elapsed:\ * ]] && elapsed="${i#*: }"
+  [[ "$i" =       duration:\ * ]] && duration="${i#*: }"
+  [[ "$i" =           time:\ * ]] && { percent="${i#*: }"; IFS=':' read -r elap dur <<< "$percent"; (( dur )) && percent=$(( (100*elap)/dur )); }
+  [[ "$i" =           file:\ * ]] && filepath="${i#*: }"
+  [[ "$i" =          Title:\ * ]] && title="${i#*: }"
+  [[ "$i" =         Artist:\ * ]] && artist="${i#*: }"
+  [[ "$i" =    AlbumArtist:\ * ]] && albumartist="${i#*: }"
+  [[ "$i" =          Album:\ * ]] && album="${i#*: }"
+  [[ "$i" =           Year:\ * ]] && year="${i#*: }"  ##issue
+  [[ "$i" =         volume:\ * ]] && volume="${i#*: }"
+  [[ "$i" =         repeat:\ * ]] && { u_repeat="${i#*: }"; (( u_repeat )) && repeat="$green⟳$tput0" || repeat='⟳'; }
+  [[ "$i" =         single:\ * ]] && { u_single="${i#*: }"; (( u_single )) && single='✅' || unset single; }
+  [[ "$i" =         random:\ * ]] && { u_random="${i#*: }"; (( u_random )) && random='✅' || random='❌'; }
+  [[ "$i" =        consume:\ * ]] && { u_consume="${i#*: }"; (( u_consume )) && consume='✅' || consume='❌'; }
+  [[ "$i" =           Disc:\ * ]] && disc="${i#*: }"
+  [[ "$i" =          Genre:\ * ]] && genre="${i#*: }"
+  [[ "$i" =          Track:\ * ]] && track="${i#*: }"
+  [[ "$i" =        Comment:\ * ]] && comment="${i#*: }" ##issue
+  [[ "$i" =      Performer:\ * ]] && performer="${i#*: }" ## issue
+  [[ "$i" =           Date:\ * ]] && { date="${i#*: }"; date="${i%%-*}"; }  ## issue
+  [[ "$i" =     nextsongid:\ * ]] && nextid="${i#*: }"
+# [[ "$i" =      partition:\ * ]] && partition="${i#*: }"
+# [[ "$i" =       playlist:\ * ]] && playlistid="${i#*: }"
+# [[ "$i" =      mixrampdb:\ * ]] && mixrampdb="${i#*: }"
+# [[ "$i" =   mixrampdelay:\ * ]] && mixrampdelay="${i#*: }"
+  [[ "$i" =        bitrate:\ * ]] && bitrate="${i#*: }"
+# [[ "$i" =       nextsong:\ * ]] && nextsong="${i#*: }"
+  [[ "$i" =         Format:\ * ]] && format="${i#*: }"
+# [[ "$i" =    AlbumArtist:\ * ]] && albumartist="${i#*: }"
+# [[ "$i" =     ArtistSort:\ * ]] && artistsort="${i#*: }"
+# [[ "$i" =   OriginalDate:\ * ]] && originaldate="${i#*: }"
+# [[ "$i" =  Last-Modified:\ * ]] && lastmodified="${i#*: }"
+# [[ "$i" =          Label:\ * ]] && label+=( "${i#*: }" ) ##issue
+# [[ "$i" =           Time:\ * ]] && Time="${i#*: }"   ##issue
+# [[ "$i" =            AlbumArtistSort:\ * ]] && albumartsort="${i#: }"
+# [[ "$i" =  MUSICBRAINZ_ALBUMARTISTID:\ * ]] && mbalbumartid="${i#*: }"
+  [[ "$i" =       MUSICBRAINZ_ARTISTID:\ * ]] && mbartistid+=( "${i#*: }" )
+  [[ "$i" =        MUSICBRAINZ_ALBUMID:\ * ]] && mbalbumid="${i#*: }"
+  [[ "$i" = MUSICBRAINZ_RELEASETRACKID:\ * ]] && mbreltrackid="${i#*: }"
+done
+
+(( verbose )) && [[ "$hr2out" != "mpdlinger"* ]] && read -rp "\$nextid: $nextid"
+
+readarray -t nextsong < <(mpdc "playlistid ${nextid}" )
+
+(( verbose )) && [[ "$hr2out" != "mpdlinger"* ]] && printf %s\\n "${nextsong[@]}"
+
+unset next_label next_mbartistid
+
+for i in "${nextsong[@]}"; do
+#  [[ "$i" =       duration:\ * ]] && { next_duration="${i#*: }"; next_duration="$(sec2sex "$next_duration")"; } ##issue
+  [[ "$i" =       duration:\ * ]] && { next_duration="${i#*: }"; } ##issue
+  [[ "$i" =           file:\ * ]] && next_filepath="${i#*: }"
+  [[ "$i" =          Title:\ * ]] && next_title="${i#*: }"
+  [[ "$i" =         Artist:\ * ]] && next_artist="${i#*: }"
+  [[ "$i" =    AlbumArtist:\ * ]] && next_albumartist="${i#*: }"
+  [[ "$i" =          Album:\ * ]] && next_album="${i#*: }"
+# [[ "$i" =           Year:\ * ]] && year="${i#*: }"  ##issue
+  [[ "$i" =           Disc:\ * ]] && next_disc="${i#*: }"
+  [[ "$i" =          Genre:\ * ]] && next_genre="${i#*: }"
+  [[ "$i" =          Track:\ * ]] && next_track="${i#*: }"
+  [[ "$i" =        Comment:\ * ]] && next_comment="${i#*: }" ##issue
+  [[ "$i" =      Performer:\ * ]] && next_performer="${i#*: }" ## issue
+  [[ "$i" =           Date:\ * ]] && { next_date="${i#*: }"; next_date="${i%%-*}"; }  ## issue
+  [[ "$i" =     nextsongid:\ * ]] && nextid="${i#*: }"
+# [[ "$i" =         Format:\ * ]] && next_format="${i#*: }"
+# [[ "$i" =    AlbumArtist:\ * ]] && next_albumartist="${i#*: }"
+# [[ "$i" =     ArtistSort:\ * ]] && next_artistsort="${i#*: }"
+# [[ "$i" =   OriginalDate:\ * ]] && next_originaldate="${i#*: }"
+# [[ "$i" =  Last-Modified:\ * ]] && next_lastmodified="${i#*: }"
+# [[ "$i" =          Label:\ * ]] && next_label+=( "${i#*: }" ) ##issue
+  [[ "$i" =           Time:\ * ]] && next_time="${i#*: }"   ##issue
+# [[ "$i" =            AlbumArtistSort:\ * ]] && next_albumartsort="${i#: }"
+# [[ "$i" =  MUSICBRAINZ_ALBUMARTISTID:\ * ]] && next_mbalbumartid="${i#*: }"
+  [[ "$i" =       MUSICBRAINZ_ARTISTID:\ * ]] && next_mbartistid+=( "${i#*: }" )
+  [[ "$i" =        MUSICBRAINZ_ALBUMID:\ * ]] && next_mbalbumid="${i#*: }"
+  [[ "$i" = MUSICBRAINZ_RELEASETRACKID:\ * ]] && next_mbreltrackid="${i#*: }"
+done
+}
+##--> mpdcurrent() <--##############################################################################
+
+pause(){ read -rp "$*" < /dev/tty; }
+
+notify(){
+#  source <(mpd-current.py)
+  source <(mpd-current -p)
+  readarray -t output < <(notify-send -a "mpctitle" -i audio-x-generic "$title" "by <b>$artist</b> on <b>$album</b>" 2>&1)
+  nserr="$?"
+  if (( nserr != 0 )) &&
+     ! echo "$output" | grep -q "GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.Notifications was not provided by any .service files"; then
+     echo "Error: $output"
+  fi
+}
+
+notify(){
+exec notify-send -a "mpctitle" -i audio-x-generic "$(mpctitle | perl -pe 's/\x1b(\[[0-9;?]*[ -\/]*[@-~]|\(B)//g')"
+}
+
+getlast(){
+  local logstream mpdlog
+  va=false
+  [[ "$1" = mpd.log.? ]] && mpdlog="$1"
+  mpdlog="${mpdlog:=mpd.log}"
+
+  if [[ "$mpdhost" = "localhost" ]]; then
+    logstream="tac /var/log/mpd/$mpdlog 2>&1"
+#   to silence:
+#   "tac: failed to open '/var/log/mpd/mpd.log' for reading: No such file or directory"
+#   if log file is missing:
+#   logstream="tac /var/log/mpd/$mpdlog 2>/dev/null"
+#   or handle with logstream="tac /var/log/mpd/$mpdlog &>"
+  else
+#    logstream="ssh -p \"$sshport\" \"$mpdhost\" 'tac /var/log/mpd/mpd.log'"
+    logstream="ssh -p \"$sshport\" \"$mpchost\" \"tac '/var/log/mpd/$mpdlog'\""
+  fi
+
+  while read -r logline; do
+    (( verbose )) && read -rp "$logline" < /dev/tty
+    if [[ "$logline" = "tac: failed to open '/var/log/mpd/mpd.log"*"for reading: No such file or directory" ]]; then
+      printf 'MPD logfile /var/log/mpd/%s missing.\n' "$mpdlog"
+      break
+    elif [[ "$logline" =~ .+\ player:\ (played|skipped)\ \"(((.+\/)?.+\ --\ (.+))\/([0-9]{1,3}?-?[0-9]{1,3}\ -\ (.+)\ --\ (.+)\..+))\" ]]; then
+      lastfullpath="$musicdir/${BASH_REMATCH[2]}"
+      lastpath="${BASH_REMATCH[2]}"
+      lastartist="${BASH_REMATCH[-2]}"
+      lasttitle="${BASH_REMATCH[-1]}"
+      lastfile="${BASH_REMATCH[-3]}"
+      lastalbum="${BASH_REMATCH[-4]%\(*}"
+      break
+    elif [[ "$logline" =~ .+\ player:\ (played|skipped)\ \"(((.+\/)?.+\ --\ (.+))\/((.+)\ --\ [0-9]{1,3}?-?[0-9]{1,3}\ -\ (.+)\..+))\" ]]; then
+      lastfullpath="$musicdir/${BASH_REMATCH[2]}"
+      lastpath="${BASH_REMATCH[2]}"
+      lastartist="${BASH_REMATCH[-2]}"
+      lasttitle="${BASH_REMATCH[-1]}"
+      lastfile="${BASH_REMATCH[-3]}"
+      lastalbum="${BASH_REMATCH[-4]%\(*}"
+      break
+    elif [[ "$logline" =~ .+\ player\:\ (played|skipped)\ \"((.+\/)?.+\ --\ (.+)\/(.+\..+))\" ]]; then
+      lastfullpath="$musicdir/${BASH_REMATCH[2]}"
+      lastpath="${BASH_REMATCH[2]}"
+      lastfile="${BASH_REMATCH[-1]}"
+      lastartist="THE FILE $lastfile DOES NOT FIT THE REGEX"
+      lasttitle="${BASH_REMATCH[-1]%.*}"
+      lastalbum="${BASH_REMATCH[-2]}"
+      break
+    elif [[ "$logline" =~ .+\ player\:\ (played|skipped)\ \"((.+)\/(.+\..+))\" ]]; then
+      lastfullpath="$musicdir/${BASH_REMATCH[2]}"
+      lastpath="${BASH_REMATCH[2]}"
+      lastfile="${BASH_REMATCH[-1]}"
+      lastartist="THE FILE $lastfile DOES NOT FIT THE REGEX"
+      lasttitle="${BASH_REMATCH[-1]%.*}"
+      lastalbum="${BASH_REMATCH[2]}"
+      break
+    elif [[ "$logline" = tac\:\ * ]]; then
+      [[ "$logline" != "$tacwarn" ]] &&
+        { printf 'Investigate unknown error with tac:\n%s\n' "$logline";
+          tacwarn="$logline"; }
+    fi
+    (( verbose )) && { printf 'lastfullpath=%s\n' "$lastfullpath"
+                       printf '    lastpath=%s\n' "$lastpath"
+                       printf '    lastfile=%s\n' "$lastfile"
+                       printf '  lastartist=%s\n' "$lastartist"
+                       printf '   lasttitle=%s\n' "$lasttitle"
+                       printf '   lastalbum=%s\n' "$lastalbum"
+                       read -rp "Continue... " </dev/tty
+                      }
+
+  done < <(eval "$logstream" 2>/tmp/lastpath.err)
+
+  # SSH error handling
+  if [[ -f /tmp/lastpath.err ]]; then
+    readarray -t lastpatherr < /tmp/lastpath.err
+    rm /tmp/lastpath.err
+
+    if [[ " ${lastpatherr[*]} " =~ 'mux_client_request_session: session request failed: Session open refused by peer' ]]; then
+      readarray -t lastpatherr < <(printf "%s\n" "${lastpatherr[@]}" | grep -vE 'mux_client_request_session: session request failed: Session open refused by peer')
+    fi
+    if [[ "${lastpatherr[*]}" =~ 'ControlSocket.+already exists, disabling multiplexing' ]]; then
+      readarray -t lastpatherr < <(printf "%s\n" "${lastpatherr[@]}" | grep -vE 'ControlSocket.+already exists, disabling multiplexing')
+    fi
+
+    [[ "${lastpatherr[0]}" ]] && printf "..\n\n%s\n" "${lastpatherr[0]}"
+  fi
+
+  # Final fallbacks (in case no match was found)
+  if [[ -z "$lastfile" ]]; then
+    if [[ "$mpdlog" = mpd.log.* ]]; then
+      lastartist="Log file empty \ No match found"
+      lasttitle="Log file empty \ No match found"
+      lastalbum="Log file empty \ No match found"
+      lastfullpath=""
+      lastpath="Log file empty \ No match found/"
+      return 1
+    else
+      getlast mpd.log.1
+      return "$?"
+    fi
+  fi
+
+}
+##--> getlast() <--#############################################################################
+
+mpcq(){
+  [[ "$1" = -q ]] && shift
+  \mpc -h "$mpdpass@$mpchost" "$@"
+  exit "$?"
+}
+
+
+### Main Code: mpctitle
+### flag processing
+while (( "$#" )); do
+  [[ "$1" = --fromnext ]] && { fromnext=1; shift; continue; }
+  [[ "$1" = -@(q|qq) ]] && { mpcq "$@"; exit "$?"; }              # -q for mpctitle quiet; -qq mpctitle and mpc quiet
+  [[ "$1" = -t ]] && { finalout="$2"; shift 2; continue; }        # this is printed after the mpctitle stuff
+  [[ "$1" = -h ]] && { hr2out="$2"; shift 2; continue; }          # this is printed in the hr2 banner at the end
+  [[ "$1" = 'next' ]] && { shift; exec next "$@"; exit "$?"; }
+  [[ "$1" = --config && -r "$2" ]] && { config="$2"; shift 2; continue; }
+  [[ "$1" = --config && ! -r "$2" ]] && { printf 'Invalid --config file specified. (exit 1)\n'; exit 1; }
+  if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
+    if [[ "$2" = @(on|off) ]]; then
+      \mpc -q -h "$mpdpass@$mpchost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
+      hr2out="$1 $2"
+      shift 2
+      mpctitle -h "$hr2out" "${@:+$@}"  #${@:+$@}: This is a conditional expression that will either use the value of ${@} (the list of arguments) or be empty if ${@} is not set. :+: This syntax checks if ${@} is non-empty. If it is, it expands to $@, meaning all arguments. If ${@} is empty, it expands to nothing (i.e., an empty string).
+      exit "$?"
+    elif [[ "$2" =~ ^[[:digit:]]+$ ]]; then
+      \mpc -q -h "$mpdpass@$mpchost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
+      shift 2
+      exec mpctitle "${@:+$@}"
+      exit "$?"
+    else
+      \mpc -q -h "$mpdpass@$mpchost" "$1" || { echo "Check mpd connection"; exit 1; }
+       shift
+       mpctitle "${@:+$@}"
+       exit "$?"
+    fi
+  elif [[ "$1" = @(seek) ]]; then
+    bftime="$(\mpc -h "$mpdpass@$mpchost" status %currenttime%/%totaltime%\ \(%percenttime%\))"
+    bftime="${bftime/ (  / (}"; bftime="${bftime/ ( / (}"
+    bfpct="${bftime#*\(}"; bfpct="${bfpct%\)*}" #; echo "${bfpct##* }"
+    \mpc -q -h "$mpdpass@$mpchost" "$1" "$2"  ||  { echo "Check mpd connection"; exit 1; }
+    shift 2
+    afttime="$(\mpc -h "$mpdpass@$mpchost" status %currenttime%/%totaltime%\ \(%percenttime%\))"
+    afttime="${afttime/ (  / (}"; afttime="${afttime/ ( / (}"
+    aftpct="${afttime#*\(}"; aftpct="${aftpct%\)*}" #; echo "${bfpct##* }"
+#  mpctitle -h "${boldred}seek: $bftime > $afttime$tput0" "$@"
+    mpctitle -h "seek: ${bftime%%\/*} > ${afttime% *} (${bfpct} > ${aftpct})" "$@"
+    exit "$?"
+  fi
+## this probably needs to be changed to a flag variable since I have no idea how this was indended to work right now
+  [[ "$1" = notify ]] && { shift; notify; exit "$?"; }
+  [[ "$1" = enabled ]] && { hr2 "$1"; mpcp outputs|grep --color=always enabled; shift; }
+  [[ "$1" = outputs ]] && { hr2 "$1"; mpcp outputs|mpcp outputs |
+                             awk -v blue="$blue" -v red="$red" -v tput0="$tput0" \
+                            '{ gsub(/enabled/, blue "&" tput0); gsub(/disabled/, red "&" tput0);
+                               print }'; shift; }
+#  [[ "$1" = outputs ]] && { hr2 "$1"; mpcp outputs|grep --color=always enabled; shift; }
+  if [[ "$1" = @(enable|disable) ]]; then
+    readarray -t outputs < <(mpcp outputs)
+    outputnums=( "${outputs[@]#*Output }" )
+    outputnums=( "${outputnums[@]%%[[:space:]]*}" )
+    if [[ " ${outputnums[*]} " =~ \ $((10#"$2"))\  ]]; then
+      mpcerr=$(mpcp "$1" "$2" >/dev/null 2>&1) || printf 'mpc reported an error:\n  %s\n' "$mpcerr"
+      mpcp outputs | awk -v blue="$blue" -v red="$red" -v tput0="$tput0" \
+                    '{ gsub(/enabled/, blue "&" tput0); gsub(/disabled/, red "&" tput0); print }'
+    else
+      printf 'Unable to %s %s; %s invalid.' "$1" "$2" "$2" && ec=1
+    fi
+    shift 2
+  fi
+
+
+
+
+  if [[ "$1" =~ vol(|ume) ]]; then
+    mpcvolout="$(\mpc -h "$mpdpass@$mpchost" vol "$2" 2>&1)"
+    ec="$?"
+    volout="$(echo "$mpcvolout"|\grep volume\:)"
+    volout="${volout#volume:}"; volout="${volout%%%*}%"; volout="${volout// }";
+    #volout="$(\mpc status %volume%)"; volout="${volout// }"
+    shift 2
+    if ! (( "$ec" )); then
+#     volout="$(echo "$volout"|awk '/volume:/ {print $2}')"
+#     shift 2
+      printf 'exec mpctitle -h "volume: %s" %s' "$volout" "$@"
+      exec mpctitle -h "volume: $volout" "$@"
+    else
+#     shift 2
+#     printf 'exec mpctitle -t "volume: %s" %s' "$volout" "$@"
+      exec mpctitle -t "$mpcvolout" "$@"
+    fi
+  elif [[ "$1" = save ]]; then
+    if ! saveout=$(\mpc -q -h "$mpdpass@$mpchost" save "$2" 2>&1); then
+      if [[ "$saveout" = MPD\ error:\ Playlist\ already\ exists ]]; then
+        printf %s\\n "$saveout"
+        unset saveout
+        confirm "Would you like to remove $mpdpldir/$2.m3u?" &&
+        [[ -f "$mpdpldir/$2.m3u" ]] && { rm "$mpdpldir/$2.m3u" || sudo rm "$mpdpldir/$2.m3u"; } &&
+          saveout="$(\mpc -q -h "$mpdpass@$mpchost" "$1" "$2" 2>&1)" ||
+          { printf '%s\nUnable to remove playlist, MPD still reports error. exit 1' "$saveout"; exit 1; }
+      elif [[ "${saveout}" = "MPD error: Failed to create "*".m3u: Permission denied" ]]; then
+         namei -l "$mpdpldir"
+         confirm "Would you like to chown $mpduser:$mpdgroup $mpdpldir?" && sudo chown $mpd:media "$mpdpldir"
+         ! saveout=$(\mpc -q -h "$mpdpass@$mpchost" save "$2" 2>&1) &&
+           { printf '\nUnable to create playlist due to a fucked up permissions issue:\n%s\n\n%s\n\nexit 1\n' \
+               "$saveout" "$(namei -l /library/music/mpdplaylists)"; exit 1; }
+      else
+        { printf '\nMPD reports error:\n%s\nexit 1\n' "$saveout"; exit 1; }
+      fi
+    fi
+    mpctitle
+    ls "$mpdpldir"|grep ".*$2.*" -C 20 --color=always
+    exit
+  elif [[ "$1" = update ]]; then
+    mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@" 2>&1)" ||  { echo "Check mpd connection"; exit 1; }
+    mpctitle -t "$mpcout"
+    exit
+  elif [[ "$1" = add ]]; then
+    shift
+    startlength="$(\mpc -h "$mpdpass@$mpchost" status %length%)"
+    addout="$(\mpc -h "$mpdpass@$mpchost" add "$@" 2>&1)"; ec="$?"
+    printf \\n
+    if (( ec )); then
+      errorout="${addout##*: }"
+      addfail="${addout%:*}"
+      addfail="${addout#error adding }"
+      addout="Error adding ${boldred}${*%\/}$tput0: $errorout"
+      mpctitle -t "$addfail" -h "Error: Failed to add files..."
+    else
+      printf 'Previos playlist lentgth: %s\nItem(s) added: %s\n' "$startlength" "${@:1:1}"
+      [[ "${@:2:1}" ]] && printf '               %s\n' "${@:2}"
+      endlength="$(\mpc -h "$mpdpass@$mpchost" status %length%)"
+      exec mpctitle -h "playlist: $startlength > $endlength"
+    fi
+    exit 0
+  elif [[ "$1" = -f ]]; then
+    mpcout="$(\mpc -h "$mpdpass@$mpchost" "$@" 2>&1)" ||  { echo "Check mpd connection"; exit 1; }
+    mpctitle -h "${mpcout%%$'\n'*}" #-t "${mpcout#*$'\n'}"
+    exit
+  elif [[ "$1" = playlist ]]; then
+    \mpc playlist -f "(%position%)~%title%~%artist%~%album%" | \
+      while IFS="~" read -r pos title artist album; do
+        blue=$(tput setaf 4 bold)
+        green=$(tput setaf 2 bold)
+        yellow=$(tput setaf 3 bold)
+        cyan=$(tput setaf 6 bold)
+#       blue=$(tput setaf 12 bold)
+#       green=$(tput setaf 10 bold)
+#       yellow=$(tput setaf 11 bold)
+#       cyan=$(tput setaf 14 bold)
+#       purple=$(tput setaf 13 bold)
+#       red=$(tput setaf 9)
+        tput0=$(tput sgr0)
+
+        printf '%b%s%b | %b%s%b | %b%s%b | %b%s%b\n' \
+          "$blue" "$pos" "$tput0" \
+          "$yellow" "$artist" "$tput0" \
+          "$green" "$title" "$tput0" \
+          "$cyan" "$album" "$tput0"
+      done
+  elif [[ "$1" = del ]]; then
+    shift
+    startlength="$(\mpc -h "$mpdpass@$mpchost" status %length%)"
+    mpcout="$(\mpc -h "$mpdpass@$mpchost" del "$@" 2>&1)"
+    ec="$?"
+    if ! ((ec)); then
+      printf 'Previos playlist lentgth: %s\nItem(s) deleted: %s\n' "$startlength" "${@:1:1}"
+      [[ "${@:2:1}" ]] && printf '               %s\n' "${@:2}"
+      endlength="$(\mpc -h "$mpdpass@$mpchost" status %length%)"
+      exec mpctitle -h "playlist: $startlength > $endlength"
+    elif ((ec)); then
+      printf %s\\n "$mpcout" && exit 1
+    fi
+  elif [[ "$1" = mpdlinger ]]; then
+    hr2out="$1"
+    shift
+    if [[ "$1" = rand@(|om) ]]; then
+      if [[ "$2" = @(on|off) ]]; then
+        \mpc -q -h "$mpdpass@$mpchost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
+        hr2out="$hr2out $1 $2"
+        shift 2
+#       mpctitle -h "$hr2out" "${@:+$@}"  #${@:+$@}: This is a conditional expression that will either use the value of ${@} (the list of arguments) or be empty if ${@} is not set. :+: This syntax checks if ${@} is non-empty. If it is, it expands to $@, meaning all arguments. If ${@} is empty, it expands to nothing (i.e., an empty string).
+#       exit "$?"
+      fi
+    fi
+  fi
+done
+#source <(mpd-current.py)
+#source <(mpd-current -p)
+
+[[ -r "$config" ]] && . "$config" || { printf 'Error sourcing --config file, %s. (exit 1)\n'; exit 1; }
+
+if ! (( fromnext )); then
+  getlast
+  output=( "$(echo "$c_aa_que"; hr2 LAST)" )
+  output+=( "$(title last)" ) || { echo "Check $mpdlog"; exit 1; }
+fi
+
+mpdcurrent
+
+output+=( "$(echo "$bold$white"; hr2 CURRENT)" )
+output+=( "$(title current)" )
+
+output+=( "$(echo "$(tput setaf 3)"; hr2 QUEUED)" )
+output+=( "$(title queued)" ) ||  { echo "Check mpd connection!"; exit 1; }
+
+unset paused
+
+[[ "$state" =~ paused ]] && paused=true
+output+=( "$(echo; hr2 STATUS)" )
+
+output+=( "$( printf '          %s%s%s%s%s - %s%s%s%s%s\n' \
+  "$bold" \
+  "$c_aa_cur" \
+  "${ritm}" \
+  "${paused:+$italics}" \
+  "$artist" \
+  "$c_title_cur" \
+  "${ritm}" \
+  "${paused:+$italics}" \
+  "$title" \
+  "$tput0" )" )
+
+#\mpc status "\[%state%\] ##%songpos%/%length%  %currenttime%/%totaltime% (%percenttime%)\nvolume:%volume%   repeat: %repeat%   random: %random%   single: %single%   consume: %consume%"
+
+output+=( "$(printf '          %s%s[%s%s%s%s%s%s] #%s%s%s/%s  %s/%s (%s%%)\n' \
+  "${paused:+$italics}" \
+  "$bold" \
+  "$tput0" \
+  "${paused:+$italics}" \
+  "$state" \
+  "$tput0" \
+  "${paused:+$italics}" \
+  "$bold" \
+  "$tput0" \
+  "${paused:+$italics}" \
+  "$songpos" \
+  "$pllength" \
+  "$(sec2sex "$elapsed")" \
+  "$(sec2sex "$duration")" \
+  "${percent%.*}" )" )
+
+#printf "volume: %s%%   repeat: %s   random: %s   consume: %s   %s\n\n" \
+
+output+=( "$(printf '          volume: %s%%%s %s %s random: %s%s%s consume: %s%s %s%s\n\n' \
+  "$volume" \
+  "$tput0" \
+  "$repeat" \
+  "${paused:+$italics}" \
+  "$tput0" \
+  "$random" \
+  "${paused:+$italics}" \
+  "$tput0" \
+  "$consume" \
+  "${single:+single: $single}" \
+  "$tput0" )" )
+
+if [[ "$@" && "$@" != "" ]]; then
+  output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpchost" "$@")" )
+else
+  [[ "$1" || "$hr2out" ]] && output+=( "$(echo "$c_title_cur$bold"; hr2 "${hr2out:-$1}";echo "$tput0"; \mpc -q -h "$mpdpass@$mpchost")" ) ||
+  output+=( "$(tput setaf 1; echo; hr2 "${0##*\/}"; \mpc -q -h "$mpdpass@$mpchost"; echo "$white")" )
+
+fi
+[[ "$finalout" ]] && output+=( "${finalout[@]}" )
+printf %s\\n "${output[@]}"
