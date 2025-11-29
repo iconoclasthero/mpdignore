@@ -5,15 +5,12 @@
 
 shopt -s extglob nullglob
 
-PIDFILE="/var/lib/mpd/mpdlinger/mpdlinger.pid"   # adjust if different
-CMDDIR="/var/lib/mpd/mpdlinger"                  # directory mpdlinger watches
-pidfile="$PIDFILE"
-cmdfile="$CMDDIR/mpdlinger.cmd"
-: "${pidfile=/tmp/mpdlinger.pid}"
-: "${cmdfile=/tmp/mpdlinger.cmd}"
-: "${countfile=/tmp/mpdlinger.count}"
-: "${exportfile=/tmp/mpdlinger.export}"
-: "${logfile:=/tmp/mpdlinger.log}"
+: "${lingerdir:=/var/lib/mpd/mpdlinger}"                  # directory mpdlinger watches
+: "${pidfile:=$lingerdir/mpdlinger.pid}"
+: "${cmdfile:=$lingerdir/mpdlinger.cmd}"
+: "${countfile:=$lingerdir/mpdlinger.count}"
+: "${exportfile:=$lingerdir/mpdlinger.export}"
+: "${logfile:=$lingerdir/mpdlinger.log}"
 #verbose=1
 
 logfd=4
@@ -47,7 +44,7 @@ chgrpfn(){
     chgrp http "$i" 2>&"$logfd"
     chmod g+w "$i"  2>&"$logfd"
   done
-  chown bvargo:bvargo "$exportfile"
+#  chown bvargo:bvargo "$exportfile"
   chmod go-rwx "$exportfile"
 }
 
@@ -108,6 +105,7 @@ checkpid(){
       printf '%sStale pidfile found, removing: %s\n' "$(wtag)" "$pidfile"
       rm -f "$pidfile"
       unset mpdlingerpid
+      : >"$logfile"
     else
       pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"
       export mpdlingerpid
@@ -135,14 +133,14 @@ checkpid(){
    # printf '%s\n' "$indent${pgreplines[@]}"
      printf -- %s--\\n "$indent"; } >&"$logfd"
 
-  if (( ${#pgreplines[@]} )); then
+  if (( "${#pgreplines[@]}" )); then
     printf '\n[%sWARN%s] A pid for mpdlinger was identified without a corresponding %s!\n' "$yellow" "$tput0" "$pidfile"
     printf '[%sWARN%s] This indicates that the pidfile has been somehow misplaced...\n\n' "$yellow" "$tput0"
 
     printf 'Output of '\''%spgrep mpdlinger -a | grep -Ev -- "$$|--edit"%s'\''\n' "$blue" "$tput0"
     printf '%s' "$blue"
 
-    if (( ${#pgreplines[@]} > 1 )); then
+    if (( "${#pgreplines[@]}" > 1 )); then
       mpdlingerpid="$(printf '%s\n' "${pgreplines[@]}" | gum choose)"
     else
       printf '%s\n' "${pgreplines[0]}"
@@ -157,6 +155,8 @@ checkpid(){
         export mpdlingerpid
         pgid="$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')"; } ||
       { printf '\nFailed to determine a pid for the daemon. Investigate. (exit 1)\n\n'; exit 1; }
+  else
+    : >"$logfile"
   fi
   (( verbose )) && printf \\n%b\\n\\n  "$(hr2 "$bold Ending checkpid() $tput0")" >&"$logfd"
 }
@@ -192,7 +192,8 @@ ipcparse(){
 
 ipchandler(){
   local cmd execarray
-   export -p > "$exportfile"
+   export -p > "$exportfile" && chmod go-rwx "$exportfile"
+
 
 #  (( verbose )) && printf '\n%sIn ipchandler().\n%sContents of %s: "%s"\n\n' "$(vtag)" "$(vtag)" "$cmdfile" "$(< "$cmdfile")" >&"$logfd"
 
@@ -228,7 +229,7 @@ ipchandler(){
       else
         paused=1
         printf '\n%sTurning pause on.\n' "$(vtag)" >&"$logfd"
-        printf 'Paused via CLI\n'
+        printf 'Paused via CLI\n' >&"logfd"
 #      exec env paused=1 mpdlinger --exec
       fi
       exec env paused="$paused" "${execarray[@]}"
@@ -933,7 +934,8 @@ if [[ "$screenname" ]]; then
     exec screen -S "$screenname" bash -c 'echo $$ > /tmp/mpdlinger.pid
                                           exec env attached=1 mpdlinger '"${args[@]}"' '
   else
-    screen -dmS "$screenname" bash -c 'mpdlinger "${args[@]}" -v 4>/tmp/mpdlinger.log'
+    [[ -w "$logfile" ]] || logfile='/var/lib/mpd/mpdlinger/mpdlinger.log'
+    screen -dmS "$screenname" bash -c "mpdlinger \"${args[@]}\" -v 4>\"${logfile}\""
 ##    if { true >&3; } 2>/dev/null; then
 ##     read -rp "$logfile"
 ##      screen -dmS "$screenname" mpdlinger "${args[@]}" 3>"$logfile"
@@ -1065,7 +1067,7 @@ unset prevcount
 #}
 
 
-sourcefn -l /usr/local/bin/mpdignore.functions -f sec2sex
+. <(/usr/local/bin/sourcefn -l /usr/local/bin/mpdignore.functions -f sec2sex)
 
 prntprog(){
   local artist title state pos length elapsed duration percent volume repeat random consume
@@ -1138,6 +1140,8 @@ tput cuu 7; # tput cr
 progloop &  # run in background
 progpid=$!
 
+
+(( execoption )) && exit 0
 
 ##--> main while loop <--##########################################################################
 
