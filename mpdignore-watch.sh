@@ -45,7 +45,7 @@ while (( try < 5 )); do
     (( verbose )) && printf '[verbose] stat %s:\n' "$watched"
     (( verbose )) && printf '[verbose] %s\n' "${statout[@]}"
     read G U a < <(stat -c %G\ %U\ %a "$watched")
-    [[ "$G" != "$mpdgroup" ]] && chgrp "$mpdgroup" "$watched" && printf '[info] chgrp %s %s\n' "$mpdgroup" "$watched"
+#   [[ "$G" != "$mpdgroup" ]] && chgrp "$mpdgroup" "$watched" && printf '[info] chgrp %s %s\n' "$mpdgroup" "$watched"
     [[ "$U" != "$mpduser"  ]] && chown "$mpduser" "$watched"  && printf '[info] chown %s %s\n' "$mpduser" "$watched"
     [[ "$a" != 66?         ]] && chmod ug+w "$watched"        && printf '[info] chmod ug+w $s\n' "$watched"
   done

@@ -179,7 +179,6 @@ getlast(){
   fi
 
   while read -r logline; do
-    (( verbose )) && read -rp "$logline" < /dev/tty
     if [[ "$logline" = "tac: failed to open '/var/log/mpd/mpd.log"*"for reading: No such file or directory" ]]; then
       printf 'MPD logfile /var/log/mpd/%s missing.\n' "$mpdlog"
       break
@@ -226,7 +225,7 @@ getlast(){
                        printf '  lastartist=%s\n' "$lastartist"
                        printf '   lasttitle=%s\n' "$lasttitle"
                        printf '   lastalbum=%s\n' "$lastalbum"
-                       read -rp "Continue... " </dev/tty
+#                       read -rp "Continue... " </dev/tty
                       }
 
   done < <(eval "$logstream" 2>/tmp/lastpath.err)

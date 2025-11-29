@@ -2,7 +2,7 @@
 
 if [[ -z "$TERM" ]]; then
   TERM='xterm-256color'
-elif [[ "$TERM"=screen* ]]; then
+elif [[ "$TERM" = screen* ]]; then
   TERM='screen.xterm-256color'
 fi
 
@@ -100,13 +100,28 @@ if [[ -f "$mpdconf" ]]                  # defines the location of your mpd logfi
 fi
 }
 
+#logsong() {
+#   i=$(date "+%b %d %H:%M : player: $1 ")
+#   [[ "$filepath" ]] && j="$filepath" || j=$(mpcp current -f %file%)
+#   local logged=$(printf '%s\"%s\"\n' "$i" "$j")
+##   ssh -p "$sshport" "$mpdhost" "echo "${logged@Q}" >> "$mpdlog"" 2>/dev/null
+#   ssh -p "$sshport" "$mpdhost" "printf '%s\\n' ${logged@Q} >> $mpdlog"
+##   ssh -p "$sshport" "$mpdhost" "echo "$logged" | tee -a "$mpdlog""
+#}
 logsong() {
+   mpdskipm3u='/library/music/mpdplaylists/.mpdskip.m3u'
+   local i j logged
    i=$(date "+%b %d %H:%M : player: $1 ")
    [[ "$filepath" ]] && j="$filepath" || j=$(mpcp current -f %file%)
-   local logged=$(printf '%s\"%s\"\n' "$i" "$j")
-#   ssh -p "$sshport" "$mpdhost" "echo "${logged@Q}" >> "$mpdlog"" 2>/dev/null
-   ssh -p "$sshport" "$mpdhost" "printf '%s\\n' ${logged@Q} >> $mpdlog"
-#   ssh -p "$sshport" "$mpdhost" "echo "$logged" | tee -a "$mpdlog""
+#  logged=$(printf '%s\"%s\"\n' "$i" "$j")
+##  ssh -p "$sshport" "$mpdhost" "echo "${logged@Q}" >> "$mpdlog"" 2>/dev/null
+#   ssh -p "$sshport" "$mpdhost" "printf '%s\\n' ${logged@Q} >> $mpdlog"
+##  ssh -p "$sshport" "$mpdhost" "echo "$logged" | tee -a "$mpdlog""
+    logged="$j"
+    local mpdlog="${mpdskipm3u}"
+    sshout=$(ssh -p "$sshport" "$mpdhost" "printf '%s\n' ${logged@Q} 2>&1 >> $mpdlog")
+    [[ "$sshout" = *No\ xauth\ data* ]] && printf '[error] %s\n' "$sshout"
+
 }
 
 mpcp() {
@@ -238,7 +253,8 @@ title(){
 #     printf '%s Queued %s: %s%s%s/\n' "$white" "$c_aa_que" "${file[-2]}" "$tput0"
 #     printf '        %s: %s%s%s\n' "$white" "$c_title_que" "${file[-1]%.*}" "$tput0"
     else
-      printf '%s Queued %s: %s%s%s/\n' "$white" "$c_aa_que" "${file[-2]}" "$tput0"
+#      printf '%s Queued %s: %s%s%s/\n' "$white" "$c_aa_que" "${file[-2]}" "$tput0"
+      printf '%s Queued : %s%s%s/\n' "$white" "$c_aa_que" "${file[-2]}" "$tput0"
       printf '        %s: %s%s%s\n' "$white" "$c_title_que" "${file[-1]%.*}" "$tput0"
     fi
   elif [[ "$1" = skipped ]]; then
@@ -403,7 +419,7 @@ sec2sex(){
   local h m s
   local input="${1%.*}"
   local dec="${1#*.}"; dec="${dec:0:1}"
-  [[ "$dec" > 4 ]] && ((input++))
+  (( dec > 4 )) && ((input++))
 
   h=$(( input / 3600 ))
   m=$(( (input % 3600) / 60 ))
@@ -468,5 +484,5 @@ hr2(){
 ##--> hr2() <--###########################################################################
 
 
-[[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript
+[[ "$1" = @(--edit|-e) ]] && editscript || true
 

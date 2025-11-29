@@ -1,0 +1,69 @@
+#!/bin/bash
+verbose=1
+# wrapper to safely send USR2 to mpdlinger
+printf '[info] %s: %s\n' "$0" "$(date -Is)" >> /tmp/mpdlinger-signal.debug
+printf '[info] %s: sudo invocation:\n' "$0" >> /tmp/mpdlinger-signal.debug
+printf '[info] %s: whoami=%s id=%s $*=%s\n' "$0" "$(whoami)" "$(id)" "$*" >> /tmp/mpdlinger-signal.debug
+[[ -r /usr/local/bin/editscript ]] && . /usr/local/bin/editscript
+
+log='/tmp/mpdlinger-signal.debug' pidfile='/var/lib/mpd/mpdlinger/mpdlinger.pid' cmdfile='/var/lib/mpd/mpdlinger/mpdlinger.cmd'
+: "${log:=/tmp/mpdlinger.log}"
+: "${pidfile:=/tmp/mpdlinger.pid}"
+: "${cmdfile:=/tmp/mpdlinger.cmd}"
+
+(( verbose )) && printf '[info] %s: contents of %s: %s\n' "$0" "$cmdfile" "$(< "$cmdfile")" >>"$log" 2>&1
+(( verbose )) && printf '[info] %s: $log=%s\n' "$0" "$log" >> "$log"
+(( verbose )) && printf '[info] %s: $pidfile=%s\n' "$0" "$pidfile" >> "$log"
+(( verbose )) && printf '[info] %s: $cmdfile=%s\n' "$0" "$cmdfile" >> "$log"
+
+
+[[ "$1" = next || "$1" = pause ]] && { arg="$1"; shift; }
+[[ "$1" || ! "$arg" ]] && printf '[error] %s: %s is invald. Exactly one of [pause|next] accepted.\n' "$0" "${1:-$arg}" >> "$log"
+
+# exit if pidfile is missing
+[[ -f "$pidfile" ]] || { printf '[error] %s: %s (pidfile) missing. (exit 1)\n' "$0" "$pidfile" >> "$log"; exit 1; }
+
+pid=$(<"$pidfile") || { printf '[error] %s: Unable to read %s (pidfile).\n' "$0" "$pidfile" >> "$log"; exit 1; }
+
+(( verbose )) && printf '[info] %s: $arg=%s\n' "$0" "$arg" >> "$log"
+(( verbose )) && printf '[info] %s: $pid=%s\n' "$0" "$pid" >> "$log"
+
+# verify the PID belongs to mpdlinger
+cmdline=$(ps -p "$pid" -o comm=)
+if [[ "$cmdline" != "mpdlinger" ]]; then
+  printf '[error] %s: PID %s is not mpdlinger (found: %s)\n' "$0" "$pid" "$cmdline" >> "$log"
+  exit 1
+fi
+
+# discover owner of the mpdlinger process
+puser=$(ps -p "$pid" -o user= | tr -d '[:space:]')
+[[ -z "$puser" ]] && puser=$(stat -c '%U' "$pidfile" 2 >> "$log" || printf mpd)
+
+(( verbose )) && printf '[info] %s: $puser=%s\n' "$0" "$puser" >> "$log"
+
+# ensure dir exists and owned correctly (minimal, not a restructure)
+#cmddir=$(dirname "$cmdfile")
+#[[ -d "$cmddir" ]] || install -d -m 0750 -o "$puser" -g "$puser" "$cmddir" 2 >> "$log"
+
+# safe write using flock, preserving your original "mpdlinger $arg" semantics
+#flock "$cmddir/lockfile" \
+#    bash -c "printf '%s\n' '$arg' > '$cmdfile'" 2 >> "$log"
+printf '%s\n' "$arg" > "$cmdfile" 2>>"$log"  || printf 'An error printing occurred in printf \%s\\n $arg > $cmdfile\n' >>"$log"
+printf '%s\n' "$arg" > "$cmdfile" || printf 'An error printing occurred in printf \%s\\n $arg > $cmdfile\n' >>"$log"
+
+(( verbose )) && printf '[info] %s: contents of %s: %s\n' "$0" "$cmdfile" "$(< "$cmdfile")" >>"$log" 2>&1
+(( verbose )) && cat "$cmdfile" >> "$log" 2>&1
+[[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
+
+# send USR2 **as that user**, not root
+if command -v runuser >/dev/null 2>&1; then
+  (( verbose )) && printf '[info] %s: runuser is present.\n' "$0" >> "$log"
+#  runuser -u "$puser" -- kill -USR2 "$pid" 2>>"$log"
+  kill -USR2 "$pid" 2>>"$log"
+  pkill -g "$pgid" mpc
+  pkill -g "$pgid" lolcat
+
+else
+  (( verbose )) && printf '[info] %s: runuser is not present, using su -s\n' "$0" >> "$log"
+  su -s /bin/sh - "$puser" -c "kill -USR2 $pid" 2>>"$log"
+fi
