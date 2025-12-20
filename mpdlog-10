@@ -1,0 +1,1630 @@
+#!/bin/bash
+shopt -s extglob nullglob
+# nb: the swp wfile that editscript relies on is provided by nano
+#debug=1
+tmplog="/tmp/mpdtmp.log"
+
+source /etc/default/mpdignore
+mpdignorelib="${mpdignorelib:=/usr/local/lib/mpdignore.functions}"
+#cklinger() sourced here
+source <(sourcefn -l "$mpdignorelib" -f "cklinger" --text) 2> >(tee -a "$tmplog" >&2)
+
+: "${debug:=0}"
+cklingerverb="${debug:=0}"         # thus turns on verbose in cklinger()
+process_formverb=1 #"${debug:=1}"  # this turns on verbose in process_form()
+mpdlocalconf="./mpd-local.conf"
+MPDSOCK="/var/run/mpd/socket"
+songdir=\/library\/music\/$(dirname "$(\mpc current -f %file%)")
+songdir="/library/music/$(dirname "$(\mpc current -f %file%)")"
+cover=( "${songdir}/"@(c|C)over.@(png|jpg|gif) )
+mpdlog="/var/log/mpd/mpd.log"
+mpdlogfile=( "$mpdlog" )
+
+mpdssepidfile="/tmp/mpdsse.pid"
+mpdssepy="/var/www/cgi-bin/mpdsse.py"
+mpdsseurl="127.0.0.1"
+mpdsseport="5000"
+mpdsselog="$tmplog"
+
+: "${lingerdir:=/var/lib/mpd/mpdlinger}"
+: "${lingerpidf:=$lingerdir/mpdlinger.pid}"
+: "${lingerlog:=$lingerdir/mpdlinger.log}"
+: "${lingercmd:=$lingerdir/mpdlinger.cmd}"
+: "${lingerstate:=$lingerdir/mpdlinger.state}"
+: "${lingerfifo:=$lingerdir/mpdlinger.fifo}"
+[[ -f "$lingerpidf" ]] && : "${lingerpid:=$(< $lingerpidf)}"
+
+(( debug )) && { date -Is; printf 'Starting %s\n' "$(realpath "$0")"; } >> "$tmplog"
+
+startmpdsse(){  # flask launcher
+  local notfound psauxout
+  mpdssepid=0
+  (( debug )) && printf '\nentering %s\n' "$FUNCNAME" >> "$mpdsselog"
+  if [[ -f "$mpdssepidfile" ]]; then
+    mpdssepid=$(<"$mpdssepidfile")
+    (( mpdssepid && debug )) && printf 'Found %s\n$mpdssepid=%s\n' "$mpdssepidfile" "$mpdssepid" >> "$mpdsselog"
+    (( debug )) && { printf 'Contents of %s:\n' "$mpdssepidfile"; cat "$mpdssepidfile"; } >> "$mpdsselog"
+  else
+    notfound=1
+    (( debug )) && printf '%s not found\n' "$mpdssepidfile" >> "$mpdsselog"
+  fi
+
+
+  ! (( "$mpdssepid" )) || [[ -d "/proc/$mpdssepid" ]] && notfound=1
+    (( debug )) && ! kill -0 "$mpdssepid" >> "$mpdsselog" 2>&1 && notfound=1
+  ! (( debug )) && ! kill -0 "$mpdssepid" > /dev/null 2>&1 && notfound=1
+
+  if (( notfound )); then
+    psauxout=( $(ps aux|grep "[m]pdsse.py"|awk '{print $2}') )
+    for i in "${psauxout[@]}"; do
+      ! (( debug )) && { curl -sf http://"$mpdsseurl:$mpdsseport"/health > /dev/null; ec="$?" ; }
+        (( debug )) && { curl http://"$mpdsseurl:$mpdsseport"/debug >> "$mpdsselog" 2>&1; ec="$?"; }
+      if ! (( ec )); then
+        notfound=0
+        mpdssepid="$i"
+        printf '%s\n' "$mpdssepid" > "$mpdssepidfile"
+        (( debug )) && printf '\n$notfound=%s\n' "$notfound" >> "$mpdsselog"
+        (( debug )) && printf '\n$mpdssepid=%s\n' "$mpdssepid" >> "$mpdsselog"
+        return
+        break
+      fi
+    done
+  fi
+
+  if (( notfound )); then
+    ! (( debug )) && {
+     gunicorn --bind 0.0.0.0:"$mpdsseport" --workers 1 --threads 2 --timeout 65 mpdsse:app > /dev/null 2>&1; } &
+      (( debug )) && {
+     gunicorn --bind 0.0.0.0:"$mpdsseport" 5000 --workers 1 --threads 2 --timeout 65 mpdsse:app  >> "$mpdsselog" 2>&1; } &
+    mpdssepid="$!"
+    printf %s\\n "$mpdssepid" > "$mpdssepidfile"
+    (( debug )) && printf '$mpdssepid=%s\n' "$mpdssepid" >> "$mpdssepid"
+    notfound=0
+  fi
+  (( debug )) && printf 'leaving %s\n' "$FUNCNAME" >> "$mpdsselog"
+}
+# flask launcher
+
+##--> startmpdsse() <--#######################################################################
+
+startmpdsse() {
+  #local debug=0
+  local notfound psauxout mpdssepids ec curlcmd nullorlog pid gunicorncmd
+  (( debug )) && nullorlog="$mpdsselog"
+  : "${mpdsselog:=/tmp/mpdsse.log}"
+  : "${nullorlog:=/dev/null}"
+
+  (( debug )) && printf '\nentering %s\n' "$FUNCNAME" >> "$mpdsselog"
+  # -------------------------------------------------
+  # gunicorn profiles
+  # -------------------------------------------------
+  gdefault=(
+    gunicorn
+    --bind "127.0.0.1:$mpdsseport"
+    --workers 1
+    --threads 2
+    --timeout 65
+    mpdsse:app
+  )
+
+  gthread=(
+    gunicorn
+    --bind "127.0.0.1:$mpdsseport"
+    --workers 1
+    --worker-class gthread
+    --threads 4
+    --timeout 0
+    --graceful-timeout 0
+    --keep-alive 65
+    --log-level info
+    mpdsse:app
+  )
+
+  gevent=(
+    gunicorn
+    --bind "127.0.0.1:$mpdsseport"
+    --workers 2
+    --threads 4
+    --timeout 90
+    --graceful-timeout 30
+    --keep-alive 75
+    --log-level warning
+    mpdsse:app
+  )
+
+  # -------------------------------------------------
+  # choose profile
+  # -------------------------------------------------
+  # gunicorncmd=( "${gCdefault[@]}" )
+    gunicorncmd=( "${gthread[@]}" )
+  # gunicorncmd=( "${gevent[@]}" )
+
+  # -------------------------------------------------
+  # verify existing pid
+  # -------------------------------------------------
+
+  if [[ -f "$mpdssepidfile" ]]; then
+    mpdssepids=( $(<"$mpdssepidfile") )
+    (( debug )) && printf 'Found pidfile: %s \n  pid(s): %s\n\n' \
+                     "$mpdssepidfile" "${mpdssepids[*]}" >> "$mpdsselog"
+  else
+    notfound=1
+    (( debug )) && printf 'No pid file found: %s\n' "$mpdssepidfile" >> "$mpdsselog"
+  fi
+
+  readarray -t psauxout < <(ps aux | grep '[g]unicorn' | grep mpdsse:app | awk '{print $2}')
+
+  readarray -t mpdssepids < <(printf %s\\n "${mpdssepids[@]}" "${psauxout[@]}"|sort -u)
+
+  (( debug )) && printf 'psauxout: %s\n' "${psauxout[@]}" >> "$mpdsselog"
+  (( debug )) && printf 'mpdssepids: %s\n' "${mpdssepids[@]}" >> "$mpdsselog"
+
+  for i in "${!mpdssepids[@]}"; do
+    [[ "${mpdssepids[i]}" =~ ^[0-9]+$ ]] && kill -0 "${mpdssepids[i]}" 2>>"$nullorlog" ||
+      { (( debug )) && printf 'Unset PID %s (not found)\n' "${mpdssepids[i]}" >> "$mpdssetmp"; unset mpdssepids[i]; }
+  done
+
+  (( "${#mpdssepids[@]}" )) || notfound=1
+  printf %s\\n "${mpdssepids[@]}" > "$mpdssepidfile"
+
+  # -------------------------------------------------
+  # http health check
+  # -------------------------------------------------
+  (( debug )) && curlcmd=( curl --verbose ) || curlcmd=( curl --silent )
+  curlcmd+=( --connect-timeout 1  --max-time 6 --fail "$mpdsseurl:$mpdsseport/health" )
+
+  (( debug )) && printf 'curlcmd: %s\n' "${curlcmd[*]}" >> "$mpdsselog"
+
+  if (( debug )) && "${curlcmd[@]}" >> "$mpdsselog" 2>&1; then
+    notfound=0
+    printf 'curl to http://%s:%s/health suceeded\n' "$mpdsseurl" "$mpdsseport" >> "$mpdsselog"
+    printf '%s\n' "${mpdssepids[@]}" > "$mpdssepidfile"
+    printf '%s\n' "${mpdssepids[@]}" >> "$mpdsselog"
+    printf 'Using existing pids %s\n' "${mpdssepids[@]}" >> "$mpdsselog"
+  elif "${curlcmd[@]}" > /dev/null 2>&1; then
+    notfound=0
+    printf '%s\n' "${mpdssepids[@]}" > "$mpdssepidfile"
+  elif (( "${#mpdssepids[@]}" )); then
+    notfound=1
+    # kill any stale validated PIDs
+    (( debug )) && printf 'Health check failed; restarting mpdsse\n' >>"$mpdsselog"
+    (( debug )) && printf 'Killing stale pids: %s\n' "${mpdssepids[@]}" >> "$mpdsselog"
+    for pid in "${mpdssepids[@]}"; do
+        kill -9 "$pid" 2>>"$nullorlog" || (( debug )) && printf 'Error kill -9 %s\n' "$pid" >> "$mpdsselog"
+    done
+    pkill -f "gunicorn.*mpdsse:app" 2>/dev/null
+    sleep 1
+  elif (( debug )); then
+    printf 'Health check failed; restarting mpdsse\n' >>"$mpdsselog"
+    printf 'curl failed; no pids remain, pkill -f "gunicorn.*mpdsse:app" \n' >> "$mpdsselog"
+    pkill -f "gunicorn.*mpdsse:app" >> "$mpdsselog" 2>&1
+    notfound=1
+  else
+    pkill -f "gunicorn.*mpdsse:app" 2>/dev/null
+    notfound=1
+  fi
+
+
+  # -------------------------------------------------
+  # launch new instance if not found
+  # -------------------------------------------------
+  if (( notfound )); then
+      (( debug )) && printf 'starting new gunicorn: %s\n' "${gunicorncmd[*]}" >> "$nullorlog"
+      "${gunicorncmd[@]}" >> "$nullorlog" 2>&1 &
+
+   ## shouldn't we give this a sleep 2s; and then get the pids from psaux?
+    sleep 1
+    # collect PIDs for recording
+    readarray -t mpdssepids < <(ps aux | grep '[g]unicorn' | grep mpdsse:app | awk '{print $2}')
+    printf '%s\n' "${mpdssepids[@]}" > "$mpdssepidfile"
+    (( debug )) && printf 'New PIDs: %s\n' "${mpdssepids[*]}" >> "$mpdsselog"
+  fi
+
+  (( debug )) && { printf '%s: return 0\n' "$FUNCNAME" >> "$mpdsselog"; return 0; }
+}
+
+
+##--> startmpdsse() <--#############################################################################
+
+editscript(){
+  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
+
+pause(){ read -rp "$*" < /dev/tty; }
+
+
+mpdc() {
+    ! "$MPDSOCK" && MPDSOCK="/var/run/mpd/socket"
+    local command="$1"
+    echo -ne "$command\n" | socat - UNIX-CONNECT:"$MPDSOCK"
+}
+
+## make the function available to mpd-current
+#export -f mpdc
+
+ampm() {
+    local ts="$1"
+#    date -d "$ts" "+%b %d %I:%M %P"      # Apr 20 04:20 pm
+    date -d "$ts" "+%b %d %l:%M %P"       # Apr 20 4:20 pm
+}
+
+
+sec2sex() {
+  [[ "$1" = -z ]] && local zeropad=1 && shift
+  local h m s
+  local input="${1%.*}"
+  local dec="${1#*.}"; dec="${dec:0:1}"
+  (( dec > 4 )) && ((input++))
+
+  h=$(( input / 3600 ))
+  m=$(( (input % 3600) / 60 ))
+  s=$(( input % 60 ))
+
+  if (( h > 0 )); then
+    printf "%02d:%02d:%02d" "$h" "$m" "$s"
+  elif (( zeropad )); then
+    printf "%02d:%02d" "$m" "$s"
+  else
+    printf "%d:%02d" "$m" "$s"
+  fi
+}
+
+
+
+printmpcjson() {
+  echo -ne "${name:+Name: $name\n}"
+  echo -ne "${artist:+Artist: $artist\n}"
+  echo -ne "${album:+Album: $album\n}"
+  echo -ne "${albumartist:+Album Artist: $albumartist\n}"
+  echo -ne "${comment:+Comment: $comment\n}"
+  echo -ne "${composer:+Composer: $composer\n}"
+  echo -ne "${date:+Date: $date\n}"
+  echo -ne "${originaldate:+Original Date: $originaldate\n}"
+  echo -ne "${disc:+Disc: $disc\n}"
+  echo -ne "${genre:+Genre: $genre\n}"
+  echo -ne "${performer:+Performer: $performer\n}"
+  echo -ne "${title:+Title: $title\n}"
+  echo -ne "${track:+Track: $track\n}"
+  echo -ne "${time:+Time: $time\n}"
+  echo -ne "${file:+File: $file\n}"
+  echo -ne "${state:+State: $state\n}"
+  echo -ne "${volume:+Volume: $volume\n}"
+  echo -ne "${repeat:+Repeat: $repeat\n}"
+  echo -ne "${random:+Random: $random\n}"
+  echo -ne "${single:+Single: $single\n}"
+  echo -ne "${consume:+Consume: $consume\n}"
+}
+
+
+logsong() {
+  #i=$("+%b %d %H:%M : player: $1 ")
+   printf -v d '%(%b %d %H:%M)T : player: %s' -1 "$1"
+   f=$(\mpc current -f %file%)
+   printf '%s "%s"\n' "$d" "$f" | cat >> "$tompdlog"
+}
+
+
+sendRootAction(){
+  echo "<script>
+    function sendRootAction(action) {
+      console.log('line 494 sendRootAction() called with action:', action);   // <- add this line
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/?action=' + action, true);  // force the root CGI
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState == 4 && xhr.status == 200) {
+          location.reload();
+        }
+      };
+    xhr.send();
+    }
+    </script>
+    "
+}
+
+sendAction(){
+  echo "<script>
+       function sendAction(action) {
+         console.log('navbuttons sendAction() called with action:', action);   // <- add this line
+         var xhr = new XMLHttpRequest();
+         xhr.open('GET', '?action=' + action, true);
+         xhr.onreadystatechange = function () {
+           if (xhr.readyState == 4 && xhr.status == 200) {
+              location.reload();
+           }
+         };
+         xhr.send();
+       }
+      </script>"
+}
+
+sendActionNoRefresh(){
+  echo "<script>
+       function sendActionNoRefresh(action) {
+         console.log('navbuttons sendAction() called with action:', action);
+         var xhr = new XMLHttpRequest();
+         xhr.open('GET', '?action=' + action, true);
+         xhr.onreadystatechange = function () {
+           if (xhr.readyState == 4 && xhr.status == 200) {
+              console.log('Action completed:', action);
+           }
+         };
+         xhr.send();
+       }
+      </script>"
+}
+
+
+
+autorefresh(){
+  [[ "$state" == play* ]] || return
+  cat <<'EOF'
+  <script>
+  // Auto-refresh every 30s when tab is visible
+  setInterval(function() {
+    if (!document.hidden) location.reload();
+  }, 60000);
+
+  // Refresh immediately when tab becomes visible
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) location.reload();
+  });
+  </script>
+EOF
+}
+
+autorefresh(){
+  [[ "$state" == play* ]] || return
+  cat <<'EOF'
+  <script>
+  function refreshIfVisible() {
+    if (!document.hidden) location.reload();
+  }
+
+  // Auto-refresh every minute only if visible
+  setInterval(refreshIfVisible, 60000);
+
+  // Refresh when visibility changes
+  document.addEventListener('visibilitychange', refreshIfVisible);
+
+  // Refresh when window gains focus (covers tab-switching, window switching)
+  window.addEventListener('focus', refreshIfVisible);
+  </script>
+EOF
+}
+
+
+autorefresh(){
+  [[ "$state" == play* ]] || return
+  cat <<'EOF'
+  <script>
+  function refreshIfVisible() {
+    if (!document.hidden) {
+      location.reload();
+    }
+  }
+
+  // periodic refresh when visible
+  setInterval(refreshIfVisible, 60000);
+
+  // refresh on tab visibility change
+  document.addEventListener('visibilitychange', refreshIfVisible);
+
+  // refresh on window focus (tab switch, window switch)
+  window.addEventListener('focus', refreshIfVisible);
+  </script>
+EOF
+}
+
+
+sserefresh(){
+  cat <<'EOF'
+  <script>
+  const evtSource = new EventSource("/sse");
+  evtSource.onmessage = e => {
+    console.log("MPD changed:", e.data);
+    if (!document.hidden) location.reload();
+  };
+  </script>
+EOF
+}
+
+
+
+mpdlog_title(){
+## if directly loading the image isnt' working, use base64 encoding:
+  # imgdata=$(base64 /var/www/cgi-bin/android-icon-48x48.png)
+  # echo "<a class='hidden-link' href='http://iconoclasthero.com:8000'>"
+  # echo "<img src='data:image/png;base64,$imgdata' style='display:inline; vertical-align:top;'>"
+  # echo "<h1 style='display: inline; vertical-align: bottom;'>  mpd  </h1></a><hr>"
+
+  printf "<a class='hidden-link' href='http://iconoclasthero.com:8000'>"
+#  printf "<img src='/android-icon-48x48.png' style='display: inline; vertical-align: top;'>"
+  printf "<img src='/android-icon-96x96.png' style='display: inline; vertical-align: top;'>"
+  printf "<h1 style='display: inline; vertical-align: bottom;'></a>"
+  printf "&nbsp;&nbsp;<a class='hidden-link' href='/'>mpdlog</a></h1><hr>"
+}
+
+navbuttons(){
+  echo "<hr>"
+  echo "<div class='button-container'>"
+  echo "<div class='button-row'>"
+  echo "<form id='controlForm'>"
+  echo "<h5 style='margin-bottom: 10-px;'>MPD controls:</h5>"
+  echo "<button type='button' onclick='sendAction(\"toggle_playback\")' class='btn btn-primary' title='Toggle playback'>⏯️ "
+  echo "</button>"
+  echo "<button type='button' onclick='sendAction(\"next_track\")' class='btn btn-primary' title='Next track'>⏭️ "
+  echo "</button>"
+  if [[ "$random" = '❌' ]]; then
+    echo "<button type='button' onclick='sendAction(\"enable_random\")' class='btn btn-info' title='Enable random'>✅ 🔀"
+    echo "</button>"
+  else
+    echo "<button type='button' onclick='sendAction(\"disable_random\")' class='btn btn-info' title='Disable random'>❌ 🔀"
+    echo "</button>"
+  fi
+  echo "<button type='button' onclick='sendAction(\"ignore\")' class='btn btn-outline-danger' title='Ignore this item'>🚫"
+  echo "</button>"
+  echo "</form>"
+  echo "</div>"
+  echo "<div class='button-row'>"
+  echo "<form id='controlForm'>"
+  echo "<h5 style='margin-bottom: 10-px;'>Pulseaudio Volume:</h5>"
+  echo "<button type='button' onclick='sendActionNoRefresh(\"down_volume\")' class='btn btn-info' title='Volume down'>🔉"
+  echo "</button>"
+  echo "<button type='button' onclick='sendActionNoRefresh(\"up_volume\")' class='btn btn-info' title='Volume up'>🔊"
+  echo "</button>"
+  echo "<button type='button' onclick='sendActionNoRefresh(\"mute_volume\")' class='btn btn-info' title='Mute'>🔇"
+  echo "</button>"
+  echo "</form>"
+  echo "</div>"
+  echo "<div class='button-row'>"
+  echo "<form id='controlForm'>"
+  echo "<h5 style='margin-bottom: 10-px;'>Logs/Song Info:</h5>"
+
+  if (( ! long )); then
+    echo "<button type='button' onclick='window.location.href=\"/long\"' class='btn btn-secondary' title='Long log'>📜"
+    echo "</button>" #🕐
+  else
+    echo "<button type='button' onclick='window.location.href=\"/\"' class='btn btn-danger' title='Return'>↩️ "
+    echo "</button>"
+  fi
+
+  if [[ "$raw" != true ]]; then
+    echo "<button type='button' onclick='window.location.href=\"/raw\"' class='btn btn-secondary' title='Raw log'>📝"
+    echo "</button>"
+  else
+    echo "<button type='button' onclick='window.location.href=\"/\"' class='btn btn-danger' title='Return'>↩️ "
+    echo "</button>"
+  fi
+
+  if [[ "$playing" != true ]]; then
+    echo "<button type='button' onclick='window.location.href=\"/playing\"' class='btn btn-secondary' \
+          title='Currently playing details'>🎵💫🎶"
+    echo "</button>" #✨
+  else
+    echo "<button type='button' onclick='window.location.href=\"/\"' class='btn btn-danger' title='Return'>↩️ "
+    echo "</button>"
+    exit
+  fi
+
+  echo "</form>"
+  echo "</div>"
+  echo "</div>"
+
+
+}
+##--> navbuttons() <--###########################################################################
+
+process_form(){
+  local verbname="${FUNCNAME}verb"
+  local verbose="${!verbname:-0}"
+  local debug="$verbose"
+  local tmplog="$tmplog"
+  local mpccmd=( \mpc )
+  local tmplog=/tmp/process.log
+  local refresh=( printf '<html><head><meta http-equiv="refresh" content="0"></head><body></body></html>\n' )
+
+  (( debug )) && printf 'In %s.\n' "$FUNCNAME" >> "$tmplog"
+
+  [[ -r "$mpdlocalconf" ]] && source "$mpdlocalconf"
+  [[    "$mpdhost" ]] && mpccmd+=(     --host="$mpdhost" )
+  [[    "$mpdpass" ]] && mpccmd+=( --password="$mpdpass" )
+  [[    "$mpdport" ]] && mpccmd+=(     --port="$mpdport" )
+
+  if [ "$REQUEST_METHOD" = "GET" ]; then
+    query=$(echo "$QUERY_STRING" | tr '&' '\n' | grep -E '^(action=)' | cut -d= -f2)
+    (( debug )) && {
+                     printf 'start: %s\n' "$FUNCNAME"
+                     printf '$REQUEST_URI=%s\n' "$REQUEST_URI"
+                     printf '$REQUEST_METHOD=%s\n' "$REQUEST_METHOD"
+                     printf '$QUERY_STRING=%s\n' "$QUERY_STRING"
+                     printf '$query=%s\n' "$query"
+                     printf '\n\n'
+                   } >> "$tmplog"
+
+    case "$query" in
+#      *)
+#      # echo "Content-type: text/html; charset=UTF-8"
+#      # echo ""
+#        printf 'in %s case "%s"\n' "$FUNCNAME" "$query" >> "$tmplog"
+#        exit
+#        ;;
+      pl_number*)
+        plnumber="${query#*:}"
+        (( debug )) && printf '$plnumber=$s\n' "$plnumber" >> "$tmplog"
+        mpcout=( "$(mpc play "$plnumber")" )
+        printf %s\\n "$mpcout[@]}" >> "/tmp/mpd.log"
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        exit
+        ;;
+      toggle_playback)
+        mpc -q toggle
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        exit
+        ;;
+      next_track)
+#       logsong "skipped"
+#       mpdcout=( "$(mpdc next 2>&1)" )
+#       nextout=( "$(./next -qq 2)" )
+#       (( debug )) && printf %s\\n "${nextcout[@]}" >> "$tmplog"
+        skiplog=( \mpc addplaylist .mpdskip "$( "${mpccmd[@]}" current -f %file%)" )
+        (( debug )) && printf %s\\n "${skiplog[*]}" >> "$tmplog"
+        mpc -q next && "${skiplog[@]}"
+
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        exit
+        ;;
+      linger_start)
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        (( debug )) && printf 'case: linger_start\n' >> "$tmplog"
+#        mpdlinger next
+        nohup /usr/local/bin/mpdlinger >> "$tmplog" 2>&1 &
+        exit
+        ;;
+      linger_next)
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        (( debug )) && printf 'case: linger_next\n' >> "$tmplog"
+#        mpdlinger next
+        (( debug )) && printf -- '%s---------------case: linger_next---------------\n' "$(date -Is)" >> "$tmplog" 2>&1
+        (( debug )) && printf -- '----%s: %s--------------------------------\n' "$(whoami)" "$USER" >> "$tmplog" 2>&1
+        (( debug )) && printf -- '-------------------------------------------------\n' >> "$tmplog" 2>&1
+        sudo /usr/local/bin/mpdlinger-signal next >> "$tmplog" 2>&1 &
+        (( debug )) && printf -- '%s-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n' "$(date -Is)" >> "$tmplog" 2>&1
+        "${refresh[@]}"
+        exit
+        (( debug )) && printf -- '-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n' >> "$tmplog" 2>&1
+        ;;
+      linger_toggle)
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        (( debug )) && printf -- '%s---------------case: linger_toggle---------------\n' "$(date -Is)" >> "$tmplog" 2>&1
+        (( debug )) && printf -- '----%s: %s--------------------------------\n' "$(whoami)" "$USER" >> "$tmplog" 2>&1
+        (( debug )) && printf -- '-------------------------------------------------\n' >> "$tmplog" 2>&1
+        export log='/tmp/mpdlinger-signal.debug'
+        export pidfile='/var/lib/mpd/mpdlinger/mpdlinger.pid'
+#        export cmdfile='/var/lib/mpd/mpdlinger/mpdlinger.cmd'
+        export cmdfile="$lingerfifo"
+        sudo /usr/local/bin/mpdlinger-signal pause >> "$tmplog" 2>&1 &
+        (( debug )) && printf -- '%s-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n' "$(date -Is)" >> "$tmplog" 2>&1
+        "${refresh[@]}"
+        exit
+        ;;
+      reset_track)
+        logsong "restarted"
+#       mpdcout=( "$(mpdc next 2>&1)" )
+#       nextout=( "$(./next -qq 2)" )
+        mpc -q seek 0
+        (( debug )) && printf %s\\n "${nextcout[@]}" >> "$tmplog"
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        exit
+        ;;
+      enable_random)
+        mpdcout=( "$(mpdc random\ 1 2>&1)" )
+        (( debug )) && printf %s\\n "${mpdcout[@]}" >> "$tmplog"
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        exit
+        ;;
+      disable_random)
+        mpdcout=( "$(mpdc random\ 0 2>&1)" )
+        (( debug )) && printf %s\\n "${mpdcout[@]}" >> "$tmplog"
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        exit
+        ;;
+      ignore)
+        (( debug )) && printf 'mpcpass=%s\nmpchost=%s\nmpdpass=%s\nmpdhost=%s\n' "$mpcpass" "$mpchost" "$mpdpass" "$mpdhost" >> "$tmplog"
+        (( debug )) && printf 'MPD_HOST=%s\nMPD_PORT=%s\nMPD_PASS=%s\n' "$MPD_HOST" "$MPD_PORT" "$MPD_PASS" >> "$tmplog"
+        (( debug )) && printf 'mpccmd=%s\n' "${mpccmd[*]}" >> "$tmplog"
+
+#        ignorecmd=( \mpc -h "$mpdpass"@"$mpchost" addplaylist .mpdignore "$(\mpc -h "$mpdpass@$mpchost" current -f %file%)" )
+         ignorecmd=( \mpc addplaylist .mpdignore "$( "${mpccmd[@]}" current -f %file%)" )
+        "${ignorecmd[@]}" >> "$tmplog" 2>&1
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        exit
+        ;;
+      up_volume)
+        ./pulsevol +5 --no-volstatus --config="${mpdlocalconf:=mpd-local.conf}" >> "$tmplog" 2>&1
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        exit
+        ;;
+      down_volume)
+        ./pulsevol -5 --no-volstatus --config="${mpdlcoalconf:=mpd-local.conf}" >> "$tmplog" 2>&1
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        exit
+        ;;
+      mute_volume)
+        ./pulsevol mute --no-volstatus --config="${mpdlocalconf:=mpd-local.conf}" >> "$tmplog" 2>&1
+      # echo "Content-type: text/html; charset=UTF-8"
+      # echo ""
+        exit
+        ;;
+    esac
+  fi
+
+  (( debug )) && printf 'leaving %s\n' "$FUNCNAME" >> "$tmplog"
+  debug=0
+  return 0
+}
+##--> process_form() <--################################################################
+
+#nowplaying now_playing
+currently_playing(){
+  local lingeron lingerpause lingercount lingerlimit
+
+# 2nd color was #cc0000
+
+# source <(./mpd-current.py)
+  source <(./mpd-current -p)
+  songpath="$filepath"
+  state="$u_state"
+
+# [[ "$repeat" = ?[37m⟳?[0m? ]] && repeat='⟳'
+# [[ "$repeat" = ?[1m?[32m⟳?[0m ]] && repeat="<span class='song'>⟳&nbsp</span>"
+  (( u_repeat )) && repeat="<span class='playing'>⟳$nbsp</span>" || repeat='⟳'
+
+  cklinger
+
+  if (( lingeron )); then
+    if (( lingerpause )); then
+      printf -v lingerstat '<span class=artist><a class=pauseicon style="font-style:normal" href='\''javascript:sendAction(\"linger_toggle\")'\''>▮▮</a>&nbsp; #%s/%s&nbsp;&nbsp;</span><a class="skipend" style="font-style:normal; color:#007bff;" href='\''javascript:sendAction(\"linger_next\")'\''>▶▮</a>' "$lingercount" "$lingerlimit"
+      printf -v lingerstat_mobile '<span class=artist><a href='\''javascript:sendAction(\"linger_toggle\")'\'' class=pauseicon>▮▮</a>&nbsp; &nbsp;&nbsp;&nbsp;#%s/%s</span>' "$lingercount" "$lingerlimit"
+      lingerstatarr=( "<span class=artist>"
+                      "<a class=pauseicon style=\"font-style:normal\" href='javascript:sendAction(\"linger_toggle\")'>"
+                      "▮▮</a> #${lingercount}/${lingerlimit}"
+                      "</span>" )
+      lingerstat_mobilearr=( "<span class=artist>"
+                             "<a class=pauseicon href='javascript:sendAction(\"linger_toggle\")'>▮▮</a>"
+                             "&nbsp;&nbsp;&nbsp;"
+                             "#${lingercount}/${lingerlimit}"
+                             "</span>" )
+
+      printf -v lingerarr[0] '<span class=artist>'
+      printf -v lingerarr[1] '<a class=pauseicon style="font-style:normal" href='\''javascript:sendAction("linger_toggle")'\''>▮▮</a>'
+      printf -v lingerarr[2] ' #%s/%s&nbsp;&nbsp;' "$lingercount" "$lingerlimit"
+      printf -v lingerarr[3] '<a class="skipend" style="font-style:normal;color:#007bff;" href='\''javascript:sendAction("linger_next")'\''>▶▮</a></span>'
+
+      printf -v lingarrmobile[0] '<span class=artist>'
+      printf -v lingarrmobile[1] '<a href='\''javascript:sendAction("linger_toggle")'\'' class=pauseicon>▮▮</a>'
+      printf -v lingarrmobile[2] '&nbsp;&nbsp;&nbsp;#%s/%s</span>' "$lingercount" "$lingerlimit"
+      printf -v lingarrmobile[3] '<a class="skipend" style="font-style:normal;color:#007bff;" href='\''javascript:sendAction("linger_next")'\''>▶▮</a></span>'
+
+
+    else
+      printf -v lingerstat '<span class=playing style="font-style:normal"><a style="font-style:normal"  href='\''javascript:sendAction(\"linger_toggle\")'\''>▶</a> #%s/%s</span>&nbsp;&nbsp;<a class="skipend" style="font-style:normal; color:#007bff;" href='\''javascript:sendAction(\"linger_next\")'\''>▶▮</a>' "$lingercount" "$lingerlimit"
+      printf -v lingerstat_mobile '<span class=playing style="font-style:normal;color:green;"><a href="javascript:sendAction('\''linger_toggle'\'')">▶</a>&nbsp; #%s/%s&nbsp;&nbsp;</span><a class="skipend" style="font-style:normal; color:#007bff;" href='\''javascript:sendAction(\"linger_next\")'\''>▶▮</a>' "$lingercount" "$lingerlimit"
+      lingerstatarr=( "<span class=playing style=\"font-style:normal\">"
+                      "<a style=\"font-style:normal\" href='javascript:sendAction(\"linger_toggle\")'>▶</a>"
+                      "#${lingercount}/${lingerlimit}"
+                      "</span>" )
+      lingerstat_mobilearr=(
+# "<a class=playing style=\"font-style:normal\" href='javascript:sendAction(\"linger_toggle\")'>"
+  "<a class=playing style='font-style:normal' onclick='sendAction(\"linger_toggle\"); return false;'>"
+                             "▶&nbsp;#${lingercount}/${lingerlimit}</a>"
+                             "</span>" )
+
+
+#      printf -v lingerarr[0] '<span class=playing style="font-style:normal">'
+#      printf -v lingerarr[1] '<a style="font-style:normal" href='\''javascript:sendAction("linger_toggle")'\''>▶</a>'
+#      printf -v lingerarr[2] ' #%s/%s&nbsp;&nbsp;' "$lingercount" "$lingerlimit"
+#      printf -v lingerarr[3] '<a class="skipend" style="font-style:normal;color:#007bff;" href='\''javascript:sendAction("linger_next")'\''>▶▮</a></span>'
+
+#      printf -v lingarrmobile[0] '<span class=playing style="font-style:normal;color:green;">'
+#      printf -v lingarrmobile[1] '<a href="javascript:sendAction('\''linger_toggle'\'')">▶</a>'
+#      printf -v lingarrmobile[2] '&nbsp;#%s/%s&nbsp;&nbsp;' "$lingercount" "$lingerlimit"
+#      printf -v lingarrmobile[3] '<a class="skipend" style="font-style:normal;color:#007bff;" href='\''javascript:sendAction("linger_next")'\''>▶▮</a></span>'
+    fi
+
+#      IFS=; lingerstat="${lingerarr[*]}"
+#      IFS=; lingerstat_mobile="${lingarrmobile[*]}"
+
+  else
+    lingerstat="<a class='smallemoji' href='javascript:sendAction(\"linger_start\")'>❌</a>"
+    lingerstat_mobile='<span class="smallemoji mobile">❌</span>'
+  fi
+#  lingerstat_mobile="${lingerstat//#[0-9]*\/[0-9]*/}"  # optional shorter mobile version
+
+  ##################################################################
+  ## playing/pause current/queue next track line:                  #
+  ##################################################################
+  # Set the color class depending on state
+  [[ "$state" = play ]] && state=playing && colorclass='playing' && altclass='artist' && toggle='▮▮'
+  [[ "$state" = pause ]] && state=paused && colorclass='artist' && altclass='playing' && toggle='▶'
+
+  # --- DESKTOP VERSION ---
+  echo "<span class='desktop'>"
+
+  # State + toggle
+  #echo "<strong class='$colorclass'>&nbsp;"
+  echo "<strong class='$colorclass'>"
+  echo "<span class='notes'>♪ ♫</span>"
+  echo "  $state "
+  echo "<span class='notes'>♫ ♪</span>"
+  echo "&nbsp;&nbsp;"
+  echo "</strong>"
+  echo "<a class='pauseicon' href='javascript:sendAction(\"toggle_playback\")'><span class='$altclass'>$toggle</span></a>"
+  echo "&nbsp;"
+
+  # Playlist info + skipend
+  echo "<a class='$colorclass' href='/playlist_current' title='Playlist|current song'>#$song_position/$song_length</a>"
+  echo "&nbsp;"
+  echo "<a class='skipend' href='javascript:sendAction(\"next_track\")'>▶▮</a>"
+
+  echo "</span>"
+
+  # --- MOBILE VERSION (shorter / adjusted) ---
+  echo "<span class='mobile'>"
+
+  # State + toggle
+  echo "<strong class='$colorclass'>&nbsp;"
+  echo "<span class='notes'>♪ ♫</span>"
+  echo "  $state "
+  echo "<span class='notes'>♫ ♪</span>"
+  echo ""
+  echo "</strong>"
+  echo "&nbsp;"
+  echo "<a class='pauseicon' href='javascript:sendAction(\"toggle_playback\")'><span class='$altclass'>$toggle</span></a> &nbsp;"
+  echo "&nbsp;"
+  echo "&nbsp;"
+
+  # Playlist info + skipend (shorter for mobile)
+  echo "<a class='$colorclass' href='/playlist_current' title='Playlist|current song'>#$song_position/$song_length</a>"
+  echo "&nbsp;"
+  echo "<a class='skipend' href='javascript:sendAction(\"next_track\")'><span class='ts'>▶</span></a>"
+
+  echo "</span><br>"
+
+  ###################################################
+  # elapsed time/total (##%)                        #
+  ###################################################
+
+  echo "<span class='time'><a href='javascript:sendAction(\"reset_track\")' title='Restart track'>elapsed $(sec2sex $elapsed)/$(sec2sex $total_time) (${percent_time%.*}%)</a></span><br>"
+  echo "<strong class='song'><a class='hidden-link' href='https://musicbrainz.org/mbid/$mbreltrackid' target='_blank'>$title</a></strong><br>"
+  echo "<span class='artist'><strong><a href='https://musicbrainz.org/artist/$mbartistid' target='_blank'>$artist</a></strong></span><br>"
+  year="${year%%-*}"
+  echo "<span class='album'><strong><a href='https://musicbrainz.org/release/$mbalbumid' target='_blank'> ${album% (mp3)}</a> ${year:+(${year})} <a href='/playlist_album' title='Playlist|album'><i class='bi bi-box-arrow-up-right extlink'></i></a></strong></span><br>"
+
+  # DESKTOP status line
+  echo "<span class='album desktop' style='font-style:normal'>"
+  echo "<a href='javascript:sendAction(\"mute_volume\")'>volume</a>: $volume%"
+  echo "${repeat:+$repeat}"
+  echo "${single:+single: <span class='smallemoji desktop'>$single&nbsp;</span>}"
+  if [[ "$random" = "✅" ]]; then
+    echo "<a href='javascript:sendAction(\"disable_random\")'>random</a>: <span class='smallemoji desktop'>$random</span>"
+  else
+    echo "<a href='javascript:sendAction(\"enable_random\")'>random</a>: <span class='smallemoji desktop'>$random </span>"
+  fi
+  [[ "$consume" = "✅" ]] && echo "consume: <span class='smallemoji desktop'>$consume </span>"
+  printf "<a href='javascript:sendAction(\"linger_next\")'> linger:</a> %s &nbsp" "$lingerstat"
+#   echo "<a class='skipend' style='font-style:normal; color:#007bff;' href='javascript:sendAction(\"linger_next\")'>▶▮</a>"
+
+  echo "</span>"
+  # MOBILE status line (short labels)
+  echo "<span class='album mobile'>"
+  echo "<a href='javascript:sendAction(\"mute_volume\")'>vol.</a>: $volume%"
+  echo "${repeat:+$repeat}"
+  echo "${single:+single: $single&nbsp;}"
+  if [[ -n $random ]]; then
+    echo "<a href='javascript:sendAction(\"enable_random\")'>rand</a>: <span class='smallemoji mobile'>$random</span>"
+  else
+    echo "<a href='javascript:sendAction(\"enable_random\")'>rand</a>: <span class='smallemoji mobile'>❌</span>"
+  fi
+  printf "&nbsp;<a href='javascript:sendAction(\"linger_next\")'>linger:</a> %s" "$lingerstat_mobile"
+  echo "</span>"
+
+
+
+## Output volume and playback status - DESKTOP
+#echo "<span class='album desktop'>"
+#  echo "<a href='javascript:sendAction(\"mute_volume\")'>volume</a>: $volume%&nbsp;"
+#  echo "${repeat:+$repeat}&nbsp;"
+#  echo "${single:+single: $single}&nbsp;"
+#  if [[ -n $random ]]; then
+#    echo "<a href='javascript:sendAction(\"enable_random\")'>random</a>: <span class='smallemoji desktop'>$random</span>&nbsp;"
+#  else
+#    # keep same structure when not set
+#    echo "<a href='javascript:sendAction(\"enable_random\")'>random</a>: <span class='smallemoji desktop'>❌</span>&nbsp;"
+#  fi
+#  echo "</span>"
+#
+#  # Output volume and playback status - MOBILE (short labels)
+#  echo "<span class='album mobile'>"
+#  echo "<a href='javascript:sendAction(\"mute_volume\")'>vol.</a>: $volume%&nbsp;"
+#  echo "${repeat:+$repeat}&nbsp;"
+#  echo "${single:+single: $single}&nbsp;"
+#  if [[ -n $random ]]; then
+#    echo "<a href='javascript:sendAction(\"enable_random\")'>rand.</a>: <span class='smallemoji mobile'>$random</span>&nbsp;"
+#  else
+#    echo "<a href='javascript:sendAction(\"enable_random\")'>rand.</a>: <span class='smallemoji mobile'>❌</span>&nbsp;"
+#  fi
+#  echo "</span>"
+
+## mpdlinger status (cklinger must have set lingeron, lingerpause, lingercount, lingerlimit)
+#cklinger
+#
+#if (( lingeron )); then
+#  if (( lingerpause )); then
+#    # paused
+#    printf -v lingerstat '<span class="artist desktop"><a href="javascript:sendAction(\"linger_toggle\")" title="Click to resume"><span class=pauseicon>▮▮</span> #%s/%s</a></span>' \
+#      "$lingercount" "$lingerlimit"
+#    # mobile short label too
+#    printf -v lingerstat_mobile '<span class="artist mobile"><a href="javascript:sendAction(\"linger_toggle\")" title="Click to resume"><span class=pauseicon>▮▮</span> #%s/%s</a></span>' \
+#      "$lingercount" "$lingerlimit"
+#  else
+#    # playing
+#    printf -v lingerstat '<span class="playing desktop" style="font-style:normal"><a href="javascript:sendAction(\"linger_toggle\")" title="Click to pause">▶ #%s/%s</a></span>' \
+#      "$lingercount" "$lingerlimit"
+#    printf -v lingerstat_mobile '<span class="playing mobile" style="font-style:normal"><a href="javascript:sendAction(\"linger_toggle\")" title="Click to pause">▶ #%s/%s</a></span>' \
+#      "$lingercount" "$lingerlimit"
+#  fi
+#else
+#  lingerstat='<span class="smallemoji desktop">❌</span>'
+#  lingerstat_mobile='<span class="smallemoji mobile">❌</span>'
+#fi
+#
+## print combined: desktop and mobile variants
+#printf "<a class='album desktop' href='javascript:sendAction(\"linger_next\")'>%s</a>&nbsp;%s\n" "linger:" "$lingerstat"
+#printf "<a class='album mobile' href='javascript:sendAction(\"linger_next\")'>%s</a>&nbsp;%s\n" "linger:" "$lingerstat_mobile"
+
+printf '<br><hr>\n'
+
+
+
+
+
+
+## this adds a check to stop asking mpd for an album cover for a song that doesn't exist (e.g., ignored)
+
+  : "${missingtmp:=/tmp/mpdlog-missing.tmp}"
+
+  [[ -f "$missingtmp" ]] && missingpath=$(<"$missingtmp")
+  [[ "$missingpath" && "$missingpath" != "$songpath" ]] && { rm "$missingtmp"; unset missingpath; }
+
+  (( debug )) && printf 'missingpath=%s\n' "$missingpath" >> "$tmplog"  : "${missingtmp:=/tmp/mpdlog-missing.tmp}"
+
+  (( debug )) && printf 'missingpath=%s\n' "$missingpath" >> "$tmplog"
+  (( debug )) && printf 'missingtmp%s\n' "$missingtmp" >> "$tmplog"
+  (( debug )) && printf 'songpath=%s\n' "$songpath" >> "$tmplog"
+
+  [[ ! "$missingpath" ]] && { album_art_base64=$(mpc -q readpicture "$songpath" 2>/dev/null | base64);
+                               (( debug )) && printf 'called mpc readpicture\n' >> "$tmplog"; }
+  [[ ! "$album_art_base64" && ! "$missingpath" ]] &&
+     album_art_stderr=$(mpc -q readpicture "$songpath" 2>&1 >/dev/null)
+
+  (( debug )) && printf 'album_art_stderr=%s\n' "$album_art_stderr" >> "$tmplog"
+
+  [[ "$album_art_stderr" = *No\ such\ song ]] && printf %s\\n "$songpath" > "$missingtmp"
+
+
+  if [[ "$album_art_base64" && ! "$album_art_stderr" =~ ^No\ data ]]; then
+     echo "<img src='data:image/jpeg;base64,$album_art_base64' alt='Album Art' style='max-width: 30%; height: auto;'/>"
+  elif [[ -f "${rootcover:=${songpath%%/*}/cover.png}" ]]; then
+    album_art_base64="$(base64 < "$rootcover")"
+    echo "<img src='data:image/jpeg;base64,$album_art_base64' alt='Album Art' style='max-width: 30%; height: auto;' />"
+  elif [[ "$album_art_stderr" =~ ^No\ data|No\ such\ song || "$missingpath" ]]; then
+    if [[ "$artist" = *Grateful\ Dead* ]]; then
+      deadcover=( dead/*svg )
+#      syfsvg=$(<dead-cover-.svg)
+      syfsvg=$(<"${deadcover[RANDOM % ${#deadcover[@]}]}")
+#      echo "<img src='dead-transparent.png' alt='Album Art' style='max-width:30%;height:auto;' />"
+      echo "<div style='position:relative; left:-30px; width: 25%; height: auto;'>$syfsvg</div><br>"
+# echo "<div style='position:relative; left:-20px; max-width:30%;'>"
+# echo "        <img src='dead-transparent.svg' alt='Album Art' style='width:100%; height:auto;' />"
+# echo "     </div>"
+
+     else
+      musicdna=$(<musicdna.svg)
+      echo "<div style='width: 25%; height: auto;'>$musicdna</div><br>"
+      echo '<p>mpd returned "No data"</p>'
+     fi
+  else
+    echo "<div style='width: 25%; height: auto;'>$musicdna</div><br>"
+    echo "<p>No album art available</p>"
+  fi
+
+  echo "<hr>"
+
+}
+##--> currently_playing() <--###########################################################################
+
+
+next_track(){
+  printf '<span class="time">\n'
+  printf '<strong><em>\n'
+  printf "✨ <a href='javascript:sendAction(\"next_track\")' title='Play next song'>Next in queue</a> ✨"
+  printf '</em></strong>&nbsp;'
+  printf "<a href='/playlist_current' title='Playlist|current song'><i class='bi bi-box-arrow-up-right extlink'>"
+  printf '</i></a>\n'
+  printf '</span>\n'
+  printf '<br>\n'
+  printf '<span class="song">\n'
+  printf '<strong><em>\n'
+  printf '(%02d-%02d) %s - %s\n' "$next_disc" "$next_track" "$next_title" "$(sec2sex -z "$next_time")"
+  printf '</em></strong>\n'
+  printf '</span>\n'
+  printf '<br>\n'
+  printf "<span class='artist'><strong><em>%s</em></strong></span><br>" "$next_artist"
+  printf "<span class='album'><strong><em>%s</em></strong></span><br>" "$next_album"
+}
+##--> next_track() <--###########################################################################
+
+
+## flags
+[[ "$1" == @(--edit|e|-e) ]] && editscript
+[[ "$1" == "--long" ]] && long=1
+[[ "$1" == "--raw" ]] && raw=true
+[[ "$1" == "--playing" ]] && playing=true
+[[ "$1" == "--playlist_album" ]] && playlist_album=1
+[[ "$1" == "--playlist_current" ]] && playlist_current=1
+[[ "$1" = "--sse-port" ]] && (( "$2" )) && { mpdsseport="$2"; shift 2; continue; }
+
+## endpoints
+[[ "$REQUEST_URI" = '/long' ]] && long=1
+[[ "$REQUEST_URI" = '/raw' ]] && raw=true
+[[ "$REQUEST_URI" = '/playing' ]] && playing=true
+[[ "$REQUEST_URI" = '/playlist_album' ]] && playlist_album=1
+[[ "$REQUEST_URI" = '/playlist_current' ]] && playlist_current=1
+
+#startmpdsse &
+
+#echo "Content-type: text/html; charset=UTF-8"
+#echo ""
+#echo "<html><head><title>mpd played</title>"
+#printf '<!-- high-res webapp icon -->\n'
+#printf '<link rel="icon" type="image/png" sizes="314x314" href="webapp-icon.png">\n'
+#printf '<!-- optional fallback for 32x32 or older browsers -->\n'
+#printf '<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">\n'
+#printf '<!-- legacy fallback -->\n'
+#printf '<link rel="icon" href="favicon.ico" type="image/x-icon">\n'
+#echo "<link rel="icon" href="favicon.ico" type="image/x-icon">"
+#echo "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+#echo "<link rel='stylesheet' href='https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css'>"
+#echo "<link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css'>"
+#printf '<!-- high-res webapp icon -->\n'
+#printf '<link rel="icon" type="image/png" sizes="314x314" href="webapp-icon.png">\n'
+#printf '<!-- optional fallback for 32x32 or older browsers -->\n'
+#printf '<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">\n'
+
+printf 'Content-type: text/html; charset=UTF-8\n'
+printf 'Cache-Control: no-store\n'
+printf 'Pragma: no-cache\n'
+printf 'Expires: 10\n'
+printf '\n'
+
+process_form
+
+printf '<html><head><title>mpd played</title>\n'
+printf '<link rel="manifest" href="/manifest.json">\n'
+printf '<!-- high-res webapp icon -->\n'
+printf '<link rel="icon" type="image/png" sizes="314x314" href="/webapp-icon.png">\n'
+printf '<!-- optional fallback for 32x32 -->\n'
+printf '<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">\n'
+printf '<!-- legacy fallback -->\n'
+printf '<link rel="icon" href="/favicon.ico" type="image/x-icon">\n'
+
+# viewport & CSS
+printf '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+printf '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">\n'
+printf '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">\n'
+
+
+##this is probably not needed at all
+#source <(./mpd-current.py)
+#source <(./mpd-current -p)
+#state="$u_state"
+
+#    [[ "$repeat" = true ]] && repeat="<span class='song'>⟳$nbsp</span>" || repeat='⟳'
+#    (( u_repeat )) && repeat="<span class='song'>⟳$nbsp</span>" || repeat='⟳'
+
+#    [[ "$consume" = true ]] && consume="✅" || consume="❌"
+#    [[ "$random" = true ]] && random="✅" || random="❌"
+#    [[ "$single" = true ]] && single="✅" || unset single
+
+
+if [[ "$state" = playing ]] && (( ! long )); then
+  echo "<met#80cbc4a http-equiv='refresh' content='45'>"
+fi
+
+style(){
+  echo "<style>"
+  echo "/* Dark theme colors only */"
+  echo ":root {"
+# echo "    --bg-color: #121212;"
+  echo "    --bg-color: #1e2122;"
+  echo "    --text-color: #e0e0e0;"
+  echo "    --pre-bg-color: #1e1e1e;"
+  echo "    --pre-text-color: #e0e0e0;"
+  echo "    --timestamp-color: #80cbc4;"
+# echo "    --song-color: #81c784;"
+  echo "    --song-color: #cfcd15;"
+# echo "    --artist-color: #e57373;"
+# echo "    --artist-color: #d94031;"
+  echo "    --artist-color: #ff1900;"
+  echo "    --green-coloe: #3ea3a3;"
+  printf '    --playing-color: #3ea3a3;\n'
+  printf '    --playing-color: #00A000;\n'
+  echo '    --album-color: #e4dbd3;\n'
+# echo "    --album-color: #b0bec5;"
+# echo "    --album-color: #912715;"
+  echo "    --button-bg-color: #333;"
+  echo "    --button-text-color: #fff;"
+  echo "}"
+  echo ""
+  echo "body { font-family: Arial, sans-serif; background-color: #1e2122; color: #333; padding: 20px; }"
+  echo "h1 { color: #444; }"
+  echo "pre { background-color: 383838; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; line-height: 1.5; }"
+  echo "h2, h3 { margin: 0; padding: 0; }"
+  echo "* { text-decoration-color: #1e2122;"
+  echo "    text-decoration-thickness: 3.5px; }"
+# echo ".timestamp { color: #007bff; }"
+  echo ".timestamp { color: #80cbc4; }"
+  echo ".time { color: #007bff; }"
+# echo ".song { color: #28a745; }"
+  echo ".song { color: #facc15; }"
+# echo ".artist { color: #dc3545; }"
+  echo ".artist { color: #d94031; }"
+  echo ".artist { color: #d73e30; }"
+  printf '.path { color: #5e5b55; }      \n'
+  printf '.album { color: #6c757d; }     \n'
+  printf '.bullet-1 { color: #76726a; }   \n'
+  printf '.pl-head { color: #cbc4b7; }    \n'
+  printf '.pauseicon { font-style: normal;      \n' #  /* remove italics */
+# printf '             line-height: 1.2em;      \n'
+  printf '             color: #d94031;          \n' #  /* red color */
+  printf '             letter-spacing: -0.05em; \n' #  /* optional: tighten spacing for the pause bars */
+  printf '           }                          \n'
+# printf '@media (max-width: 768px) { \n'
+# printf '    .pauseicon { \n'
+# printf '        letter-spacing: -0.5em;  /* tighter spacing for small screens */ } \n'
+# printf ' }\n'
+
+#* Mobile only: replace ▮▮ with emoji */
+  printf '@media (max-width: 768px) {  \n'
+  printf '    .pauseicon {           \n'
+  printf '        visibility: hidden;  \n'
+  printf '        position: absolute;  \n'
+# printf '        font-size: 0.8em;  /* shrink the character */ \n'
+# printf '        font-size: 1.2em;  /* shrink the character */ \n'
+# printf '        letter-spacing: -0.5em; \n'
+# printf '        transform: scaleY(2.02);  /* 60% of original height */ \n'
+# printf '        line-height: 2.2em;  /* shrink vertical height */ \n'
+  printf '    }                         \n'
+  printf '    .pauseicon::after {      \n'
+# printf '       content: "▮▮";        \n'
+  printf '        content: "⏯";        \n'
+  printf '        visibility: visible; \n'
+  printf '        position: absolute;  \n'
+  printf '        left: 0; }           \n'
+  printf '}                            \n'
+
+  printf '.smallemoji { '
+  printf '    font-size: 0.7em; /* adjust smaller */ '
+  printf '    line-height: 1;    /* optional, keeps spacing tight */ '
+  printf '    vertical-align: middle; /* optional, aligns with text */ '
+  printf '} '
+  printf '@media (max-width: 768px) {\n'
+  printf '    .smallemoji {\n'
+  printf '        font-size: 0.6em; /* adjust smaller */\n'
+  printf '        line-height: 1;    /* keeps spacing tight */\n'
+  printf '        vertical-align: middle; /* aligns with text */\n'
+  printf '    }\n'
+  printf '}\n'
+
+  printf '.skipend { line-height: 1.2em;       \n'
+  printf '           position: absolute;       \n'
+  printf '           color: #007bff    ;       \n'
+  printf '           font-style: normal; }     \n'
+  printf '@media (max-width: 768px) {          \n'
+  printf '    .skipend { visibility: hidden;   \n'
+  printf '               font-style: normal;   \n'
+  printf '               font-size: 1.2em;     \n'
+  printf '               color: #007bff;       \n'
+  printf '               position: relative; } \n'
+  printf '    .skipend::after { content: "⏭";  \n'
+  printf '               visibility: visible;  \n'
+  printf '               position: absolute;   \n'
+  printf '               left: 0; }            \n'
+  printf ' }                                   \n'
+
+
+  printf '.desktop { display: inline; }\n'
+  printf '.mobile { display: none; }\n'
+
+  printf '@media (max-width: 768px) {      '
+  printf '    .desktop { display: none; }  '
+  printf '    .mobile { display: inline; } '
+  printf '    .smallemoji { font-size: 0.7em; line-height: 1; vertical-align: middle; } '
+  printf '} '
+
+
+  printf '.notes { letter-spacing: -0.15em;   /* tighten the music notes */ \n'
+  printf '         font-kerning: none;        /* optional: turn off font kerning */ }\n'
+# printf '.playing { color: #3ea3a3; }\n'
+# printf '.playing { color: #00A000; }\n'
+# printf '.playing { color: #007A33; }\n'
+  printf '.playing { color: #00A000; }\n'
+# printf '.playing { color: #00C000; }\n'
+# printf '.playing { color: #007A33; }\n'
+# printf '.playing { color: #00875A; }\n'
+  printf '.album { color: #e4dbd3; }\n'
+# echo ".album { color: #912715; }"
+# echo ".song a, .album a { color: inherit; text-decoration: underline; }"
+  echo ".song a, .album a, .artist a { color: inherit; font-style: italic; }"
+# echo ".song a:hover, .album a:hover, .artist a:hover {text-decoration: underline; }"
+  echo ".watermark { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('$cover'); opacity: 0.1; pointer-events: none; }"
+  echo ".tab-stops { tab-size: 8; -moz-tab-size: 8; -o-tab-size: 8; }"
+# echo ".watermark {"
+# echo "    width: 100%;"
+# echo "    height: 100%;"
+# echo "    position: fixed;"
+# echo "    top: 0;"
+# echo "    left: 0;"
+# echo "    background-size: cover;"
+# echo "    background-image: url('data:image/jpeg;base64,$album_art_base64');"
+# echo "    opacity: 0.5;"
+# echo "    z-index: -1;"
+# echo "}"
+
+  echo ".pre-alternate:nth-child(odd) { color: #ff0000; }"  # Alternate color for odd in raw output
+  echo ".button-container { display: flex; flex-direction: column; gap: 10px; }"  # Change to column layout
+  echo ".button-row { display: flex; gap: 10px; }"
+  echo ".extlink { font-size:0.6em; vertical-align:super; }" # little box with arrow pointing top right, superscript, smaller.
+
+  echo "</style>"
+}
+##--> style() <--##################################################################
+
+style
+
+## define javascript functions
+sendAction
+sendRootAction
+sendActionNoRefresh
+
+echo "</head>"
+
+echo "<body>"
+autorefresh
+sserefresh
+
+## serve the common top of the web page:
+mpdlog_title
+currently_playing
+
+
+if [[ "$raw" = true ]]; then
+  tail1=2000 && tail2=250
+  logsize=$(stat -c %s "${mpdlogfile[@]}")
+  (( logsize < 300000 )) && mpdlogfile=( /var/log/mpd/mpd.log.1 "$mpdlogfile" )
+  echo "<pre>"
+  while read -r i; do
+    unset skipored
+    i=$(echo "$i" |sed 's/ : player//')
+    [[ "$i" = @(*\:\ skipped\ *|*\:\ ignored\ *) ]] && skipored=true
+    echo "<span class='pre-alternate'>${skipored:+<s>}$i${skipored:+</s>}</span>"
+  done < <(cat "${mpdlogfile[@]}" | tail -n "${tail1}" | grep player\:\ |grep -v stored_playlist | tail -n "${tail2}" | tac)
+  echo "</pre>"
+
+  navbuttons
+
+  echo "</body>"
+  exit 0
+
+
+elif (( playlist_album )); then
+  next_track
+  printf '<hr>\n'
+  # grab playlist info with positions
+  readarray -t playlist_array < <(
+    \mpc playlist -f '%position%☢%artist%☢%title%☢%albumartist%%album%☢%disc%☢%track%☢%time%' |
+    grep -F "$album_artist$album"
+  )
+  echo "<div class='playlist-album'>"
+#  printf '<h3 class="pl-head">Songs in playlist from <em class="album">%s:</em></h3>\n' "$album"
+printf '<h3 class="pl-head">Songs in playlist from <em class="album">\n'
+printf '<a href="https://musicbrainz.org/release/%s" style="text-decoration:none;color:inherit;" target="_blank" rel="noopener" title="Open release in MusicBrainz">%s</a></em>:</h3>\n' "$mbalbumid" "$album"
+  printf '<span class="path">Path: %s</span><br>\n' "${filepath%\/*}"
+  printf '<br>\n'
+
+  echo "<ul>"
+
+  for entry in "${playlist_array[@]}"; do
+    IFS='☢' read -r pl_pos pl_artist pl_title pl_albuminfo pl_dd pl_tt pl_tracktime <<< "$entry"
+
+    # Use text link instead of button
+    printf '<li>'
+    (( pl_pos == song_position )) && printf "<span class='artist'>"
+    printf "<a href='javascript:sendRootAction(\"pl_number:%s\")' title='Play %s'>" "$pl_pos" "$pl_pos"
+    printf '<strong>%s</strong> – %.02d-%.02d - %s [%s]' "$pl_artist" "$pl_dd" "$pl_tt" "$pl_title" "$pl_tracktime"
+    (( pl_pos == song_position )) && printf "</span>"
+    printf '</a></li>\n'
+  done
+
+  printf '<br>\n'
+  echo "</ul>"
+  echo "</div>"
+  printf '<hr style="border:none; height:2px; background-color:currentColor;" class="artist">\n'
+  navbuttons
+  echo "</body>"
+  exit 0
+
+
+##--> playlist_album <--##########################################################################################
+
+
+elif (( playlist_current )); then
+  next_track
+
+  # grab playlist info with positions
+  readarray -t playlist_array < <(
+    \mpc playlist -f '%position%☢%albumartist%☢%artist%☢%title%☢%album%☢%disc%☢%track%☢%time%' |
+       grep -C 12 -E ^"${song_position}☢"
+  )
+  printf '<hr>\n'
+  printf '<div class="playlist-album">\n'
+  printf '<h3 class="pl-head">Playlist @ current song:<br></h3><br>\n' #&nbsp;&nbsp;<em>%s – "%s:"</em></h3>\n' "$artist" "$title"
+  printf '<ul>\n'
+
+  printf '<ul>\n'  # start the outer list
+  last_pl_album=''
+  for entry in "${playlist_array[@]}"; do
+    IFS='☢' read -r pl_pos pl_album_artist pl_artist pl_title pl_album pl_dd pl_tt pl_tracktime <<< "$entry"
+
+    if [[ "$pl_album" != "$last_pl_album" ]]; then
+      # Close the previous album’s <ul> if one was open
+      [[ -n "$last_pl_album" ]] && printf '</ul></li>\n'
+      # Start a new parent <li> for the album
+      printf '<li style="color:#cbc4b7"><strong class="bullet-1">%s -- %s</strong>\n' "$pl_album_artist" "$pl_album"
+      printf '<ul>\n'
+    fi
+
+    # Each song = demoted <li>
+    printf '<li>'
+    (( song_position == pl_pos )) && printf '<span class="artist">'
+    printf "<a href='javascript:sendRootAction(\"pl_number:%s\")' title='Play %s'>" "$pl_pos" "$pl_pos"
+    printf '<strong>%s</strong> – %.02d-%.02d - %s [%s]' \
+      "$pl_artist" "$pl_dd" "$pl_tt" "$pl_title" "$pl_tracktime"
+    (( song_position == pl_pos )) && printf '</span>'
+    printf '</a></li>\n'
+
+    last_pl_album="$pl_album"
+  done
+  # Close any remaining lists
+  [[ -n "$last_pl_album" ]] && printf '</ul></li>\n'
+  printf '</ul>\n'
+
+  echo "</ul>"
+  echo "</div>"
+  navbuttons
+  echo "</body>"
+  exit 0
+
+
+##--> playlist_current <--##########################################################################################
+
+
+
+elif [[ "$playing" = true ]]; then
+# echo "<pre>"
+#  while read -r i; do
+#    echo "$i"
+#  done < <(mpd-current-json)
+  json_output=$(mpd-current-json)
+#  echo "$json_output"
+#  echo "</pre>"
+
+  echo "<div class='currently-playing'>"
+  echo "  <h3>Currently Playing:</h3>"
+
+  # Parse and display status section
+  echo "  <div class='status'>"
+  echo "    <h4>Status:</h4>"
+  echo "    <ul>"
+  echo "$json_output" | jq -r '.status | to_entries[] | "      <li>\(.key): \(.value)</li>"'
+  echo "    </ul>"
+  echo "  </div>"
+
+  # Parse and display tags section
+  echo "  <div class='tags'>"
+  echo "    <h4>Tags:</h4>"
+  echo "    <ul>"
+  echo "$json_output" | jq -r '.tags | to_entries[] | "      <li>\(.key): \(.value)</li>"'
+  echo "    </ul>"
+  echo "  </div>"
+
+  echo "</div>"
+  echo "<hr>"
+
+  navbuttons
+  echo "</body>"
+  exit 0
+
+fi
+
+##--> playing (json) <--##########################################################################################
+
+next_track
+
+printf '<hr style="background-color:#912715">\n'
+printf "<strong class='time'>🪵 of previous songs:</strong><br>"
+printf "<br>"
+
+
+
+mtime=$(stat -c %Y "$mpdlog")
+htmllogcacheb="/tmp/mpdlogcache"
+htmllogcache="$htmllogcacheb.$mtime"
+htmlloglongcache="$htmllogcacheb.long.$mtime"
+
+# If cache exists → output & exit cleanly
+if [[ -r "$htmllogcache" ]] && (( ! long )); then
+  cat "$htmllogcache"
+  navbuttons
+  autorefresh
+  echo "</body>"
+  echo "</html>"
+  exit
+elif [[ -r "$htmlloglongcache" ]] && (( long )); then
+  cat "$htmlloglongcache"
+  navbuttons
+  autorefresh
+  echo "</body>"
+  echo "</html>"
+  exit
+fi
+
+# No cache → delete old ones
+rm -f "$htmllogcacheb".* 2>/dev/null
+
+#tail1=500; tail2=12
+tail1=500; tail2=24
+logsize=$(stat -c %s "$mpdlog")
+logmin=30000
+tailcmd=( tail -n "$tail1" "$mpdlog" )
+
+(( long )) && tail1=20000 tail2=250;logthreshold=300000
+(( long )) && htmllogcache="$htmlloglongcache"
+
+(( logsize < logmin )) && tailcmd=( tail -n "$tail1" "$mpdlog.1" "$mpdlog" )
+
+#while read -r i; do
+#  unset artist action # timestamp songpath qsongpath song duration album disc track ddtt
+#  timestamp="${i%% : *}"; timestamp=$(ampm "$timestamp")
+#  action="${i#*player: }"; action="${action%% *}"
+#  songpath="${i%\"*}"; songpath="${songpath#*\"}"
+#  song=$(basename "$songpath"); song="${song%.*}"
+
+
+
+###############################################
+# Convert ISO YYYY-MM-DDTHH:MM:SS → local epoch
+# Pure Bash, zero forks
+###############################################
+iso_local_epoch(){
+  local iso=$1 Y M D h m s A B
+
+  Y=${iso:0:4} M=${iso:5:2} D=${iso:8:2} h=${iso:11:2} m=${iso:14:2} s=${iso:17:2}
+
+  # Julian day math
+  ((M <= 2)) && ((Y--, M+=12))
+
+  A=$((Y/100)) B=$((2 - A + A/4))
+
+  # Julian day number (integer)
+  local JD=$(( (36525*(Y+4716))/100 + (306*(M+1))/10 + D + B - 1524 ))
+
+  # Convert to epoch (UTC)
+  local epoch_utc=$(( (JD - 2440588)*86400 + 10#$h*3600 + 10#$m*60 + 10#$s ))
+
+  # Convert epoch UTC → local epoch
+  printf %s\\n $((epoch_utc - tz_offset_sec))
+}
+
+tz_offset_raw=$(date +%z)
+tz_offset_sec=$(( (${tz_offset_raw:0:3} * 3600) + (${tz_offset_raw:3:2} * 60) ))
+
+while read -r ts _ action qpath; do
+  printf -v timestamp '%(%b %d %l:%M %P)T' "$(iso_local_epoch "$ts")"
+  songpath="${qpath%\"}" songpath="${songpath#\"}"
+  song="${songpath##*\/}" song="${song%.*}"
+
+#  if [[ "$action" = @(skipped|ignored) ]]; then
+#    (( ! long )) &&  duration=$(mediainfo --Inform="General;%Duration/String3%" "/library/music/$songpath")
+#    (( ! long )) &&  duration="${duration#*:}" duration="${duration%.*}" #; : "${duration:=duration unavail.}"
+#    if [[ "$song" =~ .+\ --\ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+ ]]; then
+#      artist="${song%% -- *}"
+#      ddtt="${song%% - *}"; ddtt="${ddtt##* -- }"
+#      unset disc track
+#      [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt"
+#      song="${song#* - }"
+#    elif [[ "$song" =~ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+\ --\ .+ ]]; then
+#      artist="${song%% -- *}"; artist="${artist#* - }"
+#      ddtt="${BASH_REMATCH[1]}"
+#      unset disc track
+#      [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt"
+#      song="${song#* -- }"
+#    else
+#      artist="<strong>The song $song does not fit the RegEx!</strong>"
+#    fi
+#
+#    songdir="${songpath%\/*}"
+##   artist="${songdir%% -- *}"; artist="${artist##*\/}"
+#    album="${songdir#* -- }"; album="${album##*\/}"; album="${album% (mp3)}"
+  if [[ "$action" = @(skipped|ignored) ]]; then
+#   echo "skipped: $musicdir/$songpath"
+#   mpd_host="$MPD_HOST" mpd_port="$MPD_PORT"
+#   unset MPD_HOST MPD_PORT
+    source <(./mpdtags --socket "$musicdir/$songpath")
+#   MPD_HOST="$mpd_host" MPD_PORT="$mpd_port"
+#   unset mpd_host mpd_port
+  else
+    source <(./mpdtags "$songpath")
+  fi
+
+  # clean up some numbers:
+  duration=$(sec2sex "$time")
+  printf -v disc '%02d' "${disc:=0}"
+  printf -v track '%02d' "${track:=0}"
+
+  echo "<strong class='timestamp'>@ $timestamp, $action      </strong><br>"
+
+  [[ "$action" = skipped ]] && echo "<s>"
+  [[ "$action" = ignored ]] && {
+    printf '<span style="text-decoration: line-through;\n'
+    printf ' font-style: italic;\n'
+    printf ' text-decoration-color: #d73e30;\n'
+    printf ' text-decoration-thickness: 3px;">\n'
+  }
+
+  (( ! long )) && echo "<strong class='song'>($disc-$track) <a class='hidden-link' href='https://musicbrainz.org/mbid/$musicbrainz_releasetrackid' target='_blank'>$title</a> ${duration:+- $duration}</strong><br>"
+  (( long )) &&  echo "<strong class='song'>($disc-$track) <a class='hidden-link' href='https://musicbrainz.org/mbid/$musicbrainz_releasetrackid' target='_blank'>$title ${duration:+- $duration}</a></strong><br>"
+
+  [[ "$action" = skipped ]] && echo "</s>"
+  [[ "$action" = ignored ]] && echo "</span>"
+
+  echo "<strong class='artist'><a href='https://musicbrainz.org/artist/$musicbrainz_artistid' target='_blank'>$artist</a></strong><br>"
+
+  echo "<strong class='album'><a href='https://musicbrainz.org/release/$musicbrainz_albumid' target='_blank'>$album</a></strong><br>"
+
+  if (( long )); then
+    echo "<span class='album'>${songpath}</span><br>"
+  fi 2>/dev/null
+
+  echo "<br>"
+
+done < <( "${tailcmd[@]}" |
+          grep player\:\ |
+          tail -n "${tail2}" |
+          tac ) | tee "$htmllogcache"
+
+## This is for the mpd 0.23 time stamps:
+#while read b d T _ _ action qpath; do
+#  timestamp=$(ampm "$b $d $T")
+#  songpath="${qpath%\"}" songpath="${songpath#\"}"
+#  song="${songpath##*\/}" song="${song%.*}"
+#
+#(( ! long )) &&  duration=$(mediainfo --Inform="General;%Duration/String3%" "/library/music/$songpath")
+#(( ! long )) &&  duration="${duration#*:}"; duration="${duration%.*}"
+#
+########  Method B: this takes a ton of time!!!
+########  duration=$(mpc --format %time% search filename "$songpath")
+#
+########  Method C: this does not work when songpath contains special characters, but it works otherwise:
+########  duration=$(mpdc find\ \"\(File\ ==\ \\\""$songpath"\\\"\)\"|grep duration)
+#
+#  if [[ "$song" =~ .+\ --\ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+ ]]; then
+#    artist="${song%% -- *}"
+#    ddtt="${song%% - *}"; ddtt="${ddtt##* -- }"
+#    unset disc track
+#    [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt"
+#    song="${song#* - }"
+#  elif [[ "$song" =~ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+\ --\ .+ ]]; then
+#    artist="${song%% -- *}"; artist="${artist#* - }"
+#    ddtt="${song% - *}"
+#    unset disc track
+#    [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt"
+#    song="${song#* -- }"
+#  else
+#    artist="<strong>The song $song does not fit the RegEx!</strong>"
+#  fi
+#
+#  songdir=$(dirname "$songpath")
+## artist="${songdir%% -- *}"; artist="${artist##*\/}"
+#  album="${songdir#* -- }"; album="${album##*\/}"; album="${album% (mp3)}"
+#
+#  echo "<strong class='timestamp'>@ $timestamp, $action      </strong><br>"
+#
+#  [[ "$action" = skipped ]] && echo "<s>"
+#  [[ "$action" = ignored ]] && { printf '<span style="text-decoration: line-through;\n'
+#                                 printf ' font-style: italic;\n'
+#                                 printf ' text-decoration-color: #d73e30;\n'
+#                                 printf ' text-decoration-thickness: 3px;">\n'
+#                               }
+#(( ! long )) && echo "<strong class='song'>($disc-$track) $song - $duration</strong><br>"
+#  (( long )) && echo "<strong class='song'>($disc-$track) $song            </strong><br>"
+##  [[ "$action" = @(skipped|ignored) ]] && echo "</s></i>"
+#   [[ "$action" = skipped ]] && echo "</s>"
+#   [[ "$action" = ignored ]] && echo "</span>"
+#                echo "<strong class='artist'>$artist                       </strong><br>"
+#                echo "<strong class='album'>$album                         </strong><br>"
+#
+#  if (( long )); then
+#    echo "<span class='album'>${songpath}</span><br>"
+#  fi 2>/dev/null
+#
+#  echo "<br>"
+#
+#  #echo "<span class='album'>${songpath}</span><br>"
+#
+#
+#done < <( "${tailcmd[@]}" |
+#          grep player\:\ |
+#          tail -n "${tail2}" |
+#          tac )
+
+
+
+###creating an array may be slightly faster:
+#  output=""
+#  [[ "$action" = @(skipped|ignored) ]] && output+="<s>"
+#  [[ "$action" = ignored ]] && output+="<i>"
+#  output+="<strong class='timestamp'>@ $timestamp, $action</strong><br>"
+#  output+="<span class='song'>($disc-$track) $song - $duration</span><br>"
+#  output+="<span class='artist'>$artist</span><br>"
+#  output+="<span class='album'>$album</span><br>"
+#
+#  if (( long )); then
+#    output+="<span class='album'>${songpath}</span><br>"
+#  fi
+#
+#  output+="<br>"
+#  [[ "$action" = @(skipped|ignored) ]] && output+="</s></i>"
+#
+#  echo "$output"
+
+
+
+
+#done < <( cat "${mpdlogfile[@]}" |
+#          tail -n "${tail1}" |
+#          grep player\:\ |
+#          tail -n "${tail2}" |
+#          tac )
+
+
+navbuttons
+autorefresh
+echo "</body>"
+echo "</html>"
+
+exit
+
