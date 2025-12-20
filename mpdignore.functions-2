@@ -86,9 +86,10 @@ if [[ -f "$mpdconf" ]] # defines the location of mpd playlist directory; this is
    pldir="$usermpdpd"  # manually code the location if /etc/mpd.conf doesn't exist.
 fi
 }
+##--> getmpdpldir() <--####################################################################################
 
 
-getmpdlog() {
+getmpdlog(){
 if [[ -f "$mpdconf" ]]                  # defines the location of your mpd logfile path; this is defined>
  then
    mpdlog=$(grep -v "^#" "$mpdconf" | grep -v "^$" | grep log_file)
@@ -99,32 +100,58 @@ if [[ -f "$mpdconf" ]]                  # defines the location of your mpd logfi
    mpdlog="$usermpdlf"        # manually code the location if /etc/mpd.conf doesn't exist.
 fi
 }
+##--> getmpdlog() <--####################################################################################
 
-#logsong() {
-#   i=$(date "+%b %d %H:%M : player: $1 ")
-#   [[ "$filepath" ]] && j="$filepath" || j=$(mpcp current -f %file%)
-#   local logged=$(printf '%s\"%s\"\n' "$i" "$j")
-##   ssh -p "$sshport" "$mpdhost" "echo "${logged@Q}" >> "$mpdlog"" 2>/dev/null
-#   ssh -p "$sshport" "$mpdhost" "printf '%s\\n' ${logged@Q} >> $mpdlog"
-##   ssh -p "$sshport" "$mpdhost" "echo "$logged" | tee -a "$mpdlog""
-#}
-logsong() {
-   mpdskipm3u='/library/music/mpdplaylists/.mpdskip.m3u'
-   local i j logged
-   i=$(date "+%b %d %H:%M : player: $1 ")
-   [[ "$filepath" ]] && j="$filepath" || j=$(mpcp current -f %file%)
-#  logged=$(printf '%s\"%s\"\n' "$i" "$j")
-##  ssh -p "$sshport" "$mpdhost" "echo "${logged@Q}" >> "$mpdlog"" 2>/dev/null
-#   ssh -p "$sshport" "$mpdhost" "printf '%s\\n' ${logged@Q} >> $mpdlog"
-##  ssh -p "$sshport" "$mpdhost" "echo "$logged" | tee -a "$mpdlog""
-    logged="$j"
-    local mpdlog="${mpdskipm3u}"
-    sshout=$(ssh -p "$sshport" "$mpdhost" "printf '%s\n' ${logged@Q} 2>&1 >> $mpdlog")
-    [[ "$sshout" = *No\ xauth\ data* ]] && printf '[error] %s\n' "$sshout"
+logsong(){
+  ##requires shopt -s extglob
+  shopt -p extglob >/dev/null || { extgloboff=1; shopt -s extglob; }
+  ## this first line might never occurr, I'm not sure I understand how bash works here.
+  ## [[ "$1" = --action=\"* ]] && { action="${1#*\"}" action="${action%\"}"; shift; }
+  [[ "$1" = --action=* ]] && { action="${1#*=}"; shift; }
+  : "${action:=skip}"
+  : "${mpdskipm3u:=/library/music/mpdplaylists/.mpdskip.m3u}"
+  local i
+  local         rc=0
+  local     action="$action"
+  local mpdskipm3u="$mpdskipm3u"
+  local     logged="$filepath"
+  local     mpdlog="$mpdskipm3u"
+  ## format for mpd 0.23.x
+  ## i=$(date "+%b %d %H:%M : player: $1 ")
+  [[ "$logged" ]] || logged=$(mpcp current -f %file%)
+  ## use if need to actually write to log:
+  ## printf -v logline '%(%Y-%m-%dT%H:%M:%S)T player: %s "%s"\n' -1 "$action" "$line"
 
+  ## various attempts at making ssh work:
+  ##  ssh -p "$sshport" "$mpdhost" "echo "${logged@Q}" >> "$mpdlog"" 2>/dev/null
+  ##  ssh -p "$sshport" "$mpdhost" "printf '%s\\n' ${logged@Q} >> $mpdlog"
+  ##  ssh -p "$sshport" "$mpdhost" "echo "$logged" | tee -a "$mpdlog""
+
+  ## change to readarray to address more issues with sshL
+  # sshout=$(ssh -p "$sshport" "$mpdhost" "printf '%s\n' ${logged@Q} >> $mpdlog" 2>&1)
+
+  [[ mpdhost != @(localhost|127.0.0.1) ]] && remotempd=1
+  if (( remotempd )); then
+    readarray -t sshout < <(ssh -p "$sshport" "$mpdhost" "printf '%s\n' ${logged@Q} >> $mpdlog" 2>&1)
+    for (( i=0; i<"${#sshout[@]}"; i++ )); do
+      [[ "${sshout[$i]}" = "mux_client_request_session: session request failed:"* ]] && unset 'sshout[i]'
+      [[ "${sshout[$i]}" = "ControlSocket"*"already exists"* ]] && unset 'sshout[i]'
+      [[ "${sshout[$i]}" = "Warning: untrusted X11 forwarding setup failed:"* ]] && unset 'sshout[i]'
+      [[ "${sshout[$i]}" = *No\ xauth\ data* ]] && unset 'sshout[i]'
+    done
+    ## compact array
+    sshout=( "${sshout[@]}" )
+    (( "${#sshout[@]}" )) && printf '[error] ssh: %s\n' "${sshout[@]}" >&2 && rc=1
+  else
+     printf '%s\n' ${logged@Q} >> "$mpdlog"
+  fi
+
+  (( extgloboff )) && shopt -u extglob
+  return "$rc"
 }
+##--> logsong() <--####################################################################################
 
-mpcp() {
+mpcp(){
 #    [[ ! -n "$mpdpass" ]] && getmpdpass
     [[ -z "$mpdpass" || -z "$mpchost" ]] && . "/$HOME/.config/mpd-local.conf"
 
@@ -132,7 +159,6 @@ mpcp() {
 #local mpcex=( \mpc "${mpdhost:+-h ${mpdpass:+${mpdpass}@}${mpdhost}}" )
 
  \mpc ${mpchost:+-h ${mpdpass:+"${mpdpass}@"}"${mpchost}"} "$@"
-
 }
 ##--> mpcp() <--####################################################################################
 
@@ -155,6 +181,7 @@ mediaduration(){
   printf "\nDuration of .opus files: "
   find -type f -iname "*.opus" -print0 | xargs -0 mplayer -vo dummy -ao dummy -identify 2>/dev/null | perl -nle '/ID_LENGTH=([0-9\.]+)/ && ($t +=$1) && printf "%02d:%02d:%02d\n",$t/3600,$t/60%60,$t%60' | tail -n 1
 }
+##--> mediaduration() <--####################################################################################
 
 
 
@@ -482,6 +509,161 @@ hr2(){
   printf '%s %s %s\n' "$left_dashes" "$status" "$right_dashes"
 }
 ##--> hr2() <--###########################################################################
+
+
+cklinger(){ ## not the active cklinger
+  shopt -p nullglob >/dev/null 2>&1 || { nullgloboff=1; shopt -s nullglob; } 2>/dev/null
+  local verbname="${FUNCNAME}verb"
+  local verbose="${!verbname:-0}"
+  local debug="$verbose"
+  local tmplog=/tmp/cklinger.log
+  local end endpause procfiles
+  local lingerts='ℹ️  20..-..-..T..:..:..: '
+  local lingerdir="${lingerdir:-/var/lib/mpd/mpdlinger}"
+  local lingerpidf="${lingerpidfl:-${lingerdir:-/var/lib/mpd/mpdlinger}/mpdlinger.pid}"
+  local lingerlog="${lingerlog:-$lingerdir/mpdlinger.log}"
+  local lingercmd="${lingercmd:-$lingerdir/mpdlinger.cmd}"
+  local line
+
+  (( verbose )) && echo "[info]: lingerdir=$lingerdir" >> "$tmplog" 2>&1
+  (( verbose )) && echo "[info]: lingerpidf=$lingerpidf" >> "$tmplog" 2>&1
+  (( verbose )) && echo "[info]: lingerlog=$lingerlog" >> "$tmplog" 2>&1
+  (( verbose )) && cat  "$lingerpidf" >> "$tmplog" 2>&1
+
+
+  (( verbose )) && tail -n50 "$lingerlog" >> "$tmplog" 2>&1
+
+  # refetch a fresh PID.
+  lingerpid=$(<"$lingerpidf") && (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) &&
+    (( "${#procfiles[@]}" )) && lingeron=1
+
+  while read -r line; do
+    # 1️⃣ Pause/resume signals first
+    case "$line" in
+      *"Turning pause off."* | *"Contents of $lingercmd: \"resume\""*)
+        : "${lingerpause:=0}"
+        continue
+        ;;
+      *"Turning pause on."* | *"Contents of $lingercmd: \"paused 1\""*)
+        : "${lingerpause:=1}"
+        continue
+        ;;
+    esac
+
+    # 2️⃣ Ending loops
+    [[ "$line" =~ \.\.\.Ending\ while\ loop ]] && { end=1; : "${lingerpause:=0}"; continue; }
+    [[ "$line" =~ ${lingerts}\.\.\.Ending\ pause\ loop ]] && { endpause=1; : "${lingerpause:=1}"; continue; }
+
+    # 3️⃣ Count/limit (first-seen only)
+    [[ "$line" =~ ^limit\ =\ ([0-9]+) ]] && : "${lingerlimit:=${BASH_REMATCH[1]}}"
+    [[ "$line" =~ ^count\ =\ ([0-9]+) ]] && : "${lingercount:=${BASH_REMATCH[1]}}"
+
+    # 4️⃣ Starting loops: reset if needed
+    if [[ "$line" =~ ${lingerts}Starting\ (pause|while)\ loop\.\.\. ]]; then
+      if (( end || endpause )) && (( lingerlimit && lingercount )); then
+        break
+      else
+        unset end #lingerlimit lingercount
+      fi
+    fi
+
+    (( debug == 2 )) && printf %s\\n "$line" >> "$tmplog"
+
+  done < <(tail --lines 100 "$lingerlog" | tac)
+
+  # 5️⃣ Normalize 0/limit → limit/limit
+  (( lingercount == 0 )) && (( lingerlimit )) && lingercount="$lingerlimit"
+
+  # 6️⃣ Debug logging
+  (( debug )) && {
+            printf 'lingercount/lingerlimit = %s/%s\n' "$lingercount" "$lingerlimit" >> "$tmplog"
+            printf 'lingerpid=%s\nlingeron=%s\nend=%s\nlingerpause=%s\n' \
+                     "$lingerpid" \
+                     "$lingeron" \
+                     "$end" \
+                     "$lingerpause" >> "$tmplog"; }
+
+  (( nullgloboff )) && shopt -u nullglob >/dev/null
+}
+##--> cklinger() <--###########################################################################
+
+
+cklinger(){
+  shopt -p nullglob >/dev/null 2>&1 || { nullgloboff=1; shopt -s nullglob; } 2>/dev/null
+  unset lingeron lingercount lingerlimit lingerpause
+  local verbname="${FUNCNAME}verb"
+  local verbose="${!verbname:-0}"
+  local debug="$verbose"
+  local tmplog=/tmp/cklinger.log
+  local end endpause procfiles line
+  local lingerts='ℹ️  20..-..-..T..:..:..: '
+  local lingerdir="${lingerdir:-/var/lib/mpd/mpdlinger}"
+  local lingerpidf="${lingerpidf:-$lingerdir/mpdlinger.pid}"
+  local lingerstate="${lingerstate:-$lingerdir/mpdlinger.state}"
+  local lingerlog="${lingerlog:-$lingerdir/mpdlinger.log}"
+  local lingercmd="${lingercmd:-$lingerdir/mpdlinger.cmd}"
+  (( verbose )) && echo "[info]: lingerdir=$lingerdir" >> "$tmplog" 2>&1
+  (( verbose )) && echo "[info]: lingerpidf=$lingerpidf" >> "$tmplog" 2>&1
+  (( verbose )) && echo "[info]: lingerlog=$lingerlog" >> "$tmplog" 2>&1
+  (( verbose )) && cat "$lingerpidf" >> "$tmplog" 2>&1
+#  (( verbose )) && tail -n50 "$lingerlog" >> "$tmplog" 2>&1
+  (( verbose )) && cat "$lingerstate" >> "$tmplog" 2>&1
+
+#  while read -r line; do
+#    case "$line" in
+#      *"Turning pause off."* | *"Contents of $lingercmd: \"resume\""*)
+#           : "${lingerpause:=0}";
+#           continue
+#           ;;
+#      *"Turning pause on."* | *"Contents of $lingercmd: \"paused 1\""*)
+#           : "${lingerpause:=1}";
+#           continue
+#           ;;
+#    esac;
+#    [[ "$line" =~ \.\.\.Ending\ while\ loop ]] && {
+#        end=1;
+#        : "${lingerpause:=0}";
+#        continue
+#      };
+#        [[ "$line" =~ ${lingerts}\.\.\.Ending\ pause\ loop ]] && {
+#            endpause=1;
+#            : "${lingerpause:=1}";
+#            continue
+#        };
+#        [[ "$line" =~ ^limit\ =\ ([0-9]+) ]] && : "${lingerlimit:=${BASH_REMATCH[1]}}";
+#        [[ "$line" =~ ^count\ =\ ([0-9]+) ]] && : "${lingercount:=${BASH_REMATCH[1]}}";
+#        if [[ "$line" =~ ${lingerts}Starting\ (pause|while)\ loop\.\.\. ]]; then
+#            if (( end || endpause )) && (( lingerlimit && lingercount )); then
+#                break;
+#            else
+#                unset end;
+#            fi;
+#        fi;
+#        (( debug == 2 )) && printf %s\\n "$line" >> "$tmplog";
+#    done < <(tail --lines 100 "$lingerlog" | tac);
+  [[ ! -w "$tmplog" ]] && tmplog='/dev/null'
+  [[ -r "$lingerstate" ]] && { while IFS= read -r line; do
+    [[ "$line" = lingercount* ]] && { lingercount="${line#*=}"; continue; }
+    [[ "$line" = lingerlimit* ]] && { lingerlimit="${line#*=}"; continue; }
+    [[ "$line" = lingerblock* ]] && { lingerblock="${line#*=}"; continue; }
+    [[ "$line" = lingerpause* ]] && { lingerpause="${line#*=}"; continue; }
+    [[ "$line" =   lingerpid* ]] && {   lingerpid="${line#*=}"; continue; }
+#   [[ "$line" =    lingeron* ]] && {    lingeron="${line#*=}"; continue; }
+  done < "$lingerstate" ; } 2>> "$tmplog"
+
+  (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) && (( "${#procfiles[@]}" )) && lingeron=1 || unset lingerpid
+  (( ! lingerpid )) && [[ -f "$lingerpidf" && -r "$lingerpidf" ]] && lingerpid=$(< "$lingerpidf")
+  (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) && (( "${#procfiles[@]}" )) && lingeron=1 || unset lingerpid
+  (( lingeron )) || { [[ -w "$lingerstate" ]] && rm -f "$lingerstate" || printf 'Unable to remove %s\n' "$lingerstate" >> "$tmplog"; } 2>/dev/null
+  (( lingercount == 0 )) && (( lingerlimit )) && lingercount="$lingerlimit";
+
+  (( debug )) && {
+        printf 'lingercount/lingerlimit = %s/%s\n' "$lingercount" "$lingerlimit" >> "$tmplog";
+        printf 'lingerpid=%s\nlingeron=%s\nend=%s\nlingerpause=%s\n' "$lingerpid" "$lingeron" "$end" "$lingerpause" >> "$tmplog"
+    };
+    (( nullgloboff )) && shopt -u nullglob > /dev/null
+}
+##--> cklinger() <--###########################################################################
 
 
 [[ "$1" = @(--edit|-e) ]] && editscript || true

@@ -1,4 +1,5 @@
 #!/bin/bash
+: "${mpdignorelib:=/usr/local/lib/mpdignore.functions}"
 # NB: This script requires that the user have access to edit /var/log/mpd/mpd.log which means modifying the permissions/ownership
 
 #logsong() {
@@ -22,12 +23,12 @@
 #fi
 echo "Why are you using this script instead of `next`?"
 
-. "$XDG_CONFIG_HOME/mpd-local.conf" || . "/home/$USER/.config/mpd-local.conf"
-. mpdignore.functions
-logsong "skipped"
+source "$XDG_CONFIG_HOME/mpd-local.conf" 2>/dev/null || source "/home/$USER/.config/mpd-local.conf" 2>/dev/null
+source <(sourcefn -l "$mpdignorelib"  -f mpcp) ##
+#logsong "skipped"     ## I don't think this should be done by skipped, it should be done by next.
 mpcp next
 
 #skipped="$(mpc -P "$mpdpass" -h "$mpdhost" current -f "%title%")"
-#queued="$(mpc -P "$mpdpass" -h "$mpdhost" queued -f "%title%")"
+# queued="$(mpc -P "$mpdpass" -h "$mpdhost" queued -f "%title%")"
 #qartist="$(mpc -P "$mpdpass" -h "$mpdhost" queued -f "%artist%")"
 #notify-send -i audio-x-generic "Song Skipped!" "<b>Next song:</b> $queued by $qartist"

@@ -10,8 +10,12 @@ export TERM
 #
 #[[ "$1" == @(edit|e|-e) ]] && editscript
 
-. /usr/local/bin/editscript
-. mpdignore.functions
+source /usr/local/bin/editscript
+source /etc/default/mpdignore
+: "${mpdignorelib:=/usr/local/lib/mpdignore.functions}"
+source "$mpdignorelib"
+# cklinger() sourced
+source <(sourcefn -l "$mpdignorelib" -f cklinger --text)
 [[ -r "$HOME/.config/mpd-local.conf" ]] && config="$HOME/.config/mpd-local.conf"
 
 # [[ ! "$mpdhost" ]] && mpdhost=[—redacted—]
@@ -29,12 +33,12 @@ c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
 c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
 
 boldred="$(tput setaf 9 bold)"
-
+dkgreen="$(tput setaf 2)"
 
 mpdcurrent(){
-local green="$(tput setaf 2)"
-local tput0="$(tput sgr0)"
-local red="$(tput setaf 9)"
+  local dkgreen="$(tput setaf 2)"
+  local tput0="$(tput sgr0)"
+  local red="$(tput setaf 9)"
 
 
 #mpdc()
@@ -57,7 +61,7 @@ unset label mbartistid
 
 for i in "${songstat[@]}"; do
   [[ "$i" =         songid:\ * ]] && songid="${i#*: }"
-  [[ "$i" =          state:\ * ]] && { u_state="${i#*: }"; [[ "$u_state" = play ]] && state="${green}playing${tput0}" || state="${red}paused$tput0"; }
+  [[ "$i" =          state:\ * ]] && { u_state="${i#*: }"; [[ "$u_state" = play ]] && state="${dkgreen}playing${tput0}" || state="${red}paused$tput0"; }
   [[ "$i" =           song:\ * ]] && { songpos="${i#*: }"; (( songpos++ )); }
   [[ "$i" = playlistlength:\ * ]] && pllength="${i#*: }"
 # [[ "$i" =        elapsed:\ * ]] && { elapsed="${i#*: }"; elapsed="$(sec2sex "$elapsed")"; }
@@ -72,7 +76,7 @@ for i in "${songstat[@]}"; do
   [[ "$i" =          Album:\ * ]] && album="${i#*: }"
   [[ "$i" =           Year:\ * ]] && year="${i#*: }"  ##issue
   [[ "$i" =         volume:\ * ]] && volume="${i#*: }"
-  [[ "$i" =         repeat:\ * ]] && { u_repeat="${i#*: }"; (( u_repeat )) && repeat="$green⟳$tput0" || repeat='⟳'; }
+  [[ "$i" =         repeat:\ * ]] && { u_repeat="${i#*: }"; (( u_repeat )) && repeat="$dkgreen⟳$tput0" || repeat='⟳'; }
   [[ "$i" =         single:\ * ]] && { u_single="${i#*: }"; (( u_single )) && single='✅' || unset single; }
   [[ "$i" =         random:\ * ]] && { u_random="${i#*: }"; (( u_random )) && random='✅' || random='❌'; }
   [[ "$i" =        consume:\ * ]] && { u_consume="${i#*: }"; (( u_consume )) && consume='✅' || consume='❌'; }
@@ -166,17 +170,57 @@ getlast(){
   [[ "$1" = mpd.log.? ]] && mpdlog="$1"
   mpdlog="${mpdlog:=mpd.log}"
 
-  if [[ "$mpdhost" = "localhost" ]]; then
-    logstream="tac /var/log/mpd/$mpdlog 2>&1"
-#   to silence:
-#   "tac: failed to open '/var/log/mpd/mpd.log' for reading: No such file or directory"
-#   if log file is missing:
-#   logstream="tac /var/log/mpd/$mpdlog 2>/dev/null"
-#   or handle with logstream="tac /var/log/mpd/$mpdlog &>"
+  if [[ "$mpdhost" = "localhost" ]] && command -v mpdtags >/dev/null; then
+    local completed
+    local file
+    local artist
+    local album
+    local albumartist
+    local title
+    local track
+    local genre
+    local date
+    local composer
+    local disc
+    local musicbrainz_artistid
+    local musicbrainz_albumid
+    local musicbrainz_albumartistid
+    local musicbrainz_trackid
+    local musicbrainz_releasetrackid
+    local originaldate
+    local artistsort
+    local albumartistsort
+    local label
+    local musicbrainz_releasegroupid
+    local time
+    local logstream
+    local mpdlog
+    local logdir='/var/log/mpd'
+    mpdlog="$logdir/${mpdlog:-mpd.log}"
+    source <(mpdtags --last="$mpdlog")
+    lastfullpath="$musicdir/$file"
+    lastpath="$file"
+    lastartist="$artist"
+    lasttitle="$title"
+    lastfile="${file##*/}"
+    lastalbum="$album"
+#    logstream="tac /var/log/mpd/$mpdlog 2>&1"
+##   to silence:
+##   "tac: failed to open '/var/log/mpd/mpd.log' for reading: No such file or directory"
+##   if log file is missing:
+##   logstream="tac /var/log/mpd/$mpdlog 2>/dev/null"
+##   or handle with logstream="tac /var/log/mpd/$mpdlog &>"
+    (( verbose )) && { printf 'lastfullpath=%s\n' "$lastfullpath"
+                       printf '    lastpath=%s\n' "$lastpath"
+                       printf '    lastfile=%s\n' "$lastfile"
+                       printf '  lastartist=%s\n' "$lastartist"
+                       printf '   lasttitle=%s\n' "$lasttitle"
+                       printf '   lastalbum=%s\n' "$lastalbum"
+#                       read -rp "Continue... " </dev/tty
+                      }
   else
-#    logstream="ssh -p \"$sshport\" \"$mpdhost\" 'tac /var/log/mpd/mpd.log'"
-    logstream="ssh -p \"$sshport\" \"$mpchost\" \"tac '/var/log/mpd/$mpdlog'\""
-  fi
+    [[ "$mpdhost" = localhost ]] && logstream="tac /var/log/mpd/$mpdlog 2>&1" ||
+      logstream="ssh -p \"$sshport\" \"$mpchost\" \"tac '/var/log/mpd/$mpdlog'\""
 
   while read -r logline; do
     if [[ "$logline" = "tac: failed to open '/var/log/mpd/mpd.log"*"for reading: No such file or directory" ]]; then
@@ -229,6 +273,7 @@ getlast(){
                       }
 
   done < <(eval "$logstream" 2>/tmp/lastpath.err)
+fi
 
   # SSH error handling
   if [[ -f /tmp/lastpath.err ]]; then
@@ -470,7 +515,7 @@ output+=( "$(title queued)" ) ||  { echo "Check mpd connection!"; exit 1; }
 
 unset paused
 
-[[ "$state" =~ paused ]] && paused=true
+[[ "$state" = *paused* ]] && paused=true
 output+=( "$(echo; hr2 STATUS)" )
 
 output+=( "$( printf '          %s%s%s%s%s - %s%s%s%s%s\n' \
@@ -506,7 +551,7 @@ output+=( "$(printf '          %s%s[%s%s%s%s%s%s] #%s%s%s/%s  %s/%s (%s%%)\n' \
 
 #printf "volume: %s%%   repeat: %s   random: %s   consume: %s   %s\n\n" \
 
-output+=( "$(printf '          volume: %s%%%s %s %s random: %s%s%s consume: %s%s %s%s\n\n' \
+output+=( "$(printf '          volume: %s%%%s %s %s random: %s%s%s consume: %s%s %s%s' \
   "$volume" \
   "$tput0" \
   "$repeat" \
@@ -518,6 +563,25 @@ output+=( "$(printf '          volume: %s%%%s %s %s random: %s%s%s consume: %s%s
   "$consume" \
   "${single:+single: $single}" \
   "$tput0" )" )
+
+cklinger
+
+(( lingeron )) && { lingertitle="linger$tput0"
+                    if (( lingerpause )); then
+                      lingerstate="${red}▮▮$tput0"
+                      lingercount="${tput0}$white$lingercount" lingerlimit="$lingerlimit"
+                    else
+                      lingerstate="${dkgreen}▶$tput0"
+                      lingercount="$bold${dkgreen}$lingercount" lingerlimit="$lingerlimit${red}"
+                    fi
+
+                    output[-1]+="$(printf '%s: %s/%s %s' \
+                              "$lingertitle" \
+                              "$lingercount" \
+                              "$lingerlimit" \
+                              "$lingerstate" )" ; }
+(( ! lingeron )) && { lingertitle="linger$tput0"; output[-1]+="$(printf '%s: %s' "$lingertitle" "${off:-❌}")" ; }
+output[-1]+="$(printf \\n\\n)"
 
 if [[ "$@" && "$@" != "" ]]; then
   output+=( "$(echo; hr2 "$1"; \mpc -q -h "$mpdpass@$mpchost" "$@")" )

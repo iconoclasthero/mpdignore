@@ -26,27 +26,27 @@
 
 
 playlist(){
-    local revarr playedarr playlistarray i k n path line ext action timestamp basename filepath mpccommand="playlist";
-    [[ "$1" = current ]] && mpccommand="current" && lines=24;
-    n=0;
-    while read -r line; do
-        timestamp="${line%% : *}";
-        i="${line##* : player: }";
-        action="${i%% *}";
-        filepath="${i#*\"}";
-        filepath="${filepath%\"*}";
-        ext="${filepath##*.}";
-        filepath="${filepath%.*}";
-        basename="${filepath##*\/}";
-        if [[ "$basename" =~ .+\ --\ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+ ]]; then
-            artist="${basename%% -- *}";
-            ddtt="${basename%% - *}";
-            ddtt="${ddtt##* -- }";
-            unset disc track;
-            [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt";
-            song="${basename#* - }";
-        else
-            if [[ "$basename" =~ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+\ --\ .+ ]]; then
+  local revarr playedarr playlistarray i k n path line ext action timestamp basename filepath mpccommand="playlist";
+  [[ "$1" = current ]] && mpccommand="current" && lines=24;
+  n=0;
+  while read -r line; do
+    timestamp="${line%% *}";
+    i="${line#* player: }";
+    action="${i%% *}";
+    filepath="${i#*\"}";
+    filepath="${filepath%\"*}";
+    ext="${filepath##*.}";
+    filepath="${filepath%.*}";
+    basename="${filepath##*\/}";
+    if [[ "$basename" =~ .+\ --\ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+ ]]; then
+      artist="${basename%% -- *}";
+      ddtt="${basename%% - *}";
+      ddtt="${ddtt##* -- }";
+      unset disc track;
+      [[ "$ddtt" = *-* ]] && disc="${ddtt%-*}" && track="${ddtt#*-}" || track="$ddtt";
+      song="${basename#* - }";
+    else
+      if [[ "$basename" =~ (([[:digit:]]{1,3}(-)?)?[[:digit:]]{1,3})\ -\ .+\ --\ .+ ]]; then
                 artist="${basename%% -- *}";
                 artist="${artist#* - }";
                 ddtt="${basename% - *}";

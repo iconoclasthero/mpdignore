@@ -2,12 +2,7 @@
 
 shopt -s extglob
 
-editscript(){
-  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
-     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
-     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ;}
-
-[[ "$1" == @(--edit|e|-e) ]] && editscript
+[[ -r /usr/local/bin/editscript ]] && source /usr/local/bin/editscript
 
 . mpdignore.functions
 
@@ -53,31 +48,34 @@ notify(){
 
 while (( $# > 0 )); do
 #  (( i++ )); echo "$i"
-  [[ "$1" = --set@(|-on) ]] && { set -x; shift; continue; }
-  [[ "$1" =~ ^x[[:digit:]]{1,2}$ ]] && { count="${1#x}" && shift || count=1; continue; }
-  [[ "$1" =  @(-v|--verbose) ]] && { args+=("$1"); verbose=1; shift; continue; }
-  [[ "$1" = notify ]] && { notify="$1"; shift; continue; }
-  [[ "$1" = "" ]] && { shift; continue; }
-  [[ "$1" = -q@(|q) ]] && { quiet="$1"; shift; continue; }
-  [[ "$1" = 0 ]] && { restart=1; shift; continue; }
+  [[ "$1" =       @(--edit|e|-e) ]] && editscript
+  [[ "$1" =         --set@(|-on) ]] && { set -x;                  shift; continue; }
+  [[ "$1" =~ ^x[[:digit:]]{1,2}$ ]] && { count="${1#x}";          shift; continue; }
+  [[ "$1" =      @(-v|--verbose) ]] && { args+=("$1"); verbose=1; shift; continue; }
+  [[ "$1" =               notify ]] && { notify="$1";             shift; continue; }
+  [[ "$1" =                   "" ]] && {                          shift; continue; }
+  [[ "$1" =              -q@(|q) ]] && { quiet="$1";              shift; continue; }
+  [[ "$1" =                   0  ]] && { restart=1;               shift; continue; }
   { printf '"%s" is unrecognized.\n' "$1"; shift; confirm -y 'Proceed with script?' && continue || exit 1; }
 done
 
-source <(mpd-current -p)
 mpctitlecmd=( /usr/local/bin/mpctitle )
 [[ "$quiet" ]] && mpctitlecmd+=( "$quiet" )
 
 if (( restart )); then
+  source <(mpd-current -p)
   mpctitlecmd+=( play "$songpos" )
   exec "${mpctitlecmd[@]}"
   exit
 else
   for ((i=0; i<count; i++)); do
+    source <(mpd-current -p)
     # get-current-json
     # source <(mpd-current.py)
 
     # mpctitleout="$(/usr/local/bin/mpctitle "$@" &)"
-    logsong "skipped"&
+    #logsong "skipped"&
+    mpcp -q addplaylist .mpdskip "$filepath"
 
     (( verbose )) && pause "$filepath"
     if [[ ! "$quiet" ]]; then
@@ -86,12 +84,9 @@ else
     fi
     (( notify )) && notify
     mpcp -q next &
-    source <(mpd-current -p)
+#   source <(mpd-current -p)
   done
 fi
-
-
-
 
 (( verbose )) && pause "before mpctitle"
 mpctitlecmd+=( --fromnext )

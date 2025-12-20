@@ -1,9 +1,13 @@
 #!/bin/bash
+trap -p USR2
 ## probably should source confirm up here.  --> confirm's being used as a script from /usr/local//bin
 #verbose=1
-. mpdignore.functions
+source mpdignore.functions
+source <(/usr/local/bin/sourcefn -l /usr/local/bin/mpdignore.functions -f sec2sex -f hr2 -f mpcp -f mpdc)
 
 shopt -s extglob nullglob
+
+[[ "$lingerdir" && ! -d "$lingerdir" ]] && unset "$lingerdir"
 
 : "${lingerdir:=/var/lib/mpd/mpdlinger}"                  # directory mpdlinger watches
 : "${pidfile:=$lingerdir/mpdlinger.pid}"
@@ -11,7 +15,17 @@ shopt -s extglob nullglob
 : "${countfile:=$lingerdir/mpdlinger.count}"
 : "${exportfile:=$lingerdir/mpdlinger.export}"
 : "${logfile:=$lingerdir/mpdlinger.log}"
+: "${statefile:=$lingerdir/mpdlinger.state}"
+: "${lingersock:=$lingerdir/mpdlinger.sock}"
+: "${lingerfifo:=$lingerdir/mpdlinger.fifo}"
+mkdir -p "$lingerdir"
+[[ ! -d "$lingerdir" ]] && { printf '[error] The mpdlinger working directory (%s) cannot be created. (exit 1)\n' "$lingerdir"; exit 1; }
+[[ -e "$lingerfifo" ]] || mkfifo "$lingerfifo"
+[[ ! -r "$lingerfifo" ]] && printf '[warn] The mpdlinger fifo is not readable or present:\n %s\n' "$(ls -la "$lingerfifo")"
 #verbose=1
+: "${paused:=0}"
+
+dkgreen="$(tput setaf 2)"
 
 logfd=4
 ## fallback to stdout if FD 3 isn't already open
@@ -38,9 +52,63 @@ fi
 # optional: to silence instead of fallback to stdout
 # exec {logfd}>/dev/null
 
+lingersocket(){
+    # make sure the directory exists
+    mkdir -p "$(dirname "$lingersock")"
+    # remove old socket if exists
+    [[ -e "$lingersock" ]] && rm -f "$lingersock"
+
+    # use socat to listen on a Unix domain socket
+    socat UNIX-LISTEN:"$lingersock",fork SYSTEM:'bash -c "
+        echo \"count: \$count\"
+        echo \"limit: \$limit\"
+        echo \"lingeron: \$lingeron\"
+        echo \"lingerpause: \$lingerpause\"
+    "'
+}
+
+
+lingersocket(){
+    # make sure the directory exists
+    mkdir -p "$(dirname "$lingersock")"
+    # remove old socket if exists
+    [[ -e "$lingersock" ]] && rm -f "$lingersock"
+
+    # last snapshot variables
+    last_count="$count"
+    last_limit="$limit"
+    last_lingeron="$lingeron"
+    last_lingerpause="$lingerpause"
+
+    # use socat to listen on a Unix domain socket
+    socat UNIX-LISTEN:"$lingersock",fork SYSTEM:'bash -c "
+        # try non-blocking read from fifo
+        if read -t 0 -r count limit lingeron lingerpause < \"'"$lingerfifo"'\"; then
+            # update last snapshot
+            last_count=\"$count\"
+            last_limit=\"$limit\"
+            last_lingeron=\"$lingeron\"
+            last_lingerpause=\"$lingerpause\"
+        else
+            # no new data, use last snapshot
+            count=\"$last_count\"
+            limit=\"$last_limit\"
+            lingeron=\"$last_lingeron\"
+            lingerpause=\"$last_lingerpause\"
+        fi
+
+        # respond to client
+        echo \"count: \$count\"
+        echo \"limit: \$limit\"
+        echo \"lingeron: \$lingeron\"
+        echo \"lingerpause: \$lingerpause\"
+    "'
+}
+
+
 chgrpfn(){
   for i in "$pidfile" "$cmdfile" "$logfile"; do
-    [[ ! -f "$i" ]] && printf '[warn] %s: %s not present.\n' "$FUNCNAME" "$i" >&"$logfd"
+    [[ ! -f "$i" ]] && printf '%s%s: %s not present.\n' "$(wtag)" "$FUNCNAME" "$i" >&"$logfd"
     chgrp http "$i" 2>&"$logfd"
     chmod g+w "$i"  2>&"$logfd"
   done
@@ -62,7 +130,6 @@ etag(){ printf '🚨 %s: ' "$(timestamp)"; } #error
 qtag(){ printf '❓ %s: ' "$(timestamp)"; } #question
 indent="                        "
 
-
 { (( verbose )) || [[ "$1" != --exec ]] ; } && { printf \\n%s%b%s\\n "$red" "$(hr2 "$bold Starting $0 ")" "$tput0"; printf '%s%s has started.\n' "$(vtag)" "$0"; } >&"$logfd"
 (( verbose )) && {
   printf '\n'
@@ -71,27 +138,190 @@ indent="                        "
   printf '%s  blocklimit = %s\n' "$indent" "$blocklimit"
   printf '%s   prevlimit = %s\n' "$indent" "$prevlimit"
   printf '%s     verbose = %s\n' "$indent" "$verbose"
+  printf '%s     fifopid = %s\n' "$indent" "$fifopid"
   printf '%s      paused = %s\n' "$indent" "$paused"
   printf '%s       count = %s\n' "$indent" "$count"
   printf '%s       limit = %s\n' "$indent" "$limit"
   printf '%s         STY = %s\n' "$indent" "$STY"
+  printf '%s          $$ = %s\m' "$indent" "$$"
   printf '%s          $0 = %s\n' "$indent" "$0"
   printf '%s          $* = %s\n' "$indent" "$*"
   printf '\n'; } >&"$logfd"
+
+USR2trap(){
+ { printf '\n%b\n' "$(hr2 "$bold Starting $FUNCNAME() $tput0")"
+   printf '%sUSR2 trap activated\n' "$(vtag)"
+   printf '%sContents of %s:\n' "$(vtag)" "$statefile"
+   printf '%s%s\n' "$indent" "$(< $statefile)" 2>&"$logfd"
+   printf '%sContents of %s:\n' "$(vtag)" "$cmdfile"
+   printf '%s%s\n' "$indent" "$(< $cmdfile)"
+   printf '%s$pgid=%s\n' "$(vtag)" "$pgid"; } >&"$logfd"
+  (( ! pgid )) && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d " ")
+  (( pgid )) && pkill -g "$pgid" mpc    2>/dev/null
+  (( pgid )) && pkill -g "$pgid" lolcat 2>/dev/null
+  ipchandler
+}
+
+
+USR2trap(){
+  {
+    printf '\n%b\n' "$(hr2 "$bold Starting $FUNCNAME() $tput0")"
+    printf '%sUSR2 trap activated\n' "$(vtag)"
+    printf '%sContents of %s:\n' "$(vtag)" "$statefile"
+    printf '%s%s\n' "$indent" "$(< $statefile)"
+    printf '%sContents of %s:\n' "$(vtag)" "$cmdfile"
+    printf '%s%s\n' "$indent" "$(< $cmdfile)"
+    printf '%s$pgid=%s\n' "$(vtag)" "$pgid"
+
+    printf '%sProcess tree for debugging:\n' "$(vtag)"
+    pstree -p $$ 2>/dev/null || ps -H -o pid,ppid,pgid,cmd 2>/dev/null
+  } >&"$logfd"
+
+  ## ensure pgid is known
+  (( ! pgid && mpdlingerpid )) &&
+      pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
+
+  ## early sweep: kill mpc + lolcat via pgid
+  (( pgid )) && pkill -g "$pgid" mpc    2>/dev/null || true
+  (( pgid )) && pkill -g "$pgid" lolcat 2>/dev/null || true
+
+  { printf '%sNudging mpc idle via seek +0\n' "$(vtag)"
+    mpcp -q seek +0 2>&1 || true; } >&"$logfd"
+
+  ## find mpc child pid
+  mpcpid=''
+  if (( mpdlingerpid )); then
+    mpcpid=$(pgrep -P "$mpdlingerpid" mpc | head -n1 2>/dev/null || true)
+    if [[ -z "$mpcpid" ]]; then
+      mpcpid=$(ps --no-headers -o pid= --ppid "$mpdlingerpid" | awk '/mpc/ {print $1; exit}' 2>/dev/null || true)
+    fi
+  fi
+
+  ## kill fifopid + mpcpid in parallel with escalation
+  killpid=()
+  for i in "$fifopid" "$mpcpid"; do
+  {
+      (( i )) || continue
+
+      printf '%sShutting down pid=%s\n' "$(vtag)" "$i" >&"$logfd"
+
+      if ! kill -0 "$i" 2>/dev/null; then
+        printf '%spid %s already dead\n' "$(vtag)" "$i" >&"$logfd"
+        continue
+      fi
+
+      kill "$i" 2>/dev/null || true
+
+      for try in 1 2 3; do
+        \sleep 0.05
+        kill -0 "$i" 2>/dev/null || break
+      done
+
+      if kill -0 "$i" 2>/dev/null; then
+        printf '%sEscalating: INT %s\n' "$(vtag)" "$i" >&"$logfd"
+        kill -INT "$i" 2>/dev/null || true
+        \sleep 0.05
+      fi
+
+      if kill -0 "$i" 2>/dev/null; then
+        printf '%sEscalating: HUP %s\n' "$(vtag)" "$i" >&"$logfd"
+        kill -HUP "$i" 2>/dev/null || true
+        \sleep 0.05
+      fi
+
+      if kill -0 "$i" 2>/dev/null; then
+        printf '%sEscalating: KILL %s\n' "$(vtag)" "$i" >&"$logfd"
+        kill -9 "$i" 2>/dev/null || true
+      fi
+
+      wait "$i" 2>/dev/null || true
+      printf '%spid %s reaped (or not present)\n' "$(vtag)" "$i" >&"$logfd"
+
+  } &
+  killpid+=( "$!" )
+  done
+
+  wait "${killpid[*]}"
+
+  ## clear fifopid so new exec starts fresh
+  kill -0 "$fifopid" || unset fifopid
+
+  ipchandler
+}
+
 
 # Signal traps
 ## If you want the variables like $count and $(...) to be evaluated when the trap is triggered, not when it's defined, you should use single quotes.
 trap sigint SIGINT
 trap '[[ -f "$countfile" ]] && count=$(< "$countfile"); { (( verbose )) && printf '\''Count updated to: %s\n'\'' "$count"; }' USR1
-#trap '[[ -f "$countfile" ]] && count=$(< "$countfile"); { (( verbose )) && echo "$(vtag) Count updated to: $count"; }' USR1
-#trap 'pkill mpc; pkill -g $mpdlingerpid lolcat; ipchandler' USR2
-#trap 'pkill mpc; pkill -g $pgid lolcat; ipchandler' USR2
-trap '
-  [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d " ")
-  pkill -g "$pgid" mpc
-  pkill -g "$pgid" lolcat
-  ipchandler
-' USR2
+trap 'USR2trap' USR2
+
+
+fifoin() {
+ local fifocmd
+  while read -r fifocmd < "$lingerfifo"; do
+    ## if a valid command comes from the fifo, write the signal to the signal file
+    ## and signal the IPC handler with USR2 to kill the mpdc block and read cmdfile
+    IFS=' ' read -r -a toks <<< "$fifocmd"
+    printf '%sReceived fifo input: %s\n' "$(vtag)" "$fifocmd" >&"$logfd"
+    printf '%sTokenized fifo input: %s\n' "$(vtag)" "${toks[@]}" >&"$logfd"
+
+#   [[ " ${ipcargs[*]} " =~ " ${fifocmd%%\ *} " ]] &&
+    ipcparse --fifo "$fifocmd" &&
+#      { printf %s\\n "$fifocmd" > "$cmdfile"
+       { printf '%scat %s: %s\n' "$(vtag)" "$cmdfile" "$(< $cmdfile)" >&"$logfd"
+         : "${pgid:=$mpdlingerpid}"
+         (( pgid )) && pkill -g "$pgid" mpc 2>&"$logfd" ||
+             printf '%s`pkill -g "$pgid" mpc` failed in %s() (pgid=%s)\n' "$(wtag)" "$FUNCNAME" "${pgid:-mpdlingerpid=$mpdlingerpid}" >&"$logfd"
+         kill -USR2 "$mpdlingerpid" >&"$logfd" 2>&1
+         printf '%skill %s: %s\n' "$(vtag)" "$cmdfile" "$(< $cmdfile)" >&"$logfd"
+
+#        break;  ## almost assuredly do not want a break here, want the fifo to keep listening.
+       } || printf '%s: The fifo input was invalid: %s\n' "${vtag}" "$fifocmd" >&"$logfd"
+  done
+}
+
+
+
+fifoin() {
+  local fifocmd
+  while read -r fifocmd < "$lingerfifo"; do
+    ## if a valid command comes from the fifo, write the signal to the signal file
+    ## and signal the IPC handler with USR2 to kill the mpdc block and read cmdfile
+    IFS=' ' read -r -a toks <<< "$fifocmd"
+    printf '%sReceived fifo input: %s\n' "$(vtag)" "$fifocmd" >&"$logfd"
+    printf '%sTokenized fifo input: %s\n' "$(vtag)" "${toks[@]}" >&"$logfd"
+
+#   [[ " ${ipcargs[*]} " =~ " ${fifocmd%%\ *} " ]] &&
+    ipcparse --fifo "$fifocmd" &&
+#     { printf %s\\n "$fifocmd" > "$cmdfile"
+      { printf '%scat %s: %s\n' "$(vtag)" "$cmdfile" "$(< $cmdfile)" >&"$logfd"
+        : "${pgid:=$mpdlingerpid}"
+
+        ## first send the USR2 signal to the mpdlinger process
+        kill -USR2 "$mpdlingerpid" >&"$logfd" 2>&1
+
+        ## it will go to `trap USR2trap USR2` and this function ends or
+        ## first nudge mpc to break idle cleanly (no audible effect)
+        printf '%sNudging mpc via seek +0\n' "$(vtag)" >&"$logfd"
+        \mpc seek +0 >/dev/null 2>&1 || true
+
+        ## ensure a valid pgid:
+        : "${pgid:=$mpdlingerpid}"
+        ## if the trap has still not taken over, try killing mpc
+        (( pgid )) && pkill -g "$pgid" mpc 2>&"$logfd" ||
+          printf '%s`pkill -g "$pgid" mpc` failed in %s() (pgid=%s)\n' \
+            "$(wtag)" "$FUNCNAME" "${pgid:-mpdlingerpid=$mpdlingerpid}" >&"$logfd"
+
+        printf '%skill %s: %s\n' "$(vtag)" "$cmdfile" "$(< $cmdfile)" >&"$logfd"
+      } || printf '%s: The fifo input was invalid: %s\n' "${vtag}" "$fifocmd" >&"$logfd"
+  done
+}
+
+
+
+
+
 
 checkpid(){
   (( verbose )) && printf \\n%b\\n "$(hr2 "$bold Starting checkpid(): $tput0")" >&"$logfd"
@@ -162,28 +392,46 @@ checkpid(){
 }
 ##--> checkpid() <--#######################################################################
 
+writestate(){
+  ## if count > 0 then set countout="$count"
+  (( count )) && lingercount="$count" || lingercount="${prevcount:-0}"
+  (( lingerpause == 1 )) || lingerpause=0
+                 {       printf 'lingerpause=%s\n' "$paused"
+        (( fifopid )) && printf     'fifopid=%s\n' "$fifopid"
+    (( lingercount )) && printf 'lingercount=%s\n' "$lingercount"
+          (( limit )) && printf 'lingerlimit=%s\n' "$limit"
+     (( blocklimit )) && printf 'lingerblock=%s\n' "$blocklmit"
+   (( mpdlingerpid )) && printf   'lingerpid=%s\n' "$mpdlingerpid"
+       (( lingeron )) && printf    'lingeron=%s\n' "$lingeron"; } > "$statefile"
+}
+
 
 ipcparse(){
-  ipccmd="$1"
-  shift
-  [[ "$1" =~ ^[0-9]+$ ]] && ipcval="$1" && shift
+  local fifo output ipcval ipccmd
+  [[ "$1" = --fifo ]] && { fifo=1; shift; }
+  ipccmd="$1"; shift
+  [[ "$1" =~ ^[0-9]+$ ]] && { ipcval="$1"; shift; }
 
   if (( $# )); then
-    printf 'The IPC wrapper accepts EXACTLY ONE of the following cli arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipcargs[*]}")" "$*"
+    printf -v output 'The IPC wrapper accepts EXACTLY ONE of the following cli arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipcargs[*]}")" "$*"
     set --
   elif [[ " ${ipc1args[*]} " = *" $ipccmd " ]] && [[ "$ipcval" ]]; then
-    printf 'These IPC wrapper commands do not accept numeric arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipc1args[*]}")" "$ipcval"
+    printf -v output 'These IPC wrapper commands do not accept numeric arguments:\n%s\nThe following will be ignored:\n %s\n' "$(IFS=\|; printf '%s' "${ipc1args[*]}")" "$ipcval"
     unset ipcval
   elif [[ " ${ipc2args[*]} " = *" $ipccmd " ]] && [[ ! "$ipcval" ]]; then
-    printf 'These IPC wrapper commands require a numeric argument:\n%s' "$(IFS=\|; printf '%s' "${ipc2args[*]}")"
-    exit 1
+    printf -v output 'These IPC wrapper commands require a numeric argument:\n%s' "$(IFS=\|; printf '%s' "${ipc2args[*]}")"
+    (( fifo )) && return 1 || exit 1
   fi
+
+  printf %s\\n "$output" >&"$logfd"
+  (( fifo )) || printf %s\\n "$output"
 
   printf '%s%s\n' "$ipccmd" "${ipcval:+ $ipcval}" > "$cmdfile"
 
   ## run balance of startupcheck() after validating the ipc commands to get "$mpdlingerpid"
   #  startupcheck "ipc"
   ipc=1
+  return 0
 }
 
 ##--> ipcparse() <--###########################################################################
@@ -202,18 +450,19 @@ ipchandler(){
    printf '%sContents of %s: "%s"\n\n' "$(vtag)" "$cmdfile" "$(< "$cmdfile")" >&"$logfd"
 
   (( blocklimit )) && execarray=( blocklimit="$blocklimit" prevlimit="$prevlimit" )
+  (( fifopid )) && execarray+=( fifopid="$fifopid" )
   execarray+=( mpdlinger --exec )
 
   cmd="$(head -n1 "$cmdfile" 2>/dev/null)"
   > "$cmdfile"
 
-  [[ -z "$pgid" && -n "$mpdlingerpid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
-  [[ -n "$pgid" ]] && pkill -g "$pgid" lolcat
+  (( ! pgid && mpdlingerpid )) && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
+  (( pgid )) && pkill -g "$pgid" lolcat
 
   case "$cmd" in
     paused\ *)
       paused="${cmd#paused }"
-      if (( paused )); then
+      if (( paused )) || [[ "$paused" = "on" ]]; then
         printf '%sPaused via main menu.\n' "$(itag)"
         exec env paused=1 "${execarray[@]}"
       else
@@ -221,7 +470,8 @@ ipchandler(){
         exec env paused=0 "${execarray[@]}"
       fi
       ;;
-    pause)  ## this toggles pause when pause is sent regardless of the current state:
+
+    pause|toggle)  ## this toggles when pause is sent regardless of the current state:
       if (( paused )); then
         paused=0
         printf '\n%sResumed/toggled pause via CLI\n' "$(itag)" | tee >(cat >&"$logfd")
@@ -232,18 +482,25 @@ ipchandler(){
         printf 'Paused via CLI\n' >&"logfd"
 #      exec env paused=1 mpdlinger --exec
       fi
+      writestate > "$statefile"
+      writestate >&"$logfd"
       exec env paused="$paused" "${execarray[@]}"
       ;;
 
     resume)
-      unset paused
+      paused=0
       echo "Resumed via CLI"
       exec env paused=0 "${execarray[@]}"
 #      exec env mpdlinger --exec
       ;;
 
-    quit)
-      cleanupexit
+    next)
+      mpcp -q random on
+      next >/dev/null
+      mpcp -q random off
+      (( blocklimit )) && { limit="$prevlimit"; unset blocklimit; }
+      (( verbose )) && printf '%s %s selected: prevlimit=%s limit=%s\n' "$(vtag)" "$cmd" "$prevlimit" "$limit" >&"$logfd"
+      exec env mpdlingerpid="$mpdlingerpid" count="$count" blocklimit="$blocklimit" limit="$limit" prevlimit="$prevlimit" mpdlinger --exec
       ;;
 
     skip)
@@ -262,18 +519,13 @@ ipchandler(){
       exec env mpdlingerpid="$mpdlingerpid" count="$count" blocklimit="$blocklimit" limit="$limit" prevlimit="$prevlimit" mpdlinger --exec
       ;;
 
-    next)
-      mpcp -q random on
-      next >/dev/null
-      mpcp -q random off
-      (( blocklimit )) && { limit="$prevlimit"; unset blocklimit; }
-      (( verbose )) && printf '%s %s selected: prevlimit=%s limit=%s\n' "$vtag" "$cmd" "$prevlimit" "$limit" >&"$logfd"
-      exec env mpdlingerpid="$mpdlingerpid" count="$count" blocklimit="$blocklimit" limit="$limit" prevlimit="$prevlimit" mpdlinger --exec
+    menureturn\ *)
+      ! (( count )) && count="$menucount"
+      exec env limit="$limit" count="$count" verbose="$verbose" "${execarray[@]}"
       ;;
 
-    verbose\ *)
-      verbose="${cmd#verbose }"
-      exec env verbose="$verbose" count="$count" mpdlinger --exec
+    quit)
+      cleanupexit
       ;;
 
     limit\ *)
@@ -303,10 +555,11 @@ ipchandler(){
       exec env blocklimit="$blocklimit" prevlimit="$prevlimit" limit="$blocklimit" count="$count" verbose=1 mpdlinger --exec
       ;;
 
-    menureturn\ *)
-      ! (( count )) && count="$menucount"
-      exec env limit="$limit" count="$count" verbose="$verbose" "${execarray[@]}"
+    verbose\ *)
+      verbose="${cmd#verbose }"
+      exec env verbose="$verbose" count="$count" mpdlinger --exec
       ;;
+
     *)
       (( verbose )) && read -rp "Fallback in ipchandler(): limit=$limit blocklimit=$blocklimit count=$count"
       exec env limit="$limit" count="$count" mpdlinger --exec
@@ -316,7 +569,6 @@ ipchandler(){
 }
 
 ##--> ipchandler() <--###########################################################################
-
 
 pauseloop(){
   pauseout(){
@@ -339,20 +591,26 @@ pauseloop(){
   elif [[ "$1" = --in ]]; then
     toilet -tf "$font1" "Resuming rock blocks! $limit in a row!"|"${lolargs[@]}"
     sleep 2
-    unset paused
+    paused=0
     printf '\n%sTurning pause off.\n\n' "$(vtag)" >&"$logfd"
     exec mpdlinger --exec -c"$count" --off -l"$limit"
   else
+      writestate > "$statefile"
+      writestate >&"$logfd"
     while output=( $(\mpc idle playlist player) ) && (( paused )); do
+      writestate > "$statefile"
+      writestate >&"$logfd"
       if [[ "${output[@]}" = playlist\ player ]]; then
         clear -x
         ((count++))
         pauseout 'Paused...'
       { printf '%sStarting pause loop...\n' "$(vtag)"
         printf '%s     count = %s\n' "$indent" "$count"
-        printf '%s     limit = %s\n' "$indent" "$limit"
-        printf '%s...Ending pause loop\n' "$(vtag)"; } >&"$logfd"
+        printf '%s     limit = %s\n' "$indent" "$limit"; } >&"$logfd"
+        printf '%s...Ending pause loop\n' "$(vtag)" >&"$logfd"
       fi
+      kill -0 "$fifopid" 2>/dev/null|| { fifoin & fifopid="$!" ; printf '%sfifopid=%s\n' "$(itag)" "$fifopid" >&"$logfd" ; }
+#      kill -0 "$fifopid" 2>/dev/null|| fifoin & fifopid="$!"
     done
   fi
 }
@@ -363,9 +621,9 @@ sigint(){
   # Kill only child processes in the same process group
   printf '\r\033[K'  ## clears the entire current line, starting at the beginning:
   printf '\n%ssigint() $pgid=%s\n' "$(itag)" "$pgid"
-  printf '%ssigint() $mpdlingerpid=%s\n\n' "$(itag)" w"$mpdlingerpid"
-  [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d " ")
-  pkill -g "$pgid" lolcat
+  printf '%ssigint() $mpdlingerpid=%s\n\n' "$(itag)" "$mpdlingerpid"
+  (( ! pgid )) && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d " ")
+  (( pgid )) && pkill -g "$pgid" lolcat
 #  printf \\b\\b%s\\n . . .
   printf '\r\033[K'  ## clears the entire current line, starting at the beginning:
   if (( paused )); then
@@ -378,8 +636,8 @@ sigint(){
 
 
 mainmenu(){
-  kill "$progpid" 2>/dev/null
-  wait "$progpid" 2>/dev/null
+  (( progpid )) && kill "$progpid" 2>/dev/null
+  (( progpid )) && kill -0 "$progpid" && wait "$progpid" 2>/dev/null
   while true; do
     option=$(gum choose \
       --header="☰ Main Menu" \
@@ -631,14 +889,31 @@ changelimit(){
 
 
 cleanupexit(){
-  echo "Exiting..."
+  local logfile="$logfile" i ec
+  (( savelog )) && unset logfile
+  printf 'Exiting...\n'
+  printf '%sExiting %s via %s...\n' "$(itag)" "$0" "$FUNCNAME" >&"$logfd"
   if (( $$ == mpdlingerpid )); then
     rm "$pidfile" 2>/dev/null
     mpcp random on | grep --color=always -B2 'random\:\ on'
+    rm -v "$statefile" "$lingerfifo" "$pidfile" "$exportfile" "$cmdfile" "${logfile:+$logfile}" >&"$logfd" 2>&1
   fi
-  kill "$progpid" 2>/dev/null
-  wait "$progpid" 2>/dev/null
-  exit 130
+  { (( progpid )) && kill -0 "$progpid" && kill "$progpid"
+    (( fifopid )) && kill -0 "$fifopid" && kill "$fifopid"
+    # poll up to 2 seconds for natural exit
+    for i in {1..2000}; do
+      (( progpid )) && kill -0 "$progpid" || unset progpid
+      (( fifopid )) && kill -0 "$fifopid" || unset fifopid
+      [[ "$i" = *00 ]] && printf '%sstill running: %s%s\n' "$(wtag)" "$progpid" "$fifopid" >&"$logfd"
+      (( !progpid && !fifopid )) && break
+      \sleep 0.001
+    done; } 2>/dev/null
+
+  # anything still alive after that gets nuked instantly
+  (( progpid )) && { kill -9 "$progpid"; printf '%skill -9%s\n' "$(etag)" "$progpid" >&2; ec=2; }
+  (( fifopid )) && { kill -9 "$fifopid"; printf '%skill -9%s\n' "$(etag)" "$fifopid" >&2; ec=2; }
+
+  exit "${ec:-130}"
 }
 ##--> cleanupexit() <--#######################################################################
 
@@ -648,9 +923,9 @@ cleanupexit(){
 (( verbose )) && printf \\n%b\\n  "$(hr2 "$bold Main code: $tput0")" >&"$logfd"
 
 clrindent='\r\033[K          '
-ipcargs=(pause resume next skip quit limit count blocklimit verbose)
-ipc1args=(pause resume next skip quit)
-ipc2args=(limit count blocklimit)
+ipcargs=(paused pause toggle resume next skip menureturn quit limit count blocklimit verbose)
+ipc1args=(pause toggle resume next skip quit menureturn)
+ipc2args=(paused limit count blocklimit verbose)
 
 [[ " $* " = *\ @(-h|--help|help)\ * ]] && { showhelp; exit 0; }
 ## --edit should be handled by the sourced editscript funciton
@@ -737,11 +1012,11 @@ if [[ "$1" != --exec ]]; then
       printf '\nAttempting to resume screen...\n\n'
 
       ## Start background killer: after 10s, kill this shell if still running
-      (sleep 10 && kill $$) & killerpid=$!
+      (sleep 10 && kill $$ >&"$logfd" 2>/dev/null) & killerpid=$!
       (( verbose )) && printf '%sscreen -r \"$screenpid\"' "$(vtag)" >&"$logfd"
       screen -r "$screenpid"
       if (( $? )); then
-        kill "$killerpid" #&>/dev/null
+        kill "$killerpid" &>"$logfd"
         if confirm -Y 'Try to reattach to screen $screenpid with "screen -xA"?'; then
           exec screen -xA "$screenpid"
           (( $? )) &&
@@ -804,9 +1079,9 @@ if [[ "$1" != --exec ]]; then
     fi
     (( verbose )) && printf '%skill -USR2 %s\n' "$(vtag)" "$mpdlingerpid" >&"$logfd"
     [[ ! "$pgid" ]] && pgid=$(ps -o pgid= -p "$mpdlingerpid" | tr -d ' ')
-    kill -USR2 "$mpdlingerpid"
-    pkill -g "$pgid" mpc
-    pkill -g "$pgid" lolcat
+    kill -USR2 "$mpdlingerpid" >&"$logfd"
+    (( pgid )) && pkill -g "$pgid" mpc
+    (( pgid )) && pkill -g "$pgid" lolcat
     [[ "$ipccmd" = next ]] && mpctitle mpdlinger
     exit 0
   fi ## if ! (( ipc ))
@@ -904,7 +1179,7 @@ while (( "$#" > 0 )); do
     [[ "$1" =~ ^[0-9]+$ ]] && { printf \ %s\\n "$1"; shift; } #ipcval="$1" && shift
     read -rp 'An IPC command has been removed from the flag processing block.'
   else
-    echo "Unknown option: $1"
+    (( "${#1}" )) && printf 'Unknown option: %s\n' "$1"
     shift
   fi
 done
@@ -1007,7 +1282,7 @@ printf '%s \n%s \n%s \n \n%s\n%b%s\n' \
        "$(mpctitle mpdlinger)" \
        "$clrindent" \
        "$(date)" |
-   "${lolargs[@]}" &
+   "${lolargs[@]}" & bgpids+=( "$!" )
 
 unset prevcount
 
@@ -1020,87 +1295,57 @@ unset prevcount
 (( verbose )) && printf '%sBefore main while loop.\n' "$(vtag)" >&"$logfd"
 
     (( verbose )) &&
-     { printf '%stransition = %s\n' "$(vtag)" "$transition"
-       printf '%sblocklimit = %s\n' "$indent" "$blocklimit"
-       printf '%sblockcount = %s\n' "$indent" "$blockcount"
-       printf '%s prevcount = %s\n' "$indent" "$prevcount"
-       printf '%s prevlimit = %s\n' "$indent" "$prevlimit"
-       printf '%s menulimit = %s\n' "$indent" "$menulimit"
-       printf '%s  randomst = %s\n' "$indent" "$randomst"
-       printf '%s   current = %s\n' "$indent" "$current"
-       printf '%s    paused = %s\n' "$indent" "$paused"
-       printf '%s     count = %s\n' "$indent" "$count"
-       printf '%s     limit = %s\n' "$indent" "$limit"
+     { printf '%smpdlingerpid = %s\n' "$(vtag)" "$mpdlingerpid"
+       printf '%s  transition = %s\n' "$(vtag)" "$transition"
+       printf '%s  blocklimit = %s\n' "$indent" "$blocklimit"
+       printf '%s  blockcount = %s\n' "$indent" "$blockcount"
+       printf '%s   prevcount = %s\n' "$indent" "$prevcount"
+       printf '%s   prevlimit = %s\n' "$indent" "$prevlimit"
+       printf '%s   menulimit = %s\n' "$indent" "$menulimit"
+       printf '%s    endlimit = %s\n' "$indent" "$endlimit"
+       printf '%s    randomst = %s\n' "$indent" "$randomst"
+       printf '%s     current = %s\n' "$indent" "$current"
+       printf '%s      paused = %s\n' "$indent" "$paused"
+       printf '%s       count = %s\n' "$indent" "$count"
+       printf '%s       limit = %s\n' "$indent" "$limit"
+       printf '%s        pgid = %s\n' "$indent" "$pgid"
+       printf '%s     fifopid = %s\n' "$(itag)" "$fifopid"
        printf \\n; } >&"$logfd"
 
 
+#unused, folded into progloop?
 #prntprog(){
-#    printf '\r\033[K%s'  "$(mpc status '         \[%state%\] ##%songpos%/%length%  %currenttime%/%totaltime% %percenttime%')"|"${lolargs[@]}"
-#}
-#
-#
-#prntprog(){
-#  mapfile -t mpclines < <(\mpc)
-#
-#  line3regex='^volume:\ +?([0-9]+%)\ +repeat:\ +(on|off)\ +random:\ +(on|off)\ +.+consume:\ +(on|off)\ +$'
-#  ## regex patterns cannot be quoted in [[ =~ ]]!!!
-#
-#  if [[ "${mpclines[2]}" =~ $line3regex ]]; then
-#    volume="${BASH_REMATCH[1]}"
-#    random="${BASH_REMATCH[3]}"
-#    consume="${BASH_REMATCH[4]}"
-#  fi
-#
-#  # Output with emoji mapping for on/off
-#  on="✅"
-#  off="❌"
-#
-#  repeat=$([[ $repeat = on ]] && echo "$on" || echo "$off")
-#  random=$([[ $random = on ]] && echo "$on" || echo "$off")
-#  consume=$([[ $consume = on ]] && echo "$on" || echo "$off")
-#
-#  { printf '\r\033[K         %s\n' "${mpclines[@]:0:2}"
-#    printf '\r\033[K         volume: %s ⟳   random: %s consume: %s' "$volume" "$random" "$consume"; }|
-#  "${lolargs[@]}"
+#  local artist title state pos length elapsed duration percent volume repeat random consume
+#  readarray -t mpdcout < <(mpdc 'currentsong\nstatus')
+#  for i in "${mpdcout[@]}"; do
+#    [[ "$i" = Artist:\ * ]] && artist="${i#*: }"
+#    [[ "$i" = Title:\ * ]] && title="${i#*: }"
+#    [[ "$i" = state:\ * ]] && state="${i#*: }"
+#    [[ "$i" = Pos:\ * ]] && pos="${i#*: }"
+#    [[ "$i" = playlistlength:\ * ]] && length="${i#*: }"
+#    [[ "$i" = time:\ * ]] && { elapsed="${i#*: }"; elapsed="${elapsed%\:*}"; duration="${i##*\:}";
+#percent="$(( (100 * elapsed)/duration ))"; elapsed="$(sec2sex "$elapsed")"; duration="$(sec2sex "$duration")"; }
+#    [[ "$i" = volume:\ * ]] && vol="${i#*: }"
+#    [[ "$i" = repeat:\ * ]] && repeat="${i#*: }"
+#    [[ "$i" = random:\ * ]] && { random="${i#*: }"; (( random )) && random='✅' || random='❌'; }
+#    [[ "$i" = consume:\ * ]] && { consume="${i#*: }"; (( consume )) && consume='✅' || consume='❌'; }
+#  done
+#  [[ "$state" = play ]] && state="playing"
+#  [[ "$state" = pause ]] && state="paused"
+#  [[ "$randomst" = on ]] && hr2out="mpdlinger random on" || hr2out="mpdlinger"
+#  { printf '%b%s -- %s\n'  "$clrindent" "$artist" "$title"
+#    printf '%b[%s] #%s/%s  %s/%s (%s%%)\n' "$clrindent" "$state" "$pos" "$length" "$elapsed" "$duration" "$percent"
+#    printf '%bvolume: %s%% ⟳  random: %s consume: %s' "$clrindent" "$vol" "$random" "$consume"
+#  }|"${lolargs[@]}"
 #
 #  tput cuu 2; tput cr
 #}
-
-
-. <(/usr/local/bin/sourcefn -l /usr/local/bin/mpdignore.functions -f sec2sex)
-
-prntprog(){
-  local artist title state pos length elapsed duration percent volume repeat random consume
-  readarray -t mpdcout < <(mpdc 'currentsong\nstatus')
-  for i in "${mpdcout[@]}"; do
-    [[ "$i" = Artist:\ * ]] && artist="${i#*: }"
-    [[ "$i" = Title:\ * ]] && title="${i#*: }"
-    [[ "$i" = state:\ * ]] && state="${i#*: }"
-    [[ "$i" = Pos:\ * ]] && pos="${i#*: }"
-    [[ "$i" = playlistlength:\ * ]] && length="${i#*: }"
-    [[ "$i" = time:\ * ]] && { elapsed="${i#*: }"; elapsed="${elapsed%\:*}"; duration="${i##*\:}";
-percent="$(( (100 * elapsed)/duration ))"; elapsed="$(sec2sex "$elapsed")"; duration="$(sec2sex "$duration")"; }
-    [[ "$i" = volume:\ * ]] && vol="${i#*: }"
-    [[ "$i" = repeat:\ * ]] && repeat="${i#*: }"
-    [[ "$i" = random:\ * ]] && { random="${i#*: }"; (( random )) && random='✅' || random='❌'; }
-    [[ "$i" = consume:\ * ]] && { consume="${i#*: }"; (( consume )) && consume='✅' || consume='❌'; }
-  done
-  [[ "$state" = play ]] && state="playing"
-  [[ "$state" = pause ]] && state="paused"
-  [[ "$randomst" = on ]] && hr2out="mpdlinger random on" || hr2out="mpdlinger"
-  { printf '%b%s -- %s\n'  "$clrindent" "$artist" "$title"
-    printf '%b[%s] #%s/%s  %s/%s (%s%%)\n' "$clrindent" "$state" "$pos" "$length" "$elapsed" "$duration" "$percent"
-    printf '%bvolume: %s%% ⟳  random: %s consume: %s' "$clrindent" "$vol" "$random" "$consume"
-  }|"${lolargs[@]}"
-
-  tput cuu 2; tput cr
-}
-##--> prntprog() <--###############################################################################
+###--> prntprog() <--###############################################################################
 
 progloop(){
-  local state="$(\mpc status %state%)"
+  local hr2out
   while :; do
-    (( paused )) && sleep 1 && continue
+#    (( paused )) && sleep 1 && continue
     [[ "$state" = paused ]] && sleep 1 && continue
 #    wait
 #    prntprog  # or whatever displays the current elapsed time
@@ -1121,14 +1366,52 @@ progloop(){
                                            percent="$(( (100 * elapsed)/duration ))";
                                            elapsed="$(sec2sex "$elapsed")"; duration="$(sec2sex "$duration")"; }
     done
-    [[ "$state" = play ]] && state="playing"
-    [[ "$state" = pause ]] && state="paused"
+    [[ "$state" = play ]] && state="$bold${dkgreen}playing$tput0"
+    [[ "$state" = pause ]] && { state="${boldred}paused$tput0"; sleep 1; continue; }
     [[ "$randomst" = on ]] && hr2out="mpdlinger random on" || hr2out="mpdlinger"
+    dkgreen=$(tput setaf 2)
+    local lingerpause="$paused" lingerstate lingerlimit="$limit" output
+    lcount="$count"
+    (( ! count )) && count="$prevcount"
+    (( ! count )) && count="$limit"
+    lingertitle="linger$tput0"
+    if (( lingerpause )); then
+      lingerstate="$red▮▮$tput0"
+      lcount="$tput0$white$lcount" lingerlimit="$lingerlimit"
+    else
+      lingerstate="$bold$dkgreen▶$tput0"
+      lcount="$bold$dkgreen$lcount" lingerlimit="$lingerlimit$tput0"
+    fi
+
     {
-    printf '%b%s -- %s\n' "$clrindent" "$artist" "$title"
-    printf '%b[%s] #%s/%s  %s/%s (%s%%)\n' "$clrindent" "$state" "$pos" "$length" "$elapsed" "$duration" "$percent"
-    printf '%bvolume: %s%% ⟳  random: %s consume: %s' "$clrindent" "$vol" "$random" "$consume"
-    printf '\n\n%s\n\n%b%s' "$(hr2 "$hr2out")" "$clrindent" "$(date)"
+      c_path_cur=$(tput sitm; tput setaf 7) # pale whiute path
+      c_path_que=$(tput sitm; tput setaf 7) # pale white
+
+      c_aa_cur=$(tput sitm; tput setaf 33) # Blue for artist and album
+      c_aa_que=$(tput sitm; tput setaf 12) # Blue for artist and album
+
+      c_title_cur=$(tput sitm; tput setaf 214) # Magenta for the song file name
+      c_title_que=$(tput sitm; tput setaf 3) # Magenta for the song file name
+
+      printf '%b%s%s%s%s%s - %s%s%s%s%s\n' \
+        "$clrindent" \
+        "$bold" \
+        "$c_aa_cur" \
+        "${ritm}" \
+        "${paused:+$italics}" \
+        "$artist" \
+        "$c_title_cur" \
+        "${ritm}" \
+        "${paused:+$italics}" \
+        "$title" \
+        "$tput0"
+
+#     printf '%b%s -- %s\n' "$clrindent" "$artist" "$title"
+      printf '%b[%s] #%s/%s  %s/%s (%s%%)\n' "$clrindent" "$state" "$pos" "$length" "$elapsed" "$duration" "$percent"
+      printf '%bvolume: %s%% ⟳  random: %s consume: %s %s: %s/%s%s %s' "$clrindent" "$vol" "$random" "$consume" \
+                                                                     "$lingertitle" "$lcount" "$lingerlimit" \
+                                                                     "${blocklimit:+($blocklimit)}" "$lingerstate"
+      printf '\n\n%s\n\n%b%s' "$(hr2 "$hr2out")" "$clrindent" "$(date)"
     }|"${lolargs[@]}"
     tput cuu 6; tput cr
     sleep 2
@@ -1136,26 +1419,40 @@ progloop(){
 }
 ##--> progloop() <--###############################################################################
 
-wait
+wait "${bgpids[@]}" #for what... for the lolargs above?
+
+## output to mpdlinger "$statefile".
+writestate > "$statefile"
+writestate >&"$logfd"
+
 tput cuu 7; # tput cr
 progloop &  # run in background
 progpid=$!
-
+startfifo(){
+  if kill -0 "$fifopid" 2>/dev/null; then
+    printf '%sfifopid=%s\n' "$(itag)" "$fifopid" >&"$logfd"
+  else
+    fifoin & fifopid="$!"
+    printf '%sfifopid=%s\n' "$(itag)" "$fifopid" >&"$logfd"
+    printf 'fifopid=%s\n' "$fifopid" >> "$statefile"
+  fi
+}
+startfifo
 # (( execoption )) && exit 0
 
 ##--> main while loop <--##########################################################################
 
 while output=( $(\mpc idle playlist player) ); do
-
   ## removing verbose conditon to use witn mpdlog
                   printf '\n%sStarting while loop...\n\n' "$(vtag)" >&"$logfd"
+  startfifo
   (( verbose )) && printf '%s   progpid = %s\n' "$(vtag)" "$progpid" >&"$logfd"
-  kill "$progpid" &>/dev/null
-  wait "$progpid" &>/dev/null
+  (( progpid )) && kill "$progpid" &>/dev/null
+  (( progpid )) && wait "$progpid" &>/dev/null
   progresstest="$(ps -p $progpid --no-header)" && { kill -9 "$progpid" &>"$logfd";
                 printf '%sprogloop() still running:\n%s%s' "$(etag)" "$(etag)" "$progresstest";
                 printf '%sprogloop() still running:\n%s%s' "$(etag)" "$(etag)" "$progresstest" >&"$logfd";
-                wait; }
+                wait "$progpid"; }
 
   (( verbose )) && progresstest="$(ps -p $progpid --no-header)" &&
                    printf '%sprogloop() still running:\n%s%s' "$(vtag)" "$(vtag)" "$progresstest" >&"$logfd"
@@ -1242,6 +1539,20 @@ while output=( $(\mpc idle playlist player) ); do
 #      \mpc random "$randomst" >/dev/null
     fi
 
+## output to mpdlinger "$statefile".
+  ## if count > 0 then set countout="$count"
+    (( count )) && lingercount="$count" || lingercount="${prevcount:-0}"
+                 {       printf 'lingerpause=%s\n' "$paused"
+    (( lingercount )) && printf 'lingercount=%s\n' "$lingercount"
+          (( limit )) && printf 'lingerlimit=%s\n' "$limit"
+     (( blocklimit )) && printf 'lingerblock=%s\n' "$blocklmit"
+   (( mpdlingerpid )) && printf   'lingerpid=%s\n' "$mpdlingerpid"
+       (( lingeron )) && printf    'lingeron=%s\n' "$lingeron"; } > "$statefile"
+
+## restart the fifoin function if needed:
+  kill -0 "$fifopid" 2>/dev/null|| { fifoin & fifopid="$!" ; printf '%sfifopid=%s\n' "$(itag)" "$fifopid" >&"$logfd" ; }
+
+
     (( verbose )) &&
      { printf '%stransition = %s\n' "$(vtag)" "$transition"
        printf '%sblocklimit = %s\n' "$indent" "$blocklimit"
@@ -1258,6 +1569,7 @@ while output=( $(\mpc idle playlist player) ); do
     (( ! verbose )) &&
      { printf '%s     count = %s\n' "$indent" "$count"
        printf '%s     limit = %s\n' "$indent" "$limit"; } >&"$logfd"
+
 
 
     if [[ "$endblklmt" ]]; then
@@ -1291,14 +1603,14 @@ while output=( $(\mpc idle playlist player) ); do
 #      "$(printf 'Random mode: %s\n' "$(\mpc status %random%)")" \
     unset prevcount
     (( verbose )) && printf '\n%sTurning wait on...\n\n' "$(vtag)" >&"$logfd"
-    wait
+    wait "$progpid" 2>/dev/null
     (( verbose )) && printf '\n%s...wait done.\n' "$(vtag)" >&"$logfd"
   else
     wait "$progpid" 2>/dev/null
     kill "$progpid" 2>/dev/null
     wait "$progpid" 2>/dev/null
     clear -x
-    wait
+    wait "$progpid" 2>/dev/null
     clear -x
     printf '%s \n%s \n%s \n\n%s\n%b%s\n' \
     "$(toilet -tf "$font1" "$artist / $title")" \
@@ -1326,11 +1638,9 @@ while output=( $(\mpc idle playlist player) ); do
    (( ! verbose )) &&
      { printf '%s     count = %s\n' "$indent" "$count"
        printf '%s     limit = %s\n' "$indent" "$limit"; } >&"$logfd"
-
-
   fi
 
-  wait
+  wait "$progpid" 2>/dev/null
   tput cuu 7; tput cr
   ( progloop; ) &  # run in background
   progpid=$!
@@ -1347,13 +1657,14 @@ while output=( $(\mpc idle playlist player) ); do
 #  (( verbose )) && ps -o pid,state,ppid,cmd --ppid $$ >&"$logfd"
 #  (( verbose )) && ps -eo stat | grep -c '^Z' >&"$logfd"
 
+  startfifo
 done
 
 ##--> end main while loop <--########################################################################
 
 # Clean up progloop
-kill "$progpid" 2>/dev/null
-wait "$progpid" 2>/dev/null
+kill "$progpid" "$fifopid" 2>/dev/null
+wait "$progpid" "$fifopid" 2>/dev/null
 
 exit
 
