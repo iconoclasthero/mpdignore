@@ -170,7 +170,7 @@ getlast(){
   [[ "$1" = mpd.log.? ]] && mpdlog="$1"
   mpdlog="${mpdlog:=mpd.log}"
 
-  if [[ "$mpdhost" = "localhost" ]] && command -v mpdtags >/dev/null; then
+  if { [[ "$mpdhost" = "localhost" ]] || (( usempdtags )); } && command -v mpdtags >/dev/null; then
     local completed
     local file
     local artist
@@ -567,6 +567,9 @@ output+=( "$(printf '          volume: %s%%%s %s %s random: %s%s%s consume: %s%s
 cklinger
 
 (( lingeron )) && { lingertitle="linger$tput0"
+#                    (( lingerblocklmt && lingerblocklmt != lingerbaselmt )) &&
+                    (( lingerlimit != lingerbase )) &&
+                       lingerlimit="$lingerlimit($lingerbase)"
                     if (( lingerpause )); then
                       lingerstate="${red}▮▮$tput0"
                       lingercount="${tput0}$white$lingercount" lingerlimit="$lingerlimit"
@@ -576,10 +579,10 @@ cklinger
                     fi
 
                     output[-1]+="$(printf '%s: %s/%s %s' \
-                              "$lingertitle" \
-                              "$lingercount" \
-                              "$lingerlimit" \
-                              "$lingerstate" )" ; }
+                                    "$lingertitle" \
+                                    "$lingercount" \
+                                    "$lingerlimit" \
+                                    "$lingerstate" )" ; }
 (( ! lingeron )) && { lingertitle="linger$tput0"; output[-1]+="$(printf '%s: %s' "$lingertitle" "${off:-❌}")" ; }
 output[-1]+="$(printf \\n\\n)"
 
