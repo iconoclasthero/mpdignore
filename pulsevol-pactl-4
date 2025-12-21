@@ -8,7 +8,7 @@ ip=127.0.0.1
 defaultconfig="$HOME/.config/mpd-local.conf"
 config="$defaultconfig"
 
-[[ ! -f "$config" ]] && { printf '\n[error] No default config file found. \nCreate: %s\n\n' "$config"; default=1; }
+[[ ! -f "$config" ]] && printf '\n[error] No default config file found. \nCreate: %s\n\n' "$config"
 
 gigabyte=192.168.1.2
 optiplex=192.168.12.222
@@ -38,11 +38,23 @@ notifier(){
                 "$(for i in "$@"; do printf %s\\n "$i"; done)"
 
   elif (( volume <= 25 )); then
-    notify-send -t "$timeout" -a "pulsevol" -i audio-volume-low -h int:value:"$percent" "$(for i in "$@"; do printf %s\\n "$i"; done)"
+    notify-send -t "$timeout" \
+                -a "pulsevol" \
+                -i audio-volume-low \
+                -h int:value:"$percent" \
+                "$(for i in "$@"; do printf %s\\n "$i"; done)"
   elif (( volume >= 75 )); then
-    notify-send -t "$timeout" -a "pulsevol" -i audio-volume-high -h int:value:"$percent" "$(for i in "$@"; do printf %s\\n "$i"; done)"
+    notify-send -t "$timeout" \
+                -a "pulsevol" \
+                -i audio-volume-high \
+                -h int:value:"$percent" \
+                "$(for i in "$@"; do printf %s\\n "$i"; done)"
   else
-    notify-send -t "$timeout" -a "pulsevol" -i audio-volume-medium -h int:value:"$percent" "$(for i in "$@"; do printf %s\\n "$i"; done)"
+    notify-send -t "$timeout" \
+                -a "pulsevol" \
+                -i audio-volume-medium \
+                -h int:value:"$percent" \
+                "$(for i in "$@"; do printf %s\\n "$i"; done)"
   fi
 }
 

@@ -197,7 +197,8 @@ getlast(){
     local mpdlog
     local logdir='/var/log/mpd'
     mpdlog="$logdir/${mpdlog:-mpd.log}"
-    source <(mpdtags --last="$mpdlog")
+    if (( usempdtags )); then source <(ssh gigabyte mpdtags --last="$mpdlog")
+    else source <(mpdtags --last="$mpdlog"); fi
     lastfullpath="$musicdir/$file"
     lastpath="$file"
     lastartist="$artist"
