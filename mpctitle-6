@@ -3,7 +3,8 @@
 [[ "$TERM" = dumb || -z "$TERM" ]] && TERM="xterm-256color"
 export TERM
 
-#editscript(){
+lingercmd=( '/usr/local/bin/mpdgolinger' )
+#'editscript(){
 #  local scriptpath script path swp; scriptpath=$(realpath "$0" 2>/dev/null); script="${scriptpath##*/}"; path="${scriptpath%/*}"; swp="$path/.$script.swp"
 #  [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptpath") && exit
 #  printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptpath" "$swp"; exit ; }
@@ -55,7 +56,8 @@ mpdc() {
 }
 
 readarray -t songstat < <( mpdc 'status\ncurrentsong' )
-(( verbose )) && [[ "$hr2out" != "mpdlinger"* ]] && printf %s\\n "${songstat[@]}"
+(( verbose )) && [[ "$hr2out" != "mpdw
+linger"* ]] && printf %s\\n "${songstat[@]}"
 
 unset label mbartistid
 
@@ -309,6 +311,68 @@ fi
 }
 ##--> getlast() <--#############################################################################
 
+lingercli(){
+  ca=( "${@}" )  #defines the CliArray
+  n="${#ca[@]}"
+  i=0
+  (( verbose )) && lingercmd+=( "--verbose" )
+   lingercmd+=( "--execpost=none" )
+  while (( n > 0 )); do
+    if [[ "${ca[i]}" = linger ]]; then
+      ca=( "${ca[@]:1}" ); (( n-- ))
+      continue
+    elif [[ "${ca[i]}" = @(block@(|limit)|limit) ]]; then
+      lingercmd+=( "${ca[i]}" )
+      if [[ "${ca[i+1]}" =~ ^[0-9]+ ]]; then
+        lingercmd+=( "${ca[i+1]}" );
+        ca=( "${ca[@]:2}" ); (( n -= 2 ))
+      else
+        ca=( "${ca[@]:1}" ); (( n-- ))
+      fi
+        continue
+    elif [[ "${ca[i]}" = @(resume|next|status|toggle|exit) ]]; then
+      lingercmd+=( "${ca[i]}" )
+      ca=( "${ca[@]:1}" ); (( n-- ))
+      continue
+    elif [[ "${ca[i]}" = pause ]]; then
+      if [[ "${ca[i+1]}" = @(on|off) ]]; then
+        [[ "${ca[i+1]}" = on ]]  && lingercmd+=( pause )
+        [[ "${ca[i+1]}" = off ]] && lingercmd+=( resume )
+        ca=( "${ca[@]:2}" ); (( n -= 2 ))
+      else
+        ca=( "${ca[@]:1}" ); (( n-- ))
+        lingercmd+=( pause )
+      fi
+       continue
+    else  # this "shifts" arguments that don't match
+      (( n-- ))
+      (( i++ ))
+    fi
+  done
+
+  lingercmd+=( 'status' )
+
+  (( verbose )) && echo "${lingercmd[@]}"
+  lingerout=( $("${lingercmd[@]}" 2>/dev/null) )
+
+  for line in "${lingerout[@]}"; do
+    [[ "$line" = lingersongid*   ]] && {   lingersongid="${line#*=}"; continue; }
+    [[ "$line" = lingerpause*    ]] && {    lingerpause="${line#*=}"; continue; }
+    [[ "$line" = lingercount*    ]] && {    lingercount="${line#*=}"; continue; }
+    [[ "$line" = lingerlimit*    ]] && {    lingerlimit="${line#*=}"; continue; }
+    [[ "$line" = lingerbase*     ]] && {     lingerbase="${line#*=}"; continue; }
+    [[ "$line" = lingerblockon*  ]] && {  lingerblockon="${line#*=}"; continue; }
+    [[ "$line" = lingerblocklmt* ]] && { lingerblocklmt="${line#*=}"; continue; }
+    [[ "$line" = lingerpid*      ]] && {      lingerpid="${line#*=}"; continue; }
+#   [[ "$line" = lingeron*       ]] && {       lingeron="${line#*=}"; continue; }
+  done
+
+  (( lingerpid )) && lingeron=1
+
+}
+##--> lingercli() <--#############################################################################
+
+
 mpcq(){
   [[ "$1" = -q ]] && shift
   \mpc -h "$mpdpass@$mpchost" "$@"
@@ -319,6 +383,7 @@ mpcq(){
 ### Main Code: mpctitle
 ### flag processing
 while (( "$#" )); do
+  [[ "$1" = --verbose ]] && { verbose=1; shift; continue; }
   [[ "$1" = --fromnext ]] && { fromnext=1; shift; continue; }
   [[ "$1" = -@(q|qq) ]] && { mpcq "$@"; exit "$?"; }              # -q for mpctitle quiet; -qq mpctitle and mpc quiet
   [[ "$1" = -t ]] && { finalout="$2"; shift 2; continue; }        # this is printed after the mpctitle stuff
@@ -326,6 +391,7 @@ while (( "$#" )); do
   [[ "$1" = 'next' ]] && { shift; exec next "$@"; exit "$?"; }
   [[ "$1" = --config && -r "$2" ]] && { config="$2"; shift 2; continue; }
   [[ "$1" = --config && ! -r "$2" ]] && { printf 'Invalid --config file specified. (exit 1)\n'; exit 1; }
+  [[ "$1" = @(linger|@(|block)@(|limit)) ]] && { lingercli "$@"; set -- "${ca[@]}"; continue; }
   if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
     if [[ "$2" = @(on|off) ]]; then
       \mpc -q -h "$mpdpass@$mpchost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
@@ -565,7 +631,7 @@ output+=( "$(printf '          volume: %s%%%s %s %s random: %s%s%s consume: %s%s
   "${single:+single: $single}" \
   "$tput0" )" )
 
-cklinger
+(( ! lingeron )) && cklinger
 
 (( lingeron )) && { lingertitle="linger$tput0"
 #                    (( lingerblocklmt && lingerblocklmt != lingerbaselmt )) &&
