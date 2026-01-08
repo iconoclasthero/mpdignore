@@ -651,14 +651,16 @@ cklinger(){
     [[ "$line" = lingerblockon*  ]] && {  lingerblockon="${line#*=}"; continue; }
     [[ "$line" = lingerblocklmt* ]] && { lingerblocklmt="${line#*=}"; continue; }
     [[ "$line" = lingerpid*      ]] && {      lingerpid="${line#*=}"; continue; }
+    [[ "$line" = lingerxy*       ]] && {       lingerxy="${line#*=}"; continue; }
+    [[ "$line" = lingerx*        ]] && {        lingerx="${line#*=}"; continue; }
+    [[ "$line" = lingery*        ]] && {        lingery="${line#*=}"; continue; }
 #   [[ "$line" = lingeron*       ]] && {       lingeron="${line#*=}"; continue; }
   done < "$lingerstate" ; } 2>> "$tmplog"
 
-  (( lingerpid )) && lingeron=1
-#  (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) && (( "${#procfiles[@]}" )) && lingeron=1 || unset lingerpid
-#  (( ! lingerpid )) && [[ -f "$lingerpidf" && -r "$lingerpidf" ]] && lingerpid=$(< "$lingerpidf")
-#  (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) && (( "${#procfiles[@]}" )) && lingeron=1 || unset lingerpid
-#  (( lingeron )) || { [[ -w "$lingerstate" ]] && rm -f "$lingerstate" || printf 'Unable to remove %s\n' "$lingerstate" >> "$tmplog"; } 2>/dev/null
+  (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) && (( "${#procfiles[@]}" )) && lingeron=1 || unset lingerpid
+  (( ! lingerpid )) && [[ -f "$lingerpidf" && -r "$lingerpidf" ]] && lingerpid=$(< "$lingerpidf")
+  (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) && (( "${#procfiles[@]}" )) && lingeron=1 || unset lingerpid
+  (( lingeron )) || { [[ -w "$lingerstate" ]] && rm -f "$lingerstate" || printf 'Unable to remove %s\n' "$lingerstate" >> "$tmplog"; } 2>/dev/null
   (( lingercount == 0 )) && (( lingerlimit )) && lingercount="$lingerlimit";
 
   (( debug )) && {

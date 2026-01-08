@@ -1,7 +1,7 @@
 #!/bin/bash
 
-. /usr/local/bin/editscript
-. "$HOME/.config/mpd-local.conf"
+[[ -r /usr/local/bin/editscript ]] && source /usr/local/bin/editscript
+[[ -r "$HOME/.config/mpd-local.conf" ]] && source "$HOME/.config/mpd-local.conf"
 
 boldred=$(tput bold setaf 9)
 tput0=$(tput sgr0)
@@ -12,6 +12,11 @@ mpccmd=( mpc -h "$mpdpass@$mpchost" )
 
 #[[ "$1" = . || "$1" = .\/* && "$1" != *\** ]] && set -- "$(realpath --relative-to "$musicdir" "$1")" "${@:2:}"
 
+if (( $# == 0 )) && [[ -t 0 ]]; then
+  printf '[error] No arguments and no stdin (pipe expected)\n' >&2
+  printf 'Enter items to be added to currently playing or ^C to exit:\n' >&2
+fi
+
 ## read from stdin:
 (( $# == 0 )) && mapfile -t arr && set -- "${arr[@]}" || arr=( "$@" )
 
@@ -20,7 +25,6 @@ pause "$(printf %s\\n "$@")"
 for i in "${!arr[@]}"; do
   [[ "${arr[i]}" = /library/music/* ]] && arr[i]="${arr[i]#/library/music/}"
 done
-
 
 startlength="$("${mpccmd[@]}" status %length%)"
 addout="$("${mpccmd[@]}" add "$@" 2>&1)"; ec="$?"
