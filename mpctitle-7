@@ -724,7 +724,7 @@ output+=( "$(printf '          volume: %s%%%s %s %s random: %s%s%s consume: %s%s
   "$tput0" )" )
 
 (( ! lingeron )) && cklinger
-
+(( verbose )) && printf '[verbose] $lingerxy=%s\n' "$lingerxy"
 (( lingeron )) && {
                     (( lingerlimit != lingerbase )) &&
                        lingerlimit="$lingerlimit($lingerbase)"

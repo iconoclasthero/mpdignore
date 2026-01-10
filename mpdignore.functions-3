@@ -589,7 +589,6 @@ cklinger(){ ## not the active cklinger
 
 
 cklinger(){
-  shopt -p nullglob >/dev/null 2>&1 || { nullgloboff=1; shopt -s nullglob; } 2>/dev/null
   unset lingeron lingercount lingerlimit lingerpause
   local verbname="${FUNCNAME}verb"
   local verbose="${!verbname:-0}"
@@ -602,47 +601,17 @@ cklinger(){
   local lingerstate="${lingerstate:-$lingerdir/mpdlinger.state}"
   local lingerlog="${lingerlog:-$lingerdir/mpdlinger.log}"
   local lingercmd="${lingercmd:-$lingerdir/mpdlinger.cmd}"
+  local lingersock="${lingersock:-/var/lib/mpd/mpdlinger/mpdgolinger.sock}"
   (( verbose )) && echo "[info]: lingerdir=$lingerdir" >> "$tmplog" 2>&1
   (( verbose )) && echo "[info]: lingerpidf=$lingerpidf" >> "$tmplog" 2>&1
   (( verbose )) && echo "[info]: lingerlog=$lingerlog" >> "$tmplog" 2>&1
   (( verbose )) && cat "$lingerpidf" >> "$tmplog" 2>&1
-#  (( verbose )) && tail -n50 "$lingerlog" >> "$tmplog" 2>&1
   (( verbose )) && cat "$lingerstate" >> "$tmplog" 2>&1
 
-#  while read -r line; do
-#    case "$line" in
-#      *"Turning pause off."* | *"Contents of $lingercmd: \"resume\""*)
-#           : "${lingerpause:=0}";
-#           continue
-#           ;;
-#      *"Turning pause on."* | *"Contents of $lingercmd: \"paused 1\""*)
-#           : "${lingerpause:=1}";
-#           continue
-#           ;;
-#    esac;
-#    [[ "$line" =~ \.\.\.Ending\ while\ loop ]] && {
-#        end=1;
-#        : "${lingerpause:=0}";
-#        continue
-#      };
-#        [[ "$line" =~ ${lingerts}\.\.\.Ending\ pause\ loop ]] && {
-#            endpause=1;
-#            : "${lingerpause:=1}";
-#            continue
-#        };
-#        [[ "$line" =~ ^limit\ =\ ([0-9]+) ]] && : "${lingerlimit:=${BASH_REMATCH[1]}}";
-#        [[ "$line" =~ ^count\ =\ ([0-9]+) ]] && : "${lingercount:=${BASH_REMATCH[1]}}";
-#        if [[ "$line" =~ ${lingerts}Starting\ (pause|while)\ loop\.\.\. ]]; then
-#            if (( end || endpause )) && (( lingerlimit && lingercount )); then
-#                break;
-#            else
-#                unset end;
-#            fi;
-#        fi;
-#        (( debug == 2 )) && printf %s\\n "$line" >> "$tmplog";
-#    done < <(tail --lines 100 "$lingerlog" | tac);
   [[ ! -w "$tmplog" ]] && tmplog='/dev/null'
-  [[ -r "$lingerstate" ]] && { while IFS= read -r line; do
+#  [[ -r "$lingerstate" ]] && { while IFS= read -r line; do
+  { while IFS= read -r line; do
+    [[ "$line" = writetime*      ]] && {     lingertime="${line#*=}"; continue; }
     [[ "$line" = lingersongid*   ]] && {   lingersongid="${line#*=}"; continue; }
     [[ "$line" = lingerpause*    ]] && {    lingerpause="${line#*=}"; continue; }
     [[ "$line" = lingercount*    ]] && {    lingercount="${line#*=}"; continue; }
@@ -655,19 +624,25 @@ cklinger(){
     [[ "$line" = lingerx*        ]] && {        lingerx="${line#*=}"; continue; }
     [[ "$line" = lingery*        ]] && {        lingery="${line#*=}"; continue; }
 #   [[ "$line" = lingeron*       ]] && {       lingeron="${line#*=}"; continue; }
-  done < "$lingerstate" ; } 2>> "$tmplog"
+#  done < "$lingerstate" ; } 2>> "$tmplog"
+  done < <(mpdgolinger --socket "$lingersock" --execpost=none status) ; } 2>> "$tmplog"
 
-  (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) && (( "${#procfiles[@]}" )) && lingeron=1 || unset lingerpid
-  (( ! lingerpid )) && [[ -f "$lingerpidf" && -r "$lingerpidf" ]] && lingerpid=$(< "$lingerpidf")
-  (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) && (( "${#procfiles[@]}" )) && lingeron=1 || unset lingerpid
-  (( lingeron )) || { [[ -w "$lingerstate" ]] && rm -f "$lingerstate" || printf 'Unable to remove %s\n' "$lingerstate" >> "$tmplog"; } 2>/dev/null
+  now=$(date +%s) diff=$(( now - $(date -d "$lingertime" +%s) ))
+  lingeron=$(( diff < 2 ? 1 : 0 ))
+  if ! (( lingeron )); then
+    shopt -p nullglob >/dev/null 2>&1 || { nullgloboff=1; shopt -s nullglob; } 2>/dev/null
+    (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) && (( "${#procfiles[@]}" )) && lingeron=1 || unset lingerpid
+    (( ! lingerpid )) && [[ -f "$lingerpidf" && -r "$lingerpidf" ]] && lingerpid=$(< "$lingerpidf")
+    (( lingerpid )) && procfiles=("/proc/$lingerpid/"*) && (( "${#procfiles[@]}" )) && lingeron=1 || unset lingerpid
+    (( lingeron )) || { [[ -w "$lingerstate" ]] && rm -f "$lingerstate" || printf 'Unable to remove %s\n' "$lingerstate" >> "$tmplog"; } 2>/dev/null
+    (( nullgloboff )) && shopt -u nullglob > /dev/null
+  fi
   (( lingercount == 0 )) && (( lingerlimit )) && lingercount="$lingerlimit";
 
   (( debug )) && {
         printf 'lingercount/lingerlimit = %s/%s\n' "$lingercount" "$lingerlimit" >> "$tmplog";
         printf 'lingerpid=%s\nlingeron=%s\nend=%s\nlingerpause=%s\n' "$lingerpid" "$lingeron" "$end" "$lingerpause" >> "$tmplog"
     };
-    (( nullgloboff )) && shopt -u nullglob > /dev/null
 }
 ##--> cklinger() <--###########################################################################
 
