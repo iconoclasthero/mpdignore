@@ -105,7 +105,8 @@ for i in "${nextsong[@]}"; do
   [[ "$i" =          Track:\ * ]] && next_track="${i#*: }"
   [[ "$i" =        Comment:\ * ]] && next_comment="${i#*: }" ##issue
   [[ "$i" =      Performer:\ * ]] && next_performer="${i#*: }" ## issue
-  [[ "$i" =           Date:\ * ]] && { next_date="${i#*: }"; next_date="${i%%-*}"; }  ## issue
+# [[ "$i" =           Date:\ * ]] && { next_date="${i#*: }"; next_date="${i%%-*}"; }  ## issue
+  [[ "$i" =           Date:\ * ]] && { next_date="${i#*: }"; } #next_date="${i%%-*}"; }  ## issue
   [[ "$i" =     nextsongid:\ * ]] && nextid="${i#*: }"
 # [[ "$i" =         Format:\ * ]] && next_format="${i#*: }"
 # [[ "$i" =    AlbumArtist:\ * ]] && next_albumartist="${i#*: }"
@@ -120,6 +121,9 @@ for i in "${nextsong[@]}"; do
   [[ "$i" =        MUSICBRAINZ_ALBUMID:\ * ]] && next_mbalbumid="${i#*: }"
   [[ "$i" = MUSICBRAINZ_RELEASETRACKID:\ * ]] && next_mbreltrackid="${i#*: }"
 done
+
+  [[ "$next_date" =~ ([0-9]{4}) ]] && next_year="${BASH_REMATCH[1]}"
+
 
 if [[ "$1" = @(--print|-p) ]]; then
   printf "songid='%s'\n" "$songid"
@@ -175,6 +179,7 @@ if [[ "$1" = @(--print|-p) ]]; then
   printf 'next_comment=%s\n'          "${next_comment@Q}"
   printf 'next_performer=%s\n'      "${next_performer@Q}"
   printf "next_date='%s'\n"                  "$next_date"
+  printf "next_year='%s'\n"                  "$next_year"
   printf "next_time='%s'\n"                  "$next_time"
   printf "next_mbartistid='%s'\n" "${next_mbartistid[@]}"
   printf "next_mbalbumid='%s'\n"        "$next_mbalbumid"
