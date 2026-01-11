@@ -20,10 +20,13 @@ source /etc/default/mpdignore
 : "${mpdignorelib:=/usr/local/lib/mpdignore.functions}"
 #source "$mpdignorelib"
 # cklinger() sourced
-source <(sourcefn -l "$mpdignorelib" -f title -f hr2 -f cklinger -f sex2sec)
+source <(sourcefn -l "$mpdignorelib" -f title -f hr2 -f cklinger -f sec2sex -f colors)
+colors
 [[ -r "$HOME/.config/mpd-local.conf" ]] && config="$HOME/.config/mpd-local.conf"
 
 # [[ ! "$mpdhost" ]] && mpdhost=[—redacted—]
+
+#white="$(tput -T $TERM setaf 7)"
 
 c_path_cur=$(tput sitm; tput setaf 7) # pale whiute path
 c_path_que=$(tput sitm; tput setaf 7) # pale white
