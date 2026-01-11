@@ -90,7 +90,6 @@ fi
 
 (( verbose )) && pause "before mpctitle"
 mpctitlecmd+=( --fromnext )
-
 exec "${mpctitlecmd[@]}"
 
 exit
