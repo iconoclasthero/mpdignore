@@ -17,10 +17,11 @@ lingercmd=( '/usr/local/bin/mpdgolinger' )
 
 source /usr/local/bin/editscript
 source /etc/default/mpdignore
+source "$HOME/.config/mpd-local.conf"
 : "${mpdignorelib:=/usr/local/lib/mpdignore.functions}"
 #source "$mpdignorelib"
 # cklinger() sourced
-source <(sourcefn -l "$mpdignorelib" -f title -f hr2 -f cklinger -f sec2sex -f colors)
+source <(sourcefn -l "$mpdignorelib" -f mpcp -f title -f hr2 -f cklinger -f sec2sex -f colors)
 colors
 [[ -r "$HOME/.config/mpd-local.conf" ]] && config="$HOME/.config/mpd-local.conf"
 
