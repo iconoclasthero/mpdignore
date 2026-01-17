@@ -177,10 +177,13 @@ exec notify-send -a "mpctitle" -i audio-x-generic "$(mpctitle | perl -pe 's/\x1b
 getlast(){
   local logstream mpdlog
   va=false
-  [[ "$1" = mpd.log.? ]] && mpdlog="$1"
+  while (( "$#" )); do
+    [[ "$1" = mpd.log.? ]] && { mpdlog="$1"; shift; }
+    [[ "$1" = --logstream ]] && { uselogstream=1; shift; }
+  done
   mpdlog="${mpdlog:=mpd.log}"
 
-  if { [[ "$mpdhost" = "localhost" ]] || (( usempdtags )); } && command -v mpdtags >/dev/null && [[ "$1" != --logstream ]]; then
+  if { [[ "$mpdhost" = "localhost" ]] || (( usempdtags )); } && command -v mpdtags >/dev/null && (( ! uselogstream )); then
     (( verbose )) && printf 'usempdtags=%s; mpdhost=%s; command -v mpdtags="%s"\n' "$usempdtags" "$mpdhost" "$(command -v mpdtags)"
     local completed
     local file
@@ -208,9 +211,14 @@ getlast(){
     local mpdlog
     local logdir='/var/log/mpd'
     mpdlog="$logdir/${mpdlog:-mpd.log}"
-    if (( usempdtags )); then source <(ssh gigabyte mpdtags --last="$mpdlog")
-    else source <(mpdtags --last="$mpdlog"); fi
+#   if (( usempdtags )); then source <(ssh gigabyte mpdtags --last="$mpdlog")
+#   else source <(mpdtags --last="$mpdlog"); fi
+    if (( usempdtags )); then source <(ssh gigabyte mpdtags --last)
+    else source <(mpdtags --last); fi 2>/dev/null
     [[ ! "$file" ]] && getlast --logstream
+    local artist="${artist:=$Artist}"
+    local title="${title:=$Title}"
+    local album="${album:=$Album}"
     lastfullpath="$musicdir/$file"
     lastpath="$file"
     lastartist="$artist"
@@ -231,11 +239,11 @@ getlast(){
                        printf '   lastalbum=%s\n' "$lastalbum"
 #                       read -rp "Continue... " </dev/tty
                       }
-  (( verbose )) && read -rp "Continue..."
+  (( ++getlastcount ))
+  (( verbose )) && read -rp "[verbose] ($getlastcount) Continue..."
   else
     [[ "$mpdhost" = localhost ]] && logstream="tac /var/log/mpd/$mpdlog 2>&1" ||
       logstream="ssh -p \"$sshport\" \"$mpchost\" \"tac '/var/log/mpd/$mpdlog'\""
-
     while read -r logline; do
       (( verbose )) && printf 'In `while read -r logline` loop\n'
       if [[ "$logline" = "tac: failed to open '/var/log/mpd/mpd.log"*"for reading: No such file or directory" ]]; then
@@ -308,12 +316,14 @@ getlast(){
   (( verbose )) && printf '[verbose] lastfile=%s\n' "$lastfile"
   # Final fallbacks (in case no match was found)
   if [[ -z "$lastfile" ]]; then
-    if [[ "$mpdlog" = mpd.log.* ]]; then
+    if [[ "$completed" =~ ^20[0-9]{2}-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-6][0-9]:[0-6][0-9]$ ]]; then
+      getlast --logstream
+    elif [[ "$mpdlog" = mpd.log.* ]]; then
       lastartist="Log file empty \ No match found"
       lasttitle="Log file empty \ No match found"
       lastalbum="Log file empty \ No match found"
       lastfullpath=""
-      lastpath="Log file empty \ No match found/"
+      lastpath="Log file empty \ No match found"
       return 1
     else
       getlast mpd.log.1
@@ -468,6 +478,7 @@ while (( "$#" )); do
        exit "$?"
     fi
   elif [[ "$1" = @(seek) ]]; then
+    (( verbose )) && printf '[verbose] In `elif [[ "$1" = @(seek) ]]` branch:\n'
     bftime="$(\mpc -h "$mpdpass@$mpchost" status %currenttime%/%totaltime%\ \(%percenttime%\))"
     bftime="${bftime/ (  / (}"; bftime="${bftime/ ( / (}"
     bfpct="${bftime#*\(}"; bfpct="${bfpct%\)*}" #; echo "${bfpct##* }"
