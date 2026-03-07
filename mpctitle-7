@@ -213,8 +213,8 @@ getlast(){
     mpdlog="$logdir/${mpdlog:-mpd.log}"
 #   if (( usempdtags )); then source <(ssh gigabyte mpdtags --last="$mpdlog")
 #   else source <(mpdtags --last="$mpdlog"); fi
-    if (( usempdtags )); then source <(ssh gigabyte mpdtags --last)
-    else source <(mpdtags --last); fi 2>/dev/null
+    if (( usempdtags )); then source <(ssh gigabyte mpdtags --tryparsed --last)
+    else source <(mpdtags --tryparsed --last); fi 2>/dev/null
     [[ ! "$file" ]] && getlast --logstream
     local artist="${artist:=$Artist}"
     local title="${title:=$Title}"
@@ -683,6 +683,7 @@ if ! (( fromnext )); then
   output=( "$(echo "$c_aa_que"; hr2 LAST)" )
   output+=( "$(title last)" ) || { echo "Check $mpdlog"; exit 1; }
 else
+  sleep 0.5
   cklinger
 fi
 

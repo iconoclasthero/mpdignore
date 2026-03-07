@@ -143,7 +143,6 @@ if [[ "$1" = @(--print|-p) ]]; then
   printf 'percent_time=%s\n' "$percent"
   printf "elapsed='%s'\n" "$elapsed"
   printf "duration='%s'\n" "$duration"
-  printf "total_time='%s'\n" "$total_time"
   printf "total_time='%s'\n" "$duration"
   printf 'filepath=%s\n'        "${filepath@Q}"
   printf 'title=%s\n'              "${title@Q}"

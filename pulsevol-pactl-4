@@ -74,11 +74,29 @@ notifier(){
 #}
 
 volstatus(){
+  if [[ -f "$sinktmp" ]]; then
+    channel_map="$(jq -r --argjson id "$sinkid" '.[]|select (.index == $id)|.channel_map' "$sinktmp")"
+#    IFS=',' read -r -a chanarray <<<"$channel_map"
+#    (( verbose )) && printf %s\\n "${chanarray[@]}"
+    (( verbose )) && printf %s\\n "$channel_map"
+    if [[ "$channel_map" = *"-left,"*"-right" ]]; then
+      readarray -t channelarray < <(jq -r --argjson id "$sinkid" '.[]
+                                        |select(.index == $id)
+                                        |.volume | to_entries[]
+                                        | "\(.key) \(.value.value_percent)"' "$sinktmp")
+      channelarray=( "${channelarray[@]#*-}" )
+      channelarray=( "${channelarray[@]//left/Left}" )
+      channelarray=( "${channelarray[@]//right/Right}" )
+      printf -v volout 'Volume: %s\n' "$(printf '%s – %s' "${channelarray[@]}")"
+      [[ "$volout" ]] && return
+    fi
+  fi
+(( verbose )) && boobs
   if ! (( usessh )); then
     volout="$(
       pactl --server="tcp:$ip:$port" get-sink-volume "$sinkid" | awk '
         /mono:/ {print "Volume:", $5}
-        /front-left:/ {printf "Volume: Left %s%% — Right %s%%", $5, $9}'
+        /front-left:/ {printf "Volume: Left %s%% — Right %s%%", $5, $12}'
     )"
 
     muteout="$(
@@ -355,7 +373,7 @@ fi
 }
 #########################
 
-rm -f "$sinktmp"
+#rm -f "$sinktmp"
 
 (( verbose )) && read -rp "[verbose] \$sinkid=$sinkid"
 
@@ -409,6 +427,8 @@ else
   printf '  %s\n  %s\n' "$volout" "$muteout"
 
 fi
+
+rm -f "$sinktmp"
 
 drawbar() {
   local percent=$1   # 0-100
