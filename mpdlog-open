@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+configpath="$HOME/.config/mpd-local.conf"
+[[ -f "$configpath" ]] && source "$configpath"
+: "${localmusicdir:=/Library/music}"
+
+u="$1"
+p="${u#*path=}"
+p="$(printf '%b' "${p//%/\\x}")"
+nautilus --select "$localmusicdir/$p" 2>/dev/null || xdg-open "$localmusicdir/${p%/*}"
+
