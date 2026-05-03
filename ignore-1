@@ -27,7 +27,7 @@ if ! "${quiet:=false}"; then printf 'Ignoring current song: %s\n' "$(mpc -f %fil
 if [[ "$mpdhost" = @(localhost|127.0.0.1) ]]; then
   echo "${ignored:=$(mpc current -f %file%)}" >> "$mpdpldir"/.mpdignore.m3u
 else
-  [[ "$mpdpldir" =~ \  ]] && mpdpldir="${mpdpldir// /\\ }"  #is this functional?  use awy $1=$1?
+#  [[ "$mpdpldir" =~ \  ]] && mpdpldir="${mpdpldir// /\\ }"  #is this functional?  use awy $1=$1?
 #  ignored=$(mpc current -f %file%)
 
 ## This ignorecmd=... statement seems to be far, far more than is necessary: the above only puts the file name in the .mpdignore.m3u playlist and not also load the functions and log the song so...  maybe just the printf is sufficient?
