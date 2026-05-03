@@ -7,7 +7,7 @@ source "$XDG_CONFIG_HOME"/mpd-local.conf 2>/dev/null || . "$HOME/.config/mpd-loc
 source mpdignore.functions
 
 while (( $# )); do
-  [[ -f "$1"   ]] && { ignored=$(realpath -m --relative-to="$musicdir" "$1"); skip=0; shift; continue; }
+  [[ -f "$1"   ]] && { ignored=$(realpath -m --relative-to="$localmusicdir" "$1"); skip=0; shift; continue; }
   [[ "$1" = -y ]] && { skip=1; shift; continue; }
   [[ "$1" = -q ]] && { quiet=1; shift; continue; }
   printf '%s is not a vaild file or argument (exit 1)\n' "$1" && exit 1
