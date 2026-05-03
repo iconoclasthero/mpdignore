@@ -6,26 +6,21 @@ shopt -s extglob
 source "$XDG_CONFIG_HOME"/mpd-local.conf 2>/dev/null || . "$HOME/.config/mpd-local.conf" 2>/dev/null || /etc/default/mpd-local.conf
 source mpdignore.functions
 
-while (( "$#" )); do
-  if [[ -f "$1" ]]; then
-    ignored=$(realpath -m --relative-to="$musicdir" "$1")
-    skip=0
-    shift
-  elif [[ "$1" = -y ]]; then
-    skip=1; shift
-  elif [[ "$1" = -q ]]; then
-    quiet=true; shift
-  fi
+while (( $# )); do
+  [[ -f "$1"   ]] && { ignored=$(realpath -m --relative-to="$musicdir" "$1"); skip=0; shift; continue; }
+  [[ "$1" = -y ]] && { skip=1; shift; continue; }
+  [[ "$1" = -q ]] && { quiet=1; shift; continue; }
+  printf '%s is not a vaild file or argument (exit 1)\n' "$1" && exit 1
 done
 
 #mpctitleout="$(mpctitle&)"  #maybe start getting the data first in bg?
 
-if ! "${quiet:=false}"; then printf 'Ignoring current song: %s\n' "$(mpc -f %file%)"; fi
-
 : "${ignored:=$(mpc current -f %file%)}"
 
+(( quiet )) && printf 'Ignoring song: %s\n' "$ignored"
+
 if [[ "$mpdhost" = @(localhost|127.0.0.1) ]]; then
-  echo "${ignored:=$(mpc current -f %file%)}" >> "$mpdpldir"/.mpdignore.m3u
+  printf %s\\n "$ignored" >> "$mpdpldir"/.mpdignore.m3u
 else
 #  [[ "$mpdpldir" =~ \  ]] && mpdpldir="${mpdpldir// /\\ }"  #is this functional?  use awy $1=$1?
 #  ignored=$(mpc current -f %file%)
@@ -42,7 +37,7 @@ else
 
 #  ssh -p"$sshport" "$mpdhost" "printf '%s\n' \"$ignored\" >> \"$mpdpldir/.mpdignore.m3u\""
 
-printf '%s\n' "$ignored" | ssh -T -p"$sshport" "$mpdhost"   "tee -a '$mpdpldir/.mpdignore.m3u' >/dev/null"
+  printf '%s\n' "$ignored" | ssh -T -p"$sshport" "$mpdhost"   "tee -a '$mpdpldir/.mpdignore.m3u' >/dev/null"
 
 fi
 
