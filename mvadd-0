@@ -42,8 +42,9 @@ for src in "${srcs[@]}"; do
 
     # Determine the new relative path for MPD
     mpc update "$newpath"
-    \sleep 2s
-    pause "$(grep \:\ update\: /var/log/mpd/mpd.log|tail -n 40)"
+#    \sleep 2s
+#    pause "$(grep \:\ update\: /var/log/mpd/mpd.log|tail -fn 40)"
+    mpc idle update
 
     # Add to MPD
     add "$newpath"

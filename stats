@@ -7,10 +7,14 @@
 [[ "$1" = -d ]] && musicdir="$2" && shift 2
 
 stats="$musicdir/stats"
+
+tail -F -n18 "$stats" &
+
+printf '\n' >> "$stats"
 date >>"$stats"
 mpc stats >> "$stats"
 
-printf "\n\n" >> "$stats"
+printf '\n\n' >> "$stats"
 
 #flac files
 for i in flac mp3 opus ogg mp4; do
@@ -31,4 +35,8 @@ done
 
 [[ "$1" == --duration* ]] && mediaduration >> "$stats"
 
-cat "$stats"
+#cat "$stats"
+
+printf \\n
+read -rp 'Press any key to exit...'
+pkill -P $$

@@ -6,9 +6,22 @@ shopt -s extglob
 
 ip=127.0.0.1
 defaultconfig="$HOME/.config/mpd-local.conf"
-config="$defaultconfig"
 
-[[ ! -f "$config" ]] && printf '\n[error] No default config file found. \nCreate: %s\n\n' "$config"
+#parse --config early:
+argvar=()
+for arg in "$@"; do
+  if [[ "$arg" == --config=* ]]; then
+    config="${arg#--config=}"
+    continue
+  fi
+  argvar+=("$arg")
+done
+
+set -- "${argvar[@]}"
+
+: "${config:=$defaultconfig}"
+
+[[ ! -f "$config" ]] && printf '\n[error] No default config file found. \nCreate: %s\n\n' "$config" >&2
 
 gigabyte=192.168.1.2
 optiplex=192.168.12.222
@@ -341,13 +354,13 @@ if (( ${#matched_sinks[@]} != 1 || menu )); then
   sinkid="$choice"
 
 else
-    # Only one match
-    sinkid="$(base64 --decode <<<"${matched_sinks[0]}" | jq -r '.index')"
-    decoded="$(base64 --decode <<<"${matched_sinks[0]}")"
-    sinkarr["$sinkid"]=$(jq -r '"\(.index)☢\(.name)☢\(.description)☢\(.channel_map)☢\(.volume)☢\(.mute)"' <<<"$decoded")
-    chanarr["$sinkid"]=$(jq -c '.channel_map' <<<"$decoded")
-#    volarr["$sinkid"]=$(jq -c '.volume' <<<"$decoded")
-    volarr["$sinkid"]=$(jq -c '{volume: .volume, mute: .mute}' <<<"$decoded")
+  # Only one match
+  sinkid="$(base64 --decode <<<"${matched_sinks[0]}" | jq -r '.index')"
+  decoded="$(base64 --decode <<<"${matched_sinks[0]}")"
+  sinkarr["$sinkid"]=$(jq -r '"\(.index)☢\(.name)☢\(.description)☢\(.channel_map)☢\(.volume)☢\(.mute)"' <<<"$decoded")
+  chanarr["$sinkid"]=$(jq -c '.channel_map' <<<"$decoded")
+# volarr["$sinkid"]=$(jq -c '.volume' <<<"$decoded")
+  volarr["$sinkid"]=$(jq -c '{volume: .volume, mute: .mute}' <<<"$decoded")
 
 fi
 

@@ -432,6 +432,7 @@ help(){
 	  outputs | enable <n> | disable <n>
 	  notify
 	  mpdlinger ...
+    cd <--last|--next>
 
 	examples:
 	  mpctitle play
@@ -444,6 +445,18 @@ printf '\n\n'
 \mpc help
 }
 
+mpccd(){
+  local cddir="${1:-current}"
+  mpdcurrent
+  if [[ "$cddir" = next ]]; then
+    echo "$next_filepath"
+  else echo "$filepath"
+  fi
+}
+
+wsgl(){
+  websocat ws://"$mpdhost":8008/ws <<< "$1"|jq .
+}
 
 ### Main Code: mpctitle
 ### flag processing
@@ -458,7 +471,11 @@ while (( "$#" )); do
   [[ "$1" = 'next' ]] && { shift; exec next "$@"; exit "$?"; }
   [[ "$1" = --config && -r "$2" ]] && { config="$2"; shift 2; continue; }
   [[ "$1" = --config && ! -r "$2" ]] && { printf 'Invalid --config file specified. (exit 1)\n'; exit 1; }
+  [[ "$1" = 'timer' ]] && { shift; ! [[ "$1" =~ ^[0-9]+$ ]] && exit || min="$1";
+                            shift; sec=$(( min * 60 )); read -rp "$sec";
+                            wsgl "{\"system\":\"pause_timer\",\"cmd\":\"on\",\"args\":$sec}" ; continue; }
   [[ "$1" = @(linger|@(|block)@(|limit)) ]] && { lingercli "$@"; set -- "${ca[@]}"; continue; }
+  [[ "$1" = cd ]] && { shift; mpccd "$1"; exit; }
   if [[ "$1" = @(rand@(|om)|consume|repeat|single|toggle|pause|play|crop) ]]; then
     if [[ "$2" = @(on|off) ]]; then
       \mpc -q -h "$mpdpass@$mpchost" "$1" "$2" || { echo "Check mpd connection"; exit 1; }
@@ -711,8 +728,6 @@ output+=( "$( printf '          %s%s%s%s%s - %s%s%s%s%s\n' \
   "${paused:+$italics}" \
   "$title" \
   "$tput0" )" )
-
-#\mpc status "\[%state%\] ##%songpos%/%length%  %currenttime%/%totaltime% (%percenttime%)\nvolume:%volume%   repeat: %repeat%   random: %random%   single: %single%   consume: %consume%"
 
 output+=( "$(printf '          %s%s[%s%s%s%s%s%s] #%s%s%s/%s  %s/%s (%s%%)\n' \
   "${paused:+$italics}" \
