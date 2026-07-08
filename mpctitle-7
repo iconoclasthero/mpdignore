@@ -171,7 +171,8 @@ notify(){
 }
 
 notify(){
-exec notify-send -a "mpctitle" -i audio-x-generic "$(mpctitle | perl -pe 's/\x1b(\[[0-9;?]*[ -\/]*[@-~]|\(B)//g')"
+  [[ "$1" = --gnome ]] && { exec mpc current -f %artist%\ -\ %title%\ -\ %album%\ \(%date%\) || exit 1; }
+  exec notify-send -a "mpctitle" -i audio-x-generic "$(mpctitle | perl -pe 's/\x1b(\[[0-9;?]*[ -\/]*[@-~]|\(B)//g')"
 }
 
 getlast(){
@@ -509,7 +510,7 @@ while (( "$#" )); do
     exit "$?"
   fi
 ## this probably needs to be changed to a flag variable since I have no idea how this was indended to work right now
-  [[ "$1" = notify ]] && { shift; notify; exit "$?"; }
+  [[ "$1" = notify ]] && { shift; notify "$@"; exit "$?"; }
   [[ "$1" = enabled ]] && { hr2 "$1"; mpcp outputs|grep --color=always enabled; shift; }
   [[ "$1" = outputs ]] && { hr2 "$1"; mpcp outputs|mpcp outputs |
                              awk -v blue="$blue" -v red="$red" -v tput0="$tput0" \
