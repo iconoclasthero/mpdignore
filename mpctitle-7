@@ -171,7 +171,7 @@ notify(){
 }
 
 notify(){
-  [[ "$1" = --gnome ]] && { exec notify-send -a "mpctitle" -i audio-x-generic "$( mpc current -f %artist%\ -\ %title%\ \n %album%\ \(%date%\) )" || exit 1; }
+  [[ "$1" = --gnome ]] && { exec notify-send -a "mpctitle" -i audio-x-generic "$( mpc current -f %artist%\ -\ %title%\ \n\ %album%\ \(%date%\) )" || exit 1; }
   exec notify-send -a "mpctitle" -i audio-x-generic "$(mpctitle | perl -pe 's/\x1b(\[[0-9;?]*[ -\/]*[@-~]|\(B)//g')"
 }
 
