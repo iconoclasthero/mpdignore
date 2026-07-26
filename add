@@ -7,7 +7,6 @@ boldred=$(tput bold setaf 9)
 tput0=$(tput sgr0)
 
 [[ -S "$MPD_SOCK" ]] && mpchost="$MPD_SOCK"
-read -rp "$musicdir"
 
 mpccmd=( mpc --password "$mpdpass" --host "$mpchost" )
 #mpccmd=( mpc -h "$mpdpass@$mpchost" )
@@ -68,7 +67,8 @@ addout=( "$(mpc --password "$mpdpass" --host "$mpchost" add "${arr[@]}" 2>&1)" )
 printf \\n
 printf %s\\n "${addout[@]}"
 printf \\n
-read -rp "$startlength"
+
+read -rp "Start length: $startlength; play $(( startlength++ ))"
 
 if (( ec )); then
   errorout="${addout##*: }"
