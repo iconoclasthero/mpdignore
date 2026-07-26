@@ -6,6 +6,9 @@
 boldred=$(tput bold setaf 9)
 tput0=$(tput sgr0)
 
+[[ -S "$MPD_SOCK" ]] && mpchost="$MPD_SOCK"
+read -rp "$mpchost"
+
 mpccmd=( mpc --password "$mpdpass" --host "$mpchost" )
 #mpccmd=( mpc -h "$mpdpass@$mpchost" )
 
