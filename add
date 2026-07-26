@@ -46,7 +46,7 @@ for i in "${!arr[@]}"; do
 
   # only accept paths inside musicdir
   if [[ "$p" = "$localmusicdir/"* ]]; then
-    arr[i]="${p#"$musicdir/"}"
+    arr[i]="${p#"$localmusicdir/"}"
   else
     printf 'Skipping out-of-tree path: %s\n' "$p" >&2
     unset 'arr[i]'
