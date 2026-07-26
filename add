@@ -7,6 +7,7 @@ boldred=$(tput bold setaf 9)
 tput0=$(tput sgr0)
 
 [[ -S "$MPD_SOCK" ]] && mpchost="$MPD_SOCK"
+[[ "$localmusicdir" ]] && musicdir="$localmusicdir"
 read -rp "$musicdir"
 
 mpccmd=( mpc --password "$mpdpass" --host "$mpchost" )
